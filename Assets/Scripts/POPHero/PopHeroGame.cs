@@ -1,9 +1,12 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace POPHero
 {
     public class PopHeroGame : MonoBehaviour
     {
+        static readonly float[] WallStoneShadePattern = { -0.22f, 0.1f, -0.08f, 0.16f, -0.14f, 0.05f, 0.12f, -0.04f };
+
         public PopHeroPrototypeConfig config;
 
         public RoundState State { get; private set; }
@@ -27,6 +30,7 @@ namespace POPHero
         public InputAimMode CurrentAimMode => config.aim.currentAimMode;
         public string CurrentAimModeLabel => CurrentAimMode == InputAimMode.PCMouseAimClick ? "PC 鼠标移动瞄准 + 点击发射" : "手机拖动定方向 + 再点一次发射";
         public Vector2 CurrentLaunchPoint => roundController != null ? roundController.LaunchPosition : new Vector2(BoardRect.center.x, LaunchY);
+        public IReadOnlyList<WallAimPoint> WallAimPoints => wallAimPoints;
 
         PlayerLauncher launcher;
         BallController ballController;
@@ -39,6 +43,7 @@ namespace POPHero
         DamageCounterView damageCounterView;
         PhysicsMaterial2D bounceMaterial;
         Transform launchMarker;
+        readonly List<WallAimPoint> wallAimPoints = new();
         int enemyEncounterIndex;
 
         void Awake()
@@ -139,6 +144,7 @@ namespace POPHero
             boardManager.Initialize(this, blockRoot, bounceMaterial);
             trajectoryPredictor = gameObject.AddComponent<TrajectoryPredictor>();
             trajectoryPredictor.Initialize(this, ballController);
+            ballController.SetTrajectoryPredictor(trajectoryPredictor);
             launcher = ballController.gameObject.AddComponent<PlayerLauncher>();
             launcher.Initialize(this, ballController, trajectoryPredictor);
             hud = gameObject.AddComponent<PopHeroHud>();
@@ -193,9 +199,10 @@ namespace POPHero
             var launchMarkerSize = Mathf.Max(0.14f, config.ball.radius * 2.2f);
             launchMarker = PrototypeVisualFactory.CreateSpriteObject("LaunchMarker", parent, PrototypeVisualFactory.CircleSprite, new Color(0.97f, 0.97f, 1f, 0.65f), 25, Vector2.one * launchMarkerSize).transform;
 
-            CreateWall(parent, "WallTop", new Vector2(BoardRect.center.x, BoardRect.yMax + config.arena.wallThickness * 0.5f), new Vector2(BoardRect.width + config.arena.wallThickness * 2f, config.arena.wallThickness), ArenaSurfaceType.Top);
-            CreateWall(parent, "WallLeft", new Vector2(BoardRect.xMin - config.arena.wallThickness * 0.5f, BoardRect.center.y), new Vector2(config.arena.wallThickness, BoardRect.height + config.arena.wallThickness), ArenaSurfaceType.Left);
-            CreateWall(parent, "WallRight", new Vector2(BoardRect.xMax + config.arena.wallThickness * 0.5f, BoardRect.center.y), new Vector2(config.arena.wallThickness, BoardRect.height + config.arena.wallThickness), ArenaSurfaceType.Right);
+            CreateBrickWall(parent, "WallTop", ArenaSurfaceType.Top, 0);
+            CreateBrickWall(parent, "WallLeft", ArenaSurfaceType.Left, 3);
+            CreateBrickWall(parent, "WallRight", ArenaSurfaceType.Right, 6);
+            RebuildWallAimPoints();
 
             var bottomLine = PrototypeVisualFactory.CreateSpriteObject("BottomLine", parent, PrototypeVisualFactory.SquareSprite, new Color(0.93f, 0.66f, 0.18f, 0.36f), 7, new Vector2(BoardRect.width, 0.14f));
             bottomLine.transform.position = new Vector3(BoardRect.center.x, BoardRect.yMin + 0.02f, 0f);
@@ -206,14 +213,270 @@ namespace POPHero
             marker.surfaceType = ArenaSurfaceType.Bottom;
         }
 
-        void CreateWall(Transform parent, string objectName, Vector2 position, Vector2 scale, ArenaSurfaceType surfaceType)
+        public bool TryGetWallSnap(ArenaSurfaceType surfaceType, Vector2 rawBallCenter, out Vector2 snappedBallCenter, out Vector2 wallNormal)
         {
-            var wall = PrototypeVisualFactory.CreateSpriteObject(objectName, parent, PrototypeVisualFactory.SquareSprite, config.arena.wallColor, 8, scale);
+            snappedBallCenter = rawBallCenter;
+            wallNormal = Vector2.zero;
+            var radius = config.ball.radius;
+            switch (surfaceType)
+            {
+                case ArenaSurfaceType.Top:
+                {
+                    var spacing = GetWallAnchorSpacing(surfaceType);
+                    snappedBallCenter.x = SnapToWallAnchor(rawBallCenter.x, BoardRect.xMin, BoardRect.xMax, spacing);
+                    snappedBallCenter.y = BoardRect.yMax - radius;
+                    wallNormal = Vector2.down;
+                    return true;
+                }
+                case ArenaSurfaceType.Left:
+                {
+                    var spacing = GetWallAnchorSpacing(surfaceType);
+                    snappedBallCenter.x = BoardRect.xMin + radius;
+                    snappedBallCenter.y = SnapToWallAnchor(rawBallCenter.y, BoardRect.yMin, BoardRect.yMax, spacing);
+                    wallNormal = Vector2.right;
+                    return true;
+                }
+                case ArenaSurfaceType.Right:
+                {
+                    var spacing = GetWallAnchorSpacing(surfaceType);
+                    snappedBallCenter.x = BoardRect.xMax - radius;
+                    snappedBallCenter.y = SnapToWallAnchor(rawBallCenter.y, BoardRect.yMin, BoardRect.yMax, spacing);
+                    wallNormal = Vector2.left;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public bool TryProjectAimToWall(Vector2 direction, out ArenaSurfaceType wallSide, out Vector2 projectedPoint)
+        {
+            wallSide = ArenaSurfaceType.Top;
+            projectedPoint = CurrentLaunchPoint;
+
+            var safeDirection = direction.sqrMagnitude <= 0.0001f ? Vector2.up : direction.normalized;
+            if (safeDirection.y <= 0.0001f)
+                return false;
+
+            var origin = CurrentLaunchPoint;
+            var radius = config.ball.radius;
+            var topY = BoardRect.yMax - radius;
+            var leftX = BoardRect.xMin + radius;
+            var rightX = BoardRect.xMax - radius;
+            var bestT = float.MaxValue;
+
+            var topT = (topY - origin.y) / safeDirection.y;
+            if (topT > 0f)
+            {
+                bestT = topT;
+                wallSide = ArenaSurfaceType.Top;
+                projectedPoint = new Vector2(origin.x + safeDirection.x * topT, topY);
+            }
+
+            if (safeDirection.x < -0.0001f)
+            {
+                var leftT = (leftX - origin.x) / safeDirection.x;
+                if (leftT > 0f && leftT < bestT)
+                {
+                    bestT = leftT;
+                    wallSide = ArenaSurfaceType.Left;
+                    projectedPoint = new Vector2(leftX, origin.y + safeDirection.y * leftT);
+                }
+            }
+
+            if (safeDirection.x > 0.0001f)
+            {
+                var rightT = (rightX - origin.x) / safeDirection.x;
+                if (rightT > 0f && rightT < bestT)
+                {
+                    bestT = rightT;
+                    wallSide = ArenaSurfaceType.Right;
+                    projectedPoint = new Vector2(rightX, origin.y + safeDirection.y * rightT);
+                }
+            }
+
+            return bestT < float.MaxValue;
+        }
+
+        public WallAimPoint FindNearestWallAimPoint(ArenaSurfaceType wallSide, Vector2 projectedPoint)
+        {
+            WallAimPoint nearest = null;
+            var bestDistance = float.MaxValue;
+            foreach (var aimPoint in wallAimPoints)
+            {
+                if (aimPoint.wallSide != wallSide)
+                    continue;
+
+                var distance = GetWallAxisDistance(projectedPoint, aimPoint.position, wallSide);
+                if (distance < bestDistance)
+                {
+                    bestDistance = distance;
+                    nearest = aimPoint;
+                }
+            }
+
+            return nearest;
+        }
+
+        public float GetAimSnapRadius(ArenaSurfaceType wallSide)
+        {
+            return GetWallAnchorSpacing(wallSide) * Mathf.Max(0.1f, config.aim.wallAimSnapFactor);
+        }
+
+        public float GetAimReleaseRadius(ArenaSurfaceType wallSide)
+        {
+            return GetWallAnchorSpacing(wallSide) * Mathf.Max(config.aim.wallAimSnapFactor, config.aim.wallAimReleaseFactor);
+        }
+
+        public float GetWallAxisDistance(Vector2 from, Vector2 to, ArenaSurfaceType wallSide)
+        {
+            return wallSide == ArenaSurfaceType.Top ? Mathf.Abs(from.x - to.x) : Mathf.Abs(from.y - to.y);
+        }
+
+        void CreateBrickWall(Transform parent, string objectName, ArenaSurfaceType surfaceType, int patternOffset)
+        {
+            var root = new GameObject(objectName).transform;
+            root.SetParent(parent, false);
+
+            var thickness = config.arena.wallThickness;
+            var visualGap = Mathf.Clamp(config.arena.wallStoneVisualGap, 0f, thickness * 0.5f);
+            var colliderOverlap = Mathf.Clamp(config.arena.wallStoneColliderOverlap, 0f, 0.12f);
+            var count = GetWallAnchorCount(surfaceType);
+            var spacing = GetWallAnchorSpacing(surfaceType);
+            var start = surfaceType == ArenaSurfaceType.Top ? BoardRect.xMin : BoardRect.yMin;
+
+            for (var index = 0; index < count; index++)
+            {
+                var anchor = start + spacing * (index + 0.5f);
+                var position = surfaceType switch
+                {
+                    ArenaSurfaceType.Top => new Vector2(anchor, BoardRect.yMax + thickness * 0.5f),
+                    ArenaSurfaceType.Left => new Vector2(BoardRect.xMin - thickness * 0.5f, anchor),
+                    ArenaSurfaceType.Right => new Vector2(BoardRect.xMax + thickness * 0.5f, anchor),
+                    _ => Vector2.zero
+                };
+                var colliderSize = surfaceType == ArenaSurfaceType.Top
+                    ? new Vector2(spacing + colliderOverlap, thickness)
+                    : new Vector2(thickness, spacing + colliderOverlap);
+                var visualSize = surfaceType == ArenaSurfaceType.Top
+                    ? new Vector2(Mathf.Max(0.12f, spacing - visualGap), thickness * 0.86f)
+                    : new Vector2(thickness * 0.86f, Mathf.Max(0.12f, spacing - visualGap));
+
+                CreateWallBrick(root, $"{objectName}_{index:00}", position, colliderSize, visualSize, surfaceType, index + patternOffset);
+            }
+        }
+
+        void CreateWallBrick(Transform parent, string objectName, Vector2 position, Vector2 colliderSize, Vector2 visualSize, ArenaSurfaceType surfaceType, int patternIndex)
+        {
+            var wall = new GameObject(objectName);
+            wall.transform.SetParent(parent, false);
             wall.transform.position = position;
+
             var collider = wall.AddComponent<BoxCollider2D>();
             collider.sharedMaterial = bounceMaterial;
+            collider.size = colliderSize;
             var marker = wall.AddComponent<ArenaSurfaceMarker>();
             marker.surfaceType = surfaceType;
+
+            var colorVariance = Mathf.Clamp(config.arena.wallStoneColorVariance, 0f, 0.3f);
+            var shade = GetSignedPatternValue(WallStoneShadePattern, patternIndex);
+            var stoneColor = config.arena.wallColor;
+            if (shade > 0f)
+                stoneColor = Color.Lerp(stoneColor, Color.white, Mathf.Clamp01(shade * colorVariance * 2.2f));
+            else if (shade < 0f)
+                stoneColor = Color.Lerp(stoneColor, Color.black, Mathf.Clamp01(-shade * colorVariance * 1.8f));
+
+            var stoneVisual = PrototypeVisualFactory.CreateSpriteObject("Visual", wall.transform, PrototypeVisualFactory.SquareSprite, stoneColor, 8, visualSize);
+            stoneVisual.transform.localPosition = Vector3.zero;
+
+            var highlight = PrototypeVisualFactory.CreateSpriteObject("Highlight", wall.transform, PrototypeVisualFactory.SquareSprite, new Color(1f, 1f, 1f, 0.12f), 9, visualSize * 0.78f);
+            highlight.transform.localPosition = surfaceType switch
+            {
+                ArenaSurfaceType.Top => new Vector3(0f, visualSize.y * 0.08f, 0f),
+                ArenaSurfaceType.Left => new Vector3(visualSize.x * 0.08f, 0f, 0f),
+                ArenaSurfaceType.Right => new Vector3(-visualSize.x * 0.08f, 0f, 0f),
+                _ => Vector3.zero
+            };
+        }
+
+        int GetWallAnchorCount(ArenaSurfaceType surfaceType)
+        {
+            var span = surfaceType == ArenaSurfaceType.Top ? BoardRect.width : BoardRect.height;
+            var unitLength = Mathf.Max(config.arena.wallStoneUnitLength, config.ball.radius * 2.6f);
+            var baseCount = Mathf.Max(3, Mathf.RoundToInt(span / unitLength));
+            var subdivisions = Mathf.Max(1, config.arena.wallPointSubdivisions);
+            return baseCount * subdivisions;
+        }
+
+        float GetWallAnchorSpacing(ArenaSurfaceType surfaceType)
+        {
+            var span = surfaceType == ArenaSurfaceType.Top ? BoardRect.width : BoardRect.height;
+            return span / GetWallAnchorCount(surfaceType);
+        }
+
+        static float SnapToWallAnchor(float value, float min, float max, float spacing)
+        {
+            if (spacing <= 0.001f)
+                return Mathf.Clamp(value, min, max);
+
+            var firstAnchor = min + spacing * 0.5f;
+            var anchorCount = Mathf.Max(1, Mathf.RoundToInt((max - min) / spacing));
+            var index = Mathf.RoundToInt((value - firstAnchor) / spacing);
+            index = Mathf.Clamp(index, 0, anchorCount - 1);
+            return Mathf.Clamp(firstAnchor + index * spacing, min, max);
+        }
+
+        static float GetSignedPatternValue(float[] pattern, int index)
+        {
+            if (pattern == null || pattern.Length == 0)
+                return 0f;
+
+            var wrappedIndex = Mathf.Abs(index) % pattern.Length;
+            return Mathf.Clamp(pattern[wrappedIndex], -1f, 1f);
+        }
+
+        void RebuildWallAimPoints()
+        {
+            wallAimPoints.Clear();
+            AddWallAimPoints(ArenaSurfaceType.Top);
+            AddWallAimPoints(ArenaSurfaceType.Left);
+            AddWallAimPoints(ArenaSurfaceType.Right);
+        }
+
+        void AddWallAimPoints(ArenaSurfaceType wallSide)
+        {
+            var count = GetWallAnchorCount(wallSide);
+            var spacing = GetWallAnchorSpacing(wallSide);
+            var start = wallSide == ArenaSurfaceType.Top ? BoardRect.xMin : BoardRect.yMin;
+            var radius = config.ball.radius;
+
+            for (var index = 0; index < count; index++)
+            {
+                var anchor = start + spacing * (index + 0.5f);
+                var position = wallSide switch
+                {
+                    ArenaSurfaceType.Top => new Vector2(anchor, BoardRect.yMax - radius),
+                    ArenaSurfaceType.Left => new Vector2(BoardRect.xMin + radius, anchor),
+                    ArenaSurfaceType.Right => new Vector2(BoardRect.xMax - radius, anchor),
+                    _ => Vector2.zero
+                };
+                var normal = wallSide switch
+                {
+                    ArenaSurfaceType.Top => Vector2.down,
+                    ArenaSurfaceType.Left => Vector2.right,
+                    ArenaSurfaceType.Right => Vector2.left,
+                    _ => Vector2.zero
+                };
+
+                wallAimPoints.Add(new WallAimPoint
+                {
+                    id = $"{wallSide}_{index:000}",
+                    position = position,
+                    wallSide = wallSide,
+                    normal = normal,
+                    priority = index
+                });
+            }
         }
 
         void BuildBall(Transform parent)
@@ -249,17 +512,18 @@ namespace POPHero
             ballController.Initialize(this, rigidbody2D, circleCollider, trail);
         }
 
-        public void TryLaunchBall(Vector2 direction)
+        public void TryLaunchBall(Vector2 direction, TrajectoryPreviewResult preview = null)
         {
             if (State != RoundState.Aim || direction.sqrMagnitude <= 0.001f || RemainingLaunchesForEnemy <= 0)
                 return;
 
+            preview ??= trajectoryPredictor?.BuildPreview(CurrentLaunchPoint, direction, config.ball.previewSegments, config.ball.previewDistance);
             RemainingLaunchesForEnemy = Mathf.Max(0, RemainingLaunchesForEnemy - 1);
             RefreshLaunchCounter();
             roundController.BeginRound();
             ChangeState(RoundState.BallFlying);
             RefreshPendingDamagePreview();
-            ballController.Launch(direction, config.ball.speed);
+            ballController.Launch(direction, config.ball.speed, preview);
         }
 
         public void OnBallReturned(Vector2 landingPoint)
@@ -298,7 +562,7 @@ namespace POPHero
             if (CurrentEnemy != null)
             {
                 Player.AddGold(CurrentEnemy.RewardGold);
-                Player.Heal(CurrentEnemy.RewardHeal);
+                Player.RestoreToFullHealth();
             }
 
             Player.RegisterKillAndTryLevelUp();

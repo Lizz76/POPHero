@@ -1,5 +1,16 @@
+using UnityEngine;
+
 namespace POPHero
 {
+    public class WallAimPoint
+    {
+        public string id;
+        public Vector2 position;
+        public ArenaSurfaceType wallSide;
+        public Vector2 normal;
+        public int priority;
+    }
+
     public enum RoundState
     {
         Aim,

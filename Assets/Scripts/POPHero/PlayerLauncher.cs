@@ -9,6 +9,8 @@ namespace POPHero
         TrajectoryPredictor trajectoryPredictor;
         LineRenderer aimLine;
         Camera mainCamera;
+        TrajectoryPreviewResult currentPreview;
+        WallAimPoint currentLockedAimPoint;
         bool isDragging;
         bool aimLocked;
         bool hasValidAimDirection;
@@ -65,6 +67,8 @@ namespace POPHero
             isDragging = false;
             aimLocked = false;
             hasValidAimDirection = false;
+            currentPreview = null;
+            currentLockedAimPoint = null;
             aimLine.enabled = false;
             aimLine.positionCount = 0;
             game?.ClearAimPreview();
@@ -166,39 +170,87 @@ namespace POPHero
             if (!hasValidAimDirection)
                 return;
 
-            game.TryLaunchBall(currentAimDirection);
+            game.TryLaunchBall(currentAimDirection, currentPreview);
         }
 
         void UpdateAimPreview(Vector2 worldPoint, bool lockAimAfterUpdate)
         {
             var origin = game.CurrentLaunchPoint;
-            currentAimDirection = ClampAimDirection(worldPoint - origin);
+            var rawDirection = ClampAimDirection(worldPoint - origin);
+            if (!game.TryProjectAimToWall(rawDirection, out var projectedWallSide, out var projectedPoint))
+            {
+                ClearCurrentAim();
+                return;
+            }
+
+            currentLockedAimPoint = ResolveLockedAimPoint(projectedWallSide, projectedPoint);
+            if (currentLockedAimPoint == null)
+            {
+                ClearCurrentAim();
+                return;
+            }
+
+            currentAimDirection = ClampAimDirection(currentLockedAimPoint.position - origin);
             hasValidAimDirection = currentAimDirection.sqrMagnitude > 0.001f;
-            aimLocked = lockAimAfterUpdate && hasValidAimDirection;
+            aimLocked = (lockAimAfterUpdate || aimLocked) && hasValidAimDirection;
 
             if (!hasValidAimDirection)
             {
-                aimLine.enabled = false;
-                aimLine.positionCount = 0;
-                game.ClearAimPreview();
+                ClearCurrentAim();
                 return;
             }
 
             var preview = trajectoryPredictor.BuildPreview(origin, currentAimDirection, game.config.ball.previewSegments, game.config.ball.previewDistance);
             if (!preview.HasValidPath)
             {
+                currentPreview = null;
                 aimLine.enabled = false;
                 aimLine.positionCount = 0;
                 game.ClearAimPreview();
                 return;
             }
 
+            currentPreview = preview;
             aimLine.enabled = true;
             aimLine.positionCount = preview.pathPoints.Count;
             for (var i = 0; i < preview.pathPoints.Count; i++)
                 aimLine.SetPosition(i, preview.pathPoints[i]);
 
             game.ApplyPreviewResult(preview);
+        }
+
+        WallAimPoint ResolveLockedAimPoint(ArenaSurfaceType projectedWallSide, Vector2 projectedPoint)
+        {
+            var nearestPoint = game.FindNearestWallAimPoint(projectedWallSide, projectedPoint);
+            if (nearestPoint == null)
+                return currentLockedAimPoint;
+
+            if (currentLockedAimPoint == null)
+                return nearestPoint;
+
+            if (currentLockedAimPoint.wallSide == projectedWallSide)
+            {
+                var distanceToCurrent = game.GetWallAxisDistance(projectedPoint, currentLockedAimPoint.position, projectedWallSide);
+                if (distanceToCurrent <= game.GetAimReleaseRadius(projectedWallSide))
+                    return currentLockedAimPoint;
+            }
+
+            var distanceToNearest = game.GetWallAxisDistance(projectedPoint, nearestPoint.position, projectedWallSide);
+            if (distanceToNearest <= game.GetAimSnapRadius(projectedWallSide))
+                return nearestPoint;
+
+            return currentLockedAimPoint.wallSide == projectedWallSide ? currentLockedAimPoint : nearestPoint;
+        }
+
+        void ClearCurrentAim()
+        {
+            aimLocked = false;
+            hasValidAimDirection = false;
+            currentPreview = null;
+            currentLockedAimPoint = null;
+            aimLine.enabled = false;
+            aimLine.positionCount = 0;
+            game.ClearAimPreview();
         }
 
         bool ShouldStartDrag(Vector2 worldPoint)

@@ -57,6 +57,11 @@ namespace POPHero
             CurrentHp = Mathf.Clamp(CurrentHp + Mathf.Max(0, amount), 0, MaxHp);
         }
 
+        public void RestoreToFullHealth()
+        {
+            CurrentHp = MaxHp;
+        }
+
         public void ApplyDamage(int damage)
         {
             var remaining = Mathf.Max(0, damage);

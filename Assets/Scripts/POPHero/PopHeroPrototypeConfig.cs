@@ -30,6 +30,11 @@ namespace POPHero
         public Vector2 boardCenter = new(0f, -1.6f);
         public Vector2 boardSize = new(10.6f, 10.8f);
         public float wallThickness = 0.45f;
+        public float wallStoneUnitLength = 0.62f;
+        public int wallPointSubdivisions = 3;
+        public float wallStoneVisualGap = 0.08f;
+        public float wallStoneColliderOverlap = 0.04f;
+        public float wallStoneColorVariance = 0.18f;
         public float topPanelHeight = 3f;
         public float launchLineOffset = 0.42f;
         public float bottomTriggerHeight = 0.3f;
@@ -51,6 +56,8 @@ namespace POPHero
         public float speed = 12f;
         public float accelerationPerBounce = 1.5f;
         public float maxSpeed = 24f;
+        public float maxFlightDuration = 18f;
+        public float outOfBoundsRecoveryPadding = 0.8f;
         public float minAimAngle = 18f;
         public float maxAimAngle = 162f;
         public int previewSegments = 30;
@@ -74,6 +81,8 @@ namespace POPHero
     {
         public InputAimMode currentAimMode = InputAimMode.PCMouseAimClick;
         public float dragStartRadius = 0.95f;
+        public float wallAimSnapFactor = 0.45f;
+        public float wallAimReleaseFactor = 0.9f;
     }
 
     [Serializable]
@@ -160,5 +169,7 @@ namespace POPHero
     public class DebugSettings
     {
         public bool showSpawnSafeZone = true;
+        public bool showTrajectoryComparison = true;
+        public bool showActualHitMarkers = true;
     }
 }
