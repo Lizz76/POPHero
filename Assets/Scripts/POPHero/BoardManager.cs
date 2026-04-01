@@ -5,130 +5,166 @@ namespace POPHero
 {
     public class BoardManager : MonoBehaviour
     {
-        class BlockBlueprint
-        {
-            public string id;
-            public BoardBlockType type;
-            public float valueA;
-            public float valueB;
-        }
-
-        readonly List<BlockBlueprint> blueprints = new();
-        readonly List<BoardBlock> activeBlocks = new();
+        readonly PlayerBlockCollection blockCollection = new();
+        readonly List<BoardBlock> runtimeBlocks = new();
+        readonly List<BlockRewardOption> activeRewardOptions = new();
+        readonly List<BlockCardState> allCardsCache = new();
 
         PopHeroGame game;
         Transform blockRoot;
         PhysicsMaterial2D bounceMaterial;
-        int blueprintId;
-        int visibleBlockCount;
+        int cardSerial;
         GameObject safeZoneMarker;
         Rect currentSafeZone;
 
-        public IReadOnlyList<BoardBlock> ActiveBlocks => activeBlocks;
+        public IReadOnlyList<BoardBlock> ActiveBlocks => runtimeBlocks;
+        public IReadOnlyList<BlockCardState> ActiveCardStates => blockCollection.activeBlocks;
+        public IReadOnlyList<BlockCardState> ReserveCardStates => blockCollection.reserveBlocks;
+        public IReadOnlyList<BlockCardState> AllCardStates => allCardsCache;
+        public IReadOnlyList<BlockRewardOption> ActiveRewardOptions => activeRewardOptions;
         public Rect CurrentSafeZone => currentSafeZone;
-        public int BlueprintCount => blueprints.Count;
-        public int VisibleBlockCount => Mathf.Clamp(visibleBlockCount, 0, blueprints.Count);
+        public int ActiveCapacity => Mathf.Max(1, game.config.blockRewards.maxActiveBlocks);
+        public int ReserveCapacity => Mathf.Max(0, game.config.blockRewards.maxReserveBlocks);
+        public int ActiveCardCount => blockCollection.ActiveCount;
+        public int ReserveCardCount => blockCollection.ReserveCount;
+        public int BlueprintCount => blockCollection.GetTotalBlockCount();
+        public int VisibleBlockCount => blockCollection.ActiveCount;
+        public bool IsActiveFull => blockCollection.IsActiveFull(ActiveCapacity);
+        public bool IsReserveFull => blockCollection.IsReserveFull(ReserveCapacity);
+        public bool CanAcceptRewardBlock => !IsActiveFull || !IsReserveFull;
+        public bool RewardWillGoToReserve => IsActiveFull && !IsReserveFull;
 
         public void Initialize(PopHeroGame owner, Transform runtimeRoot, PhysicsMaterial2D material)
         {
             game = owner;
             blockRoot = runtimeRoot;
             bounceMaterial = material;
-            CreateInitialBlueprints();
-            ResetBlockProgression();
+            blockCollection.Clear();
+            activeRewardOptions.Clear();
+            allCardsCache.Clear();
+            cardSerial = 0;
             BuildSafeZoneMarker();
         }
 
         public void ShuffleBlocks(Vector2 launchPoint)
         {
-            RefreshVisibleBlockCount();
-            ClearActiveBlocks();
+            EnsureAtLeastOneActive();
+            ClearRuntimeBlocks();
             currentSafeZone = BuildSafeZone(launchPoint);
             UpdateSafeZoneMarker();
+            if (blockCollection.activeBlocks.Count == 0)
+            {
+                ClearPreviewState();
+                return;
+            }
 
             var positions = BuildCandidatePositions(currentSafeZone);
             Shuffle(positions);
-
-            var count = Mathf.Min(positions.Count, VisibleBlockCount);
-            var selectedBlueprints = SelectBlueprintsForCurrentLevel(count);
-            for (var i = 0; i < Mathf.Min(count, selectedBlueprints.Count); i++)
-                CreateRuntimeBlock(selectedBlueprints[i], positions[i]);
+            var count = Mathf.Min(positions.Count, blockCollection.activeBlocks.Count);
+            for (var index = 0; index < count; index++)
+                CreateRuntimeBlock(blockCollection.activeBlocks[index], positions[index]);
 
             ClearPreviewState();
-        }
-
-        public void AddAttackToAll(int amount)
-        {
-            foreach (var blueprint in blueprints)
-            {
-                if (blueprint.type == BoardBlockType.AttackAdd)
-                    blueprint.valueA += Mathf.Max(0, amount);
-            }
-        }
-
-        public void AddShieldToAll(int amount)
-        {
-            foreach (var blueprint in blueprints)
-            {
-                if (blueprint.type == BoardBlockType.Shield)
-                    blueprint.valueA += Mathf.Max(0, amount);
-            }
-        }
-
-        public void AddMultiplierToAll(float amount)
-        {
-            foreach (var blueprint in blueprints)
-            {
-                if (blueprint.type == BoardBlockType.AttackMultiply)
-                    blueprint.valueA += Mathf.Max(0f, amount);
-            }
-        }
-
-        public void UpgradeRandomAttackBlock(int upgradedValue)
-        {
-            var candidates = blueprints.FindAll(block => block.type == BoardBlockType.AttackAdd);
-            if (candidates.Count == 0)
-                return;
-
-            var target = candidates[Random.Range(0, candidates.Count)];
-            target.valueA = Mathf.Max(target.valueA, upgradedValue);
-        }
-
-        public void UpgradeRandomShieldBlock(int upgradedValue)
-        {
-            var candidates = blueprints.FindAll(block => block.type == BoardBlockType.Shield);
-            if (candidates.Count == 0)
-                return;
-
-            var target = candidates[Random.Range(0, candidates.Count)];
-            target.valueA = Mathf.Max(target.valueA, upgradedValue);
-        }
-
-        public void AddRandomAttackBlock(int attackValue)
-        {
-            blueprints.Add(new BlockBlueprint
-            {
-                id = $"Block_{blueprintId++}",
-                type = BoardBlockType.AttackAdd,
-                valueA = Mathf.Max(1, attackValue),
-                valueB = 0f
-            });
-            RefreshVisibleBlockCount();
+            game.StickerEffectRunner.HandleBoardRefreshed();
         }
 
         public void ResetBlockProgression()
         {
-            RefreshVisibleBlockCount();
         }
 
         public void AdvanceBlockProgression()
         {
-            RefreshVisibleBlockCount();
+        }
+
+        public void GenerateRewardOptions(int defeatedEnemies, int count)
+        {
+            activeRewardOptions.Clear();
+            var optionCount = Mathf.Max(1, count);
+            for (var index = 0; index < optionCount; index++)
+                activeRewardOptions.Add(CreateRewardOption(defeatedEnemies, index));
+        }
+
+        public bool TryClaimRewardOption(int index, out BlockCardState addedCard, out bool addedToReserve, out string failReason)
+        {
+            addedCard = null;
+            addedToReserve = false;
+            failReason = string.Empty;
+            if (index < 0 || index >= activeRewardOptions.Count)
+            {
+                failReason = "奖励索引无效。";
+                return false;
+            }
+
+            addedCard = CreateCardState(activeRewardOptions[index]);
+            if (!blockCollection.TryAddCard(addedCard, ActiveCapacity, ReserveCapacity, out addedToReserve, out failReason))
+                return false;
+
+            RefreshAllCardsCache();
+            activeRewardOptions.Clear();
+            return true;
+        }
+
+        public void ClearRewardOptions()
+        {
+            activeRewardOptions.Clear();
+        }
+
+        public bool TryRemoveOwnedCard(string cardId, out string failReason)
+        {
+            failReason = string.Empty;
+            if (blockCollection.GetTotalBlockCount() <= 1)
+            {
+                failReason = "至少要保留 1 张方块。";
+                return false;
+            }
+
+            if (!blockCollection.TryRemoveCard(cardId, out var removedCard, out var removedFromActive))
+            {
+                failReason = "没找到这张方块。";
+                return false;
+            }
+
+            if (removedFromActive)
+            {
+                var runtimeBlock = runtimeBlocks.Find(block => block != null && block.CardState == removedCard);
+                if (runtimeBlock != null)
+                {
+                    runtimeBlocks.Remove(runtimeBlock);
+                    Destroy(runtimeBlock.gameObject);
+                }
+            }
+
+            EnsureAtLeastOneActive();
+            RefreshAllCardsCache();
+            RefreshRuntimeBoardIfManageable();
+            return true;
+        }
+
+        public bool TrySwapActiveAndReserve(string activeCardId, string reserveCardId, out string failReason)
+        {
+            failReason = string.Empty;
+            if (!blockCollection.SwapActiveAndReserve(activeCardId, reserveCardId))
+            {
+                failReason = "上阵区或仓库区中没有找到对应方块。";
+                return false;
+            }
+
+            RefreshAllCardsCache();
+            RefreshRuntimeBoardIfManageable();
+            return true;
+        }
+
+        public bool EnsureAtLeastOneActive()
+        {
+            var promoted = blockCollection.EnsureAtLeastOneActive();
+            if (promoted)
+                RefreshAllCardsCache();
+            return promoted;
         }
 
         public void ApplyPreviewState(IReadOnlyCollection<BoardBlock> hitBlocks)
         {
-            if (activeBlocks.Count == 0)
+            if (runtimeBlocks.Count == 0)
                 return;
 
             if (hitBlocks == null)
@@ -144,184 +180,271 @@ namespace POPHero
                     highlightedIds.Add(block.GetInstanceID());
             }
 
-            foreach (var block in activeBlocks)
+            foreach (var block in runtimeBlocks)
             {
-                if (block == null)
-                    continue;
-
-                block.SetVisualState(highlightedIds.Contains(block.GetInstanceID())
-                    ? BlockVisualState.Highlight
-                    : BlockVisualState.Dim);
+                if (block != null)
+                    block.SetVisualState(highlightedIds.Contains(block.GetInstanceID()) ? BlockVisualState.Highlight : BlockVisualState.Dim);
             }
         }
 
         public void ClearPreviewState()
         {
-            foreach (var block in activeBlocks)
+            foreach (var block in runtimeBlocks)
             {
                 if (block != null)
                     block.SetVisualState(BlockVisualState.Default);
             }
         }
 
-        void RefreshVisibleBlockCount()
+        public int GetInstalledFamilyCount(BlockCardState card, StickerFamily family)
         {
-            var availableCount = game?.Player != null ? game.Player.AvailableBlockCount : 1;
-            visibleBlockCount = Mathf.Clamp(availableCount, 1, Mathf.Max(1, blueprints.Count));
-        }
+            if (card == null)
+                return 0;
 
-        void CreateInitialBlueprints()
-        {
-            blueprints.Clear();
-            blueprintId = 0;
-
-            for (var i = 0; i < game.config.board.attackAddCount; i++)
-                blueprints.Add(CreateBlueprint(BoardBlockType.AttackAdd));
-
-            for (var i = 0; i < game.config.board.attackMultiplyCount; i++)
-                blueprints.Add(CreateBlueprint(BoardBlockType.AttackMultiply));
-
-            for (var i = 0; i < game.config.board.shieldCount; i++)
-                blueprints.Add(CreateBlueprint(BoardBlockType.Shield));
-        }
-
-        List<BlockBlueprint> SelectBlueprintsForCurrentLevel(int count)
-        {
-            var selected = new List<BlockBlueprint>();
-            if (count <= 0 || blueprints.Count == 0)
-                return selected;
-
-            var level = game.Player != null ? game.Player.Level : 0;
-            var attacks = GetShuffledBlueprints(BoardBlockType.AttackAdd);
-            var shields = GetShuffledBlueprints(BoardBlockType.Shield);
-            var multipliers = GetShuffledBlueprints(BoardBlockType.AttackMultiply);
-
-            if (attacks.Count > 0)
-                selected.Add(TakeFirst(attacks));
-
-            if (level <= 0)
-                return selected;
-
-            var multiplierCount = 0;
-            var shieldCount = 0;
-            var multiplierLimit = GetMultiplierLimit(level);
-            var shieldLimit = GetShieldLimit(level);
-
-            while (selected.Count < count)
+            var count = 0;
+            foreach (var socket in card.sockets)
             {
-                var next = PickWeightedBlueprint(level, attacks, shields, multipliers, shieldCount < shieldLimit, multiplierCount < multiplierLimit)
-                    ?? TakeFallbackBlueprint(attacks, shields, multipliers, shieldCount < shieldLimit, multiplierCount < multiplierLimit);
-                if (next == null)
-                    break;
-
-                selected.Add(next);
-                if (next.type == BoardBlockType.Shield)
-                    shieldCount += 1;
-                else if (next.type == BoardBlockType.AttackMultiply)
-                    multiplierCount += 1;
+                if (socket.installedSticker?.data?.family == family)
+                    count += 1;
             }
 
-            return selected;
+            return count;
         }
 
-        List<BlockBlueprint> GetShuffledBlueprints(BoardBlockType type)
+        public bool TryInstallSticker(string cardId, int socketIndex, StickerInstance sticker, out string failReason)
         {
-            var list = blueprints.FindAll(blueprint => blueprint.type == type);
-            Shuffle(list);
-            return list;
-        }
-
-        BlockBlueprint PickWeightedBlueprint(int level, List<BlockBlueprint> attacks, List<BlockBlueprint> shields, List<BlockBlueprint> multipliers, bool allowShield, bool allowMultiplier)
-        {
-            var attackWeight = attacks.Count > 0 ? 6 : 0;
-            var shieldWeight = allowShield && shields.Count > 0 ? 3 : 0;
-            var multiplierWeight = allowMultiplier && multipliers.Count > 0
-                ? (level >= 7 ? 2 : 1)
-                : 0;
-            var total = attackWeight + shieldWeight + multiplierWeight;
-            if (total <= 0)
-                return null;
-
-            var roll = Random.Range(0, total);
-            if (roll < attackWeight)
-                return TakeFirst(attacks);
-
-            roll -= attackWeight;
-            if (roll < shieldWeight)
-                return TakeFirst(shields);
-
-            return TakeFirst(multipliers);
-        }
-
-        BlockBlueprint TakeFallbackBlueprint(List<BlockBlueprint> attacks, List<BlockBlueprint> shields, List<BlockBlueprint> multipliers, bool allowShield, bool allowMultiplier)
-        {
-            if (attacks.Count > 0)
-                return TakeFirst(attacks);
-            if (allowShield && shields.Count > 0)
-                return TakeFirst(shields);
-            if (allowMultiplier && multipliers.Count > 0)
-                return TakeFirst(multipliers);
-            if (shields.Count > 0)
-                return TakeFirst(shields);
-            if (multipliers.Count > 0)
-                return TakeFirst(multipliers);
-            return null;
-        }
-
-        static BlockBlueprint TakeFirst(List<BlockBlueprint> list)
-        {
-            if (list == null || list.Count == 0)
-                return null;
-
-            var item = list[0];
-            list.RemoveAt(0);
-            return item;
-        }
-
-        static int GetShieldLimit(int level)
-        {
-            if (level <= 0)
-                return 0;
-            if (level <= 2)
-                return 1;
-            if (level <= 5)
-                return 2;
-            return 3;
-        }
-
-        static int GetMultiplierLimit(int level)
-        {
-            if (level <= 2)
-                return 0;
-            if (level <= 5)
-                return 1;
-            if (level <= 8)
-                return 2;
-            return 3;
-        }
-
-        BlockBlueprint CreateBlueprint(BoardBlockType type)
-        {
-            return new BlockBlueprint
+            failReason = string.Empty;
+            var card = blockCollection.FindCard(cardId);
+            if (card == null || sticker?.data == null)
             {
-                id = $"Block_{blueprintId++}",
-                type = type,
-                valueA = type switch
-                {
-                    BoardBlockType.AttackAdd => RandomFrom(game.config.board.attackAddValues),
-                    BoardBlockType.AttackMultiply => RandomFrom(game.config.board.attackMultiplyValues),
-                    _ => RandomFrom(game.config.board.shieldValues)
-                },
-                valueB = 0f
+                failReason = "目标卡片或嵌片无效。";
+                return false;
+            }
+
+            if (socketIndex < 0 || socketIndex >= card.sockets.Count)
+            {
+                failReason = "槽位不存在。";
+                return false;
+            }
+
+            var socket = card.sockets[socketIndex];
+            if (!socket.isUnlocked)
+            {
+                failReason = "这个槽位还没解锁。";
+                return false;
+            }
+
+            if (socket.installedSticker != null)
+            {
+                failReason = "这个槽位已经装了嵌片。";
+                return false;
+            }
+
+            var requiredMask = GetMaskForBlock(card.baseBlockType);
+            if ((socket.targetMask & requiredMask) == 0 || (sticker.data.targetBlockType & requiredMask) == 0)
+            {
+                failReason = "这张载体和这枚嵌片不匹配。";
+                return false;
+            }
+
+            socket.installedSticker = sticker;
+            RefreshCardPresentation(card);
+            SyncRuntimeBlock(card);
+            return true;
+        }
+
+        public StickerInstance RemoveSticker(string cardId, int socketIndex)
+        {
+            var card = blockCollection.FindCard(cardId);
+            if (card == null || socketIndex < 0 || socketIndex >= card.sockets.Count)
+                return null;
+
+            var socket = card.sockets[socketIndex];
+            var sticker = socket.installedSticker;
+            socket.installedSticker = null;
+            RefreshCardPresentation(card);
+            SyncRuntimeBlock(card);
+            return sticker;
+        }
+
+        public void UnlockRandomSocket()
+        {
+            var candidates = allCardsCache.FindAll(card => card.sockets.Exists(socket => !socket.isUnlocked) || card.sockets.Count < game.config.stickers.maxSocketsPerCard);
+            if (candidates.Count == 0)
+                return;
+
+            var card = candidates[Random.Range(0, candidates.Count)];
+            var lockedSocket = card.sockets.Find(socket => !socket.isUnlocked);
+            if (lockedSocket != null)
+            {
+                lockedSocket.isUnlocked = true;
+                RefreshCardPresentation(card);
+                return;
+            }
+
+            if (card.sockets.Count >= game.config.stickers.maxSocketsPerCard)
+                return;
+
+            card.sockets.Add(new SocketSlotState
+            {
+                index = card.sockets.Count,
+                isUnlocked = true,
+                targetMask = SocketTargetMask.Any
+            });
+            RefreshCardPresentation(card);
+        }
+
+        BlockRewardOption CreateRewardOption(int defeatedEnemies, int optionIndex)
+        {
+            var blockType = RollBlockType();
+            var rarity = RollRarity(defeatedEnemies);
+            var value = GetRarityValue(blockType, rarity);
+            return new BlockRewardOption
+            {
+                id = $"block_reward_{defeatedEnemies:00}_{optionIndex:00}",
+                blockType = blockType,
+                rarity = rarity,
+                baseValue = value,
+                displayName = $"{GetRarityName(rarity)}{GetBlockTypeName(blockType)}方块",
+                desc = GetRewardDescription(blockType, rarity, value),
+                color = GetRewardColor(blockType, rarity),
+                family = GetFamilyForType(blockType)
             };
         }
 
-        void CreateRuntimeBlock(BlockBlueprint blueprint, Vector2 position)
+        BlockCardState CreateCardState(BlockRewardOption option)
         {
-            var go = new GameObject(blueprint.id);
+            var state = new BlockCardState
+            {
+                id = $"card_{cardSerial++:000}",
+                baseBlockType = option.blockType,
+                rarity = option.rarity,
+                family = option.family,
+                baseValueA = option.baseValue,
+                baseValueB = 0f,
+                templateOrder = BlueprintCount
+            };
+
+            for (var socketIndex = 0; socketIndex < game.config.stickers.defaultSocketsPerCard; socketIndex++)
+            {
+                state.sockets.Add(new SocketSlotState
+                {
+                    index = socketIndex,
+                    isUnlocked = socketIndex < game.config.stickers.unlockedSocketsPerCard,
+                    targetMask = socketIndex == 0 ? GetMaskForBlock(option.blockType) : SocketTargetMask.Any
+                });
+            }
+
+            RefreshCardPresentation(state);
+            return state;
+        }
+
+        BoardBlockType RollBlockType()
+        {
+            var roll = Random.Range(0, 3);
+            return roll switch
+            {
+                0 => BoardBlockType.AttackAdd,
+                1 => BoardBlockType.Shield,
+                _ => BoardBlockType.AttackMultiply
+            };
+        }
+
+        BlockRarity RollRarity(int defeatedEnemies)
+        {
+            var stages = game.config.blockRewards.rarityOdds;
+            var selectedStage = stages[0];
+            foreach (var stage in stages)
+            {
+                if (defeatedEnemies >= stage.minimumKills)
+                    selectedStage = stage;
+            }
+
+            var roll = Random.Range(0f, 100f);
+            if (roll < selectedStage.white)
+                return BlockRarity.White;
+            roll -= selectedStage.white;
+            if (roll < selectedStage.blue)
+                return BlockRarity.Blue;
+            roll -= selectedStage.blue;
+            if (roll < selectedStage.purple)
+                return BlockRarity.Purple;
+            return BlockRarity.Gold;
+        }
+
+        float GetRarityValue(BoardBlockType blockType, BlockRarity rarity)
+        {
+            return blockType switch
+            {
+                BoardBlockType.AttackAdd => game.config.blockRewards.attackValues.Get(rarity),
+                BoardBlockType.Shield => game.config.blockRewards.shieldValues.Get(rarity),
+                _ => game.config.blockRewards.multiplierValues.Get(rarity)
+            };
+        }
+
+        string GetRewardDescription(BoardBlockType blockType, BlockRarity rarity, float value)
+        {
+            return blockType switch
+            {
+                BoardBlockType.AttackAdd => $"{GetRarityName(rarity)}攻击方块，基础伤害 +{Mathf.RoundToInt(value)}。",
+                BoardBlockType.Shield => $"{GetRarityName(rarity)}防御方块，基础护盾 +{Mathf.RoundToInt(value)}。",
+                _ => $"{GetRarityName(rarity)}倍率方块，基础倍率 x{value:0.0#}。"
+            };
+        }
+
+        string GetRarityName(BlockRarity rarity)
+        {
+            return rarity switch
+            {
+                BlockRarity.White => "白色",
+                BlockRarity.Blue => "蓝色",
+                BlockRarity.Purple => "紫色",
+                BlockRarity.Gold => "金色",
+                _ => "白色"
+            };
+        }
+
+        string GetBlockTypeName(BoardBlockType blockType)
+        {
+            return blockType switch
+            {
+                BoardBlockType.AttackAdd => "攻击",
+                BoardBlockType.Shield => "防御",
+                BoardBlockType.AttackMultiply => "倍率",
+                _ => "混合"
+            };
+        }
+
+        BlockFamily GetFamilyForType(BoardBlockType blockType)
+        {
+            return blockType switch
+            {
+                BoardBlockType.AttackAdd => BlockFamily.Strike,
+                BoardBlockType.Shield => BlockFamily.Guard,
+                BoardBlockType.AttackMultiply => BlockFamily.Prism,
+                _ => BlockFamily.Hybrid
+            };
+        }
+
+        Color GetRewardColor(BoardBlockType blockType, BlockRarity rarity)
+        {
+            var baseColor = GetColor(blockType);
+            return rarity switch
+            {
+                BlockRarity.White => baseColor,
+                BlockRarity.Blue => Color.Lerp(baseColor, new Color(0.32f, 0.62f, 1f, 1f), 0.45f),
+                BlockRarity.Purple => Color.Lerp(baseColor, new Color(0.7f, 0.34f, 1f, 1f), 0.55f),
+                BlockRarity.Gold => Color.Lerp(baseColor, new Color(1f, 0.8f, 0.24f, 1f), 0.65f),
+                _ => baseColor
+            };
+        }
+
+        void CreateRuntimeBlock(BlockCardState cardState, Vector2 position)
+        {
+            var go = new GameObject(cardState.id);
             go.transform.SetParent(blockRoot, false);
 
-            BoardBlock block = blueprint.type switch
+            BoardBlock block = cardState.baseBlockType switch
             {
                 BoardBlockType.AttackAdd => go.AddComponent<AttackAddBlock>(),
                 BoardBlockType.AttackMultiply => go.AddComponent<AttackMultiplyBlock>(),
@@ -330,17 +453,58 @@ namespace POPHero
 
             block.Initialize(
                 game,
-                blueprint.id,
-                blueprint.type,
+                cardState,
                 position,
                 game.config.board.blockSize,
-                blueprint.valueA,
-                blueprint.valueB,
                 GetRandomRotation(),
                 game.config.board.keepLabelUpright,
-                GetColor(blueprint.type),
+                GetRewardColor(cardState.baseBlockType, cardState.rarity),
                 bounceMaterial);
-            activeBlocks.Add(block);
+            runtimeBlocks.Add(block);
+        }
+
+        void SyncRuntimeBlock(BlockCardState cardState)
+        {
+            foreach (var block in runtimeBlocks)
+            {
+                if (block != null && block.CardState == cardState)
+                    block.RefreshFromCard();
+            }
+        }
+
+        void RefreshCardPresentation(BlockCardState cardState)
+        {
+            cardState.tags.Clear();
+            cardState.cardName = $"{GetRarityName(cardState.rarity)}{GetBlockTypeName(cardState.baseBlockType)}方块";
+            cardState.mainActionText = cardState.baseBlockType switch
+            {
+                BoardBlockType.AttackAdd => $"命中时增加 {Mathf.RoundToInt(cardState.baseValueA)} 点伤害。",
+                BoardBlockType.AttackMultiply => $"命中时把当前伤害乘以 {cardState.baseValueA:0.0#}。",
+                BoardBlockType.Shield => $"命中时增加 {Mathf.RoundToInt(cardState.baseValueA)} 点护盾。",
+                _ => "命中时触发复合规则。"
+            };
+
+            cardState.detailLines.Clear();
+            cardState.detailLines.Add(GetCardFlavor(cardState));
+            foreach (var socket in cardState.sockets)
+            {
+                if (socket.installedSticker == null)
+                    continue;
+
+                cardState.detailLines.Add(socket.installedSticker.data.mainActionText);
+                cardState.tags.Add(socket.installedSticker.data.family.ToString());
+            }
+        }
+
+        string GetCardFlavor(BlockCardState cardState)
+        {
+            return cardState.family switch
+            {
+                BlockFamily.Strike => "偏向直接输出，适合承接爆发与重复命中类嵌片。",
+                BlockFamily.Guard => "偏向单回合护盾与反击削减，适合转化与防御构筑。",
+                BlockFamily.Prism => "偏向倍率与中继，适合作为连段启动器。",
+                _ => "可以与多种 family 组合。"
+            };
         }
 
         Rect BuildSafeZone(Vector2 launchPoint)
@@ -406,15 +570,31 @@ namespace POPHero
             safeZoneMarker.transform.localScale = new Vector3(currentSafeZone.width, currentSafeZone.height, 1f);
         }
 
-        void ClearActiveBlocks()
+        void ClearRuntimeBlocks()
         {
-            foreach (var block in activeBlocks)
+            foreach (var block in runtimeBlocks)
             {
                 if (block != null)
                     Destroy(block.gameObject);
             }
 
-            activeBlocks.Clear();
+            runtimeBlocks.Clear();
+        }
+
+        void RefreshAllCardsCache()
+        {
+            allCardsCache.Clear();
+            allCardsCache.AddRange(blockCollection.activeBlocks);
+            allCardsCache.AddRange(blockCollection.reserveBlocks);
+        }
+
+        void RefreshRuntimeBoardIfManageable()
+        {
+            if (game == null)
+                return;
+
+            if (game.State == RoundState.Shop || game.State == RoundState.LoadoutManage)
+                ShuffleBlocks(game.CurrentLaunchPoint);
         }
 
         Color GetColor(BoardBlockType type)
@@ -427,6 +607,17 @@ namespace POPHero
             };
         }
 
+        SocketTargetMask GetMaskForBlock(BoardBlockType type)
+        {
+            return type switch
+            {
+                BoardBlockType.AttackAdd => SocketTargetMask.Attack,
+                BoardBlockType.AttackMultiply => SocketTargetMask.Multiplier,
+                BoardBlockType.Shield => SocketTargetMask.Shield,
+                _ => SocketTargetMask.Hybrid
+            };
+        }
+
         static void Shuffle<T>(IList<T> list)
         {
             for (var i = list.Count - 1; i > 0; i--)
@@ -434,20 +625,6 @@ namespace POPHero
                 var swapIndex = Random.Range(0, i + 1);
                 (list[i], list[swapIndex]) = (list[swapIndex], list[i]);
             }
-        }
-
-        static float RandomFrom(IReadOnlyList<int> values)
-        {
-            if (values == null || values.Count == 0)
-                return 1f;
-            return values[Random.Range(0, values.Count)];
-        }
-
-        static float RandomFrom(IReadOnlyList<float> values)
-        {
-            if (values == null || values.Count == 0)
-                return 1f;
-            return values[Random.Range(0, values.Count)];
         }
 
         float GetRandomRotation()

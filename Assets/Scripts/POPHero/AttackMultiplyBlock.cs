@@ -4,7 +4,7 @@ namespace POPHero
     {
         protected override void OnBallHit(BallController ball)
         {
-            game.RoundController.MultiplyAttack(valueA);
+            game.RoundController.ProcessBlockHit(this);
         }
 
         protected override string GetLabelText()

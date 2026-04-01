@@ -6,7 +6,7 @@ namespace POPHero
     {
         protected override void OnBallHit(BallController ball)
         {
-            game.RoundController.AddShield(Mathf.RoundToInt(valueA));
+            game.RoundController.ProcessBlockHit(this);
         }
 
         protected override string GetLabelText()

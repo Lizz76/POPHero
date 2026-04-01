@@ -7,14 +7,13 @@ namespace POPHero
         PopHeroGame game;
         BallController ballController;
         TrajectoryPredictor trajectoryPredictor;
-        LineRenderer aimLine;
+        AimStateController aimStateController;
         Camera mainCamera;
-        TrajectoryPreviewResult currentPreview;
-        WallAimPoint currentLockedAimPoint;
+        LineRenderer aimLine;
+        LineRenderer memoryLine;
         bool isDragging;
-        bool aimLocked;
-        bool hasValidAimDirection;
-        Vector2 currentAimDirection = Vector2.up;
+
+        public AimLockContext AimContext => aimStateController?.Context;
 
         public void Initialize(PopHeroGame owner, BallController ball, TrajectoryPredictor predictor)
         {
@@ -22,19 +21,11 @@ namespace POPHero
             ballController = ball;
             trajectoryPredictor = predictor;
             mainCamera = Camera.main;
-            aimLine = gameObject.AddComponent<LineRenderer>();
-            aimLine.useWorldSpace = true;
-            aimLine.alignment = LineAlignment.TransformZ;
-            aimLine.numCapVertices = 6;
-            aimLine.numCornerVertices = 4;
-            aimLine.startWidth = game.config.ball.previewLineStartWidth;
-            aimLine.endWidth = game.config.ball.previewLineEndWidth;
-            aimLine.material = new Material(Shader.Find("Sprites/Default"));
-            aimLine.startColor = game.config.ball.previewColor;
-            aimLine.endColor = game.config.ball.previewColor;
-            aimLine.sortingLayerName = "Default";
-            aimLine.sortingOrder = 500;
-            aimLine.enabled = false;
+            aimStateController = new AimStateController();
+            aimStateController.Initialize(game, trajectoryPredictor);
+
+            aimLine = BuildLineRenderer("AimPreviewLine", game.config.ball.previewColor, game.config.ball.previewLineStartWidth, game.config.ball.previewLineEndWidth, 500);
+            memoryLine = BuildLineRenderer("AimMemoryLine", new Color(0.22f, 0.78f, 1f, 0.35f), game.config.ball.previewLineStartWidth * 0.72f, game.config.ball.previewLineEndWidth * 0.72f, 499);
         }
 
         void Update()
@@ -45,7 +36,7 @@ namespace POPHero
             mainCamera ??= Camera.main;
             if (game.State != RoundState.Aim)
             {
-                if (aimLine.enabled || isDragging || aimLocked || hasValidAimDirection)
+                if (aimLine.enabled || memoryLine.enabled || isDragging)
                     CancelAim();
                 return;
             }
@@ -55,7 +46,6 @@ namespace POPHero
                 case InputAimMode.MobileDragConfirm:
                     HandleMobileAimInput();
                     break;
-                case InputAimMode.PCMouseAimClick:
                 default:
                     HandlePcAimInput();
                     break;
@@ -65,24 +55,23 @@ namespace POPHero
         public void CancelAim()
         {
             isDragging = false;
-            aimLocked = false;
-            hasValidAimDirection = false;
-            currentPreview = null;
-            currentLockedAimPoint = null;
+            aimStateController?.Reset();
             aimLine.enabled = false;
             aimLine.positionCount = 0;
+            memoryLine.enabled = false;
+            memoryLine.positionCount = 0;
             game?.ClearAimPreview();
         }
 
         void HandlePcAimInput()
         {
-            if (Input.touchCount > 0 || mainCamera == null)
+            if (mainCamera == null || Input.touchCount > 0)
                 return;
 
             var worldPoint = GetWorldPoint(Input.mousePosition);
-            UpdateAimPreview(worldPoint, true);
+            UpdateAimPreview(worldPoint, false);
 
-            if (Input.GetMouseButtonDown(0) && hasValidAimDirection)
+            if (Input.GetMouseButtonDown(0) && AimContext != null && AimContext.throwReady)
                 LaunchCurrentAim();
         }
 
@@ -108,13 +97,9 @@ namespace POPHero
             {
                 case TouchPhase.Began:
                     if (ShouldStartDrag(worldPoint))
-                    {
                         BeginDrag(worldPoint);
-                    }
                     else if (CanConfirmAim())
-                    {
                         LaunchCurrentAim();
-                    }
                     break;
                 case TouchPhase.Moved:
                 case TouchPhase.Stationary:
@@ -135,13 +120,9 @@ namespace POPHero
             if (Input.GetMouseButtonDown(0))
             {
                 if (ShouldStartDrag(worldPoint))
-                {
                     BeginDrag(worldPoint);
-                }
                 else if (CanConfirmAim())
-                {
                     LaunchCurrentAim();
-                }
             }
 
             if (isDragging && Input.GetMouseButton(0))
@@ -154,113 +135,62 @@ namespace POPHero
         void BeginDrag(Vector2 worldPoint)
         {
             isDragging = true;
-            aimLocked = false;
-            UpdateAimPreview(worldPoint, false);
+            UpdateAimPreview(worldPoint, true);
         }
 
         void EndDrag(Vector2 worldPoint)
         {
             UpdateAimPreview(worldPoint, false);
             isDragging = false;
-            aimLocked = hasValidAimDirection;
+            aimStateController?.EndInput();
         }
 
         void LaunchCurrentAim()
         {
-            if (!hasValidAimDirection)
+            var context = AimContext;
+            if (context == null || !context.throwReady)
                 return;
 
-            game.TryLaunchBall(currentAimDirection, currentPreview);
+            game.TryLaunchBall(context.lockedAimDirection, context.lockedPreview);
         }
 
-        void UpdateAimPreview(Vector2 worldPoint, bool lockAimAfterUpdate)
+        void UpdateAimPreview(Vector2 worldPoint, bool beginInput)
         {
-            var origin = game.CurrentLaunchPoint;
-            var rawDirection = ClampAimDirection(worldPoint - origin);
-            if (!game.TryProjectAimToWall(rawDirection, out var projectedWallSide, out var projectedPoint))
+            if (aimStateController == null)
+                return;
+
+            var hasAim = beginInput
+                ? aimStateController.BeginInput(worldPoint)
+                : aimStateController.UpdateLockedAim(worldPoint, false);
+            if (!hasAim || AimContext == null || AimContext.lockedPreview == null)
             {
                 ClearCurrentAim();
                 return;
             }
 
-            currentLockedAimPoint = ResolveLockedAimPoint(projectedWallSide, projectedPoint);
-            if (currentLockedAimPoint == null)
-            {
-                ClearCurrentAim();
-                return;
-            }
-
-            currentAimDirection = ClampAimDirection(currentLockedAimPoint.position - origin);
-            hasValidAimDirection = currentAimDirection.sqrMagnitude > 0.001f;
-            aimLocked = (lockAimAfterUpdate || aimLocked) && hasValidAimDirection;
-
-            if (!hasValidAimDirection)
-            {
-                ClearCurrentAim();
-                return;
-            }
-
-            var preview = trajectoryPredictor.BuildPreview(origin, currentAimDirection, game.config.ball.previewSegments, game.config.ball.previewDistance);
-            if (!preview.HasValidPath)
-            {
-                currentPreview = null;
-                aimLine.enabled = false;
-                aimLine.positionCount = 0;
-                game.ClearAimPreview();
-                return;
-            }
-
-            currentPreview = preview;
-            aimLine.enabled = true;
-            aimLine.positionCount = preview.pathPoints.Count;
-            for (var i = 0; i < preview.pathPoints.Count; i++)
-                aimLine.SetPosition(i, preview.pathPoints[i]);
-
-            game.ApplyPreviewResult(preview);
-        }
-
-        WallAimPoint ResolveLockedAimPoint(ArenaSurfaceType projectedWallSide, Vector2 projectedPoint)
-        {
-            var nearestPoint = game.FindNearestWallAimPoint(projectedWallSide, projectedPoint);
-            if (nearestPoint == null)
-                return currentLockedAimPoint;
-
-            if (currentLockedAimPoint == null)
-                return nearestPoint;
-
-            if (currentLockedAimPoint.wallSide == projectedWallSide)
-            {
-                var distanceToCurrent = game.GetWallAxisDistance(projectedPoint, currentLockedAimPoint.position, projectedWallSide);
-                if (distanceToCurrent <= game.GetAimReleaseRadius(projectedWallSide))
-                    return currentLockedAimPoint;
-            }
-
-            var distanceToNearest = game.GetWallAxisDistance(projectedPoint, nearestPoint.position, projectedWallSide);
-            if (distanceToNearest <= game.GetAimSnapRadius(projectedWallSide))
-                return nearestPoint;
-
-            return currentLockedAimPoint.wallSide == projectedWallSide ? currentLockedAimPoint : nearestPoint;
+            DrawLine(aimLine, AimContext.lockedPreview, true);
+            DrawLine(memoryLine, AimContext.previousPreview, game.ModManager.ShowTrajectoryMemory() || game.config.aim.showTrajectoryMemory);
+            game.ApplyPreviewResult(AimContext.lockedPreview);
         }
 
         void ClearCurrentAim()
         {
-            aimLocked = false;
-            hasValidAimDirection = false;
-            currentPreview = null;
-            currentLockedAimPoint = null;
             aimLine.enabled = false;
             aimLine.positionCount = 0;
+            memoryLine.enabled = false;
+            memoryLine.positionCount = 0;
             game.ClearAimPreview();
         }
 
         bool ShouldStartDrag(Vector2 worldPoint)
         {
-            return Vector2.Distance(worldPoint, game.CurrentLaunchPoint) <= Mathf.Max(game.config.aim.dragStartRadius, game.config.ball.radius * 3f);
+            var radius = Mathf.Max(game.config.aim.dragStartRadius, game.config.aim.inputLockStartRadius, game.config.ball.radius * 3f);
+            return Vector2.Distance(worldPoint, game.CurrentLaunchPoint) <= radius;
         }
 
         bool CanConfirmAim()
         {
-            return !isDragging && aimLocked && hasValidAimDirection;
+            return !isDragging && AimContext != null && AimContext.throwReady;
         }
 
         Vector2 GetWorldPoint(Vector3 screenPosition)
@@ -269,18 +199,42 @@ namespace POPHero
             return new Vector2(worldPoint.x, worldPoint.y);
         }
 
-        Vector2 ClampAimDirection(Vector2 rawDirection)
+        LineRenderer BuildLineRenderer(string objectName, Color color, float startWidth, float endWidth, int sortingOrder)
         {
-            if (rawDirection.sqrMagnitude <= 0.0001f)
-                rawDirection = Vector2.up;
+            var lineObject = new GameObject(objectName);
+            lineObject.transform.SetParent(transform, false);
+            var line = lineObject.AddComponent<LineRenderer>();
+            line.useWorldSpace = true;
+            line.alignment = LineAlignment.TransformZ;
+            line.numCapVertices = 6;
+            line.numCornerVertices = 4;
+            line.startWidth = startWidth;
+            line.endWidth = endWidth;
+            line.material = new Material(Shader.Find("Sprites/Default"));
+            line.startColor = color;
+            line.endColor = color;
+            line.sortingLayerName = "Default";
+            line.sortingOrder = sortingOrder;
+            line.enabled = false;
+            return line;
+        }
 
-            var angle = Mathf.Atan2(rawDirection.y, rawDirection.x) * Mathf.Rad2Deg;
-            if (angle < 0f)
-                angle += 360f;
+        static void DrawLine(LineRenderer line, TrajectoryPreviewResult preview, bool visible)
+        {
+            if (line == null)
+                return;
 
-            angle = Mathf.Clamp(angle, game.config.ball.minAimAngle, game.config.ball.maxAimAngle);
-            var radians = angle * Mathf.Deg2Rad;
-            return new Vector2(Mathf.Cos(radians), Mathf.Sin(radians)).normalized;
+            if (!visible || preview == null || !preview.HasValidPath)
+            {
+                line.enabled = false;
+                line.positionCount = 0;
+                return;
+            }
+
+            line.enabled = true;
+            line.positionCount = preview.pathPoints.Count;
+            for (var index = 0; index < preview.pathPoints.Count; index++)
+                line.SetPosition(index, preview.pathPoints[index]);
         }
     }
 }

@@ -14,6 +14,7 @@ namespace POPHero
         public float valueA;
         public float valueB;
         public bool canReflect = true;
+        public BlockCardState CardState { get; private set; }
 
         protected PopHeroGame game;
 
@@ -27,15 +28,16 @@ namespace POPHero
         bool keepLabelUpright;
         BlockVisualState currentVisualState = BlockVisualState.Default;
 
-        public void Initialize(PopHeroGame owner, string id, BoardBlockType type, Vector2 worldPosition, Vector2 blockSize, float primaryValue, float secondaryValue, float rotationZ, bool keepTextUpright, Color fillColor, PhysicsMaterial2D bounceMaterial)
+        public void Initialize(PopHeroGame owner, BlockCardState cardState, Vector2 worldPosition, Vector2 blockSize, float rotationZ, bool keepTextUpright, Color fillColor, PhysicsMaterial2D bounceMaterial)
         {
             game = owner;
-            blockId = id;
-            blockType = type;
+            CardState = cardState;
+            blockId = cardState.id;
+            blockType = cardState.baseBlockType;
             position = worldPosition;
             size = blockSize;
-            valueA = primaryValue;
-            valueB = secondaryValue;
+            valueA = cardState.baseValueA;
+            valueB = cardState.baseValueB;
             rotationAngle = rotationZ;
             keepLabelUpright = keepTextUpright;
             baseFillColor = fillColor;
@@ -122,6 +124,17 @@ namespace POPHero
                 return;
 
             label.text = GetLabelText();
+        }
+
+        public void RefreshFromCard()
+        {
+            if (CardState == null)
+                return;
+
+            blockType = CardState.baseBlockType;
+            valueA = CardState.baseValueA;
+            valueB = CardState.baseValueB;
+            RefreshLabel();
         }
 
         static Color ScaleColor(Color color, float factor)

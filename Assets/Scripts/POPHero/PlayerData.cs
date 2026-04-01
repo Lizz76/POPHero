@@ -11,9 +11,11 @@ namespace POPHero
         public int CurrentShield { get; private set; }
         public int Gold { get; private set; }
         public int Level { get; private set; }
+        public int TotalKills { get; private set; }
         public int KillsTowardNextLevel { get; private set; }
+        public int StickerInventoryCapacity { get; private set; }
+        public int BonusLaunchesPerEnemy { get; private set; }
         public int KillsRequiredForNextLevel => IsMaxLevel ? 0 : GetKillsRequiredForLevelUp(Level);
-        public int AvailableBlockCount => 1 + Level;
         public bool IsMaxLevel => Level >= MaxLevelCap;
         public bool IsDead => CurrentHp <= 0;
 
@@ -29,7 +31,10 @@ namespace POPHero
             CurrentShield = Mathf.Max(0, currentShield);
             Gold = Mathf.Max(0, gold);
             Level = 0;
+            TotalKills = 0;
             KillsTowardNextLevel = 0;
+            StickerInventoryCapacity = 6;
+            BonusLaunchesPerEnemy = 0;
         }
 
         public void SetShield(int amount)
@@ -52,6 +57,16 @@ namespace POPHero
             Gold = Mathf.Max(0, Gold + Mathf.Max(0, amount));
         }
 
+        public bool SpendGold(int amount)
+        {
+            amount = Mathf.Max(0, amount);
+            if (Gold < amount)
+                return false;
+
+            Gold -= amount;
+            return true;
+        }
+
         public void Heal(int amount)
         {
             CurrentHp = Mathf.Clamp(CurrentHp + Mathf.Max(0, amount), 0, MaxHp);
@@ -60,6 +75,16 @@ namespace POPHero
         public void RestoreToFullHealth()
         {
             CurrentHp = MaxHp;
+        }
+
+        public void IncreaseInventoryCapacity(int amount)
+        {
+            StickerInventoryCapacity = Mathf.Max(1, StickerInventoryCapacity + Mathf.Max(0, amount));
+        }
+
+        public void IncreaseLaunchCapacity(int amount)
+        {
+            BonusLaunchesPerEnemy = Mathf.Max(0, BonusLaunchesPerEnemy + Mathf.Max(0, amount));
         }
 
         public void ApplyDamage(int damage)
@@ -82,8 +107,12 @@ namespace POPHero
         public bool RegisterKillAndTryLevelUp()
         {
             if (IsMaxLevel)
+            {
+                TotalKills += 1;
                 return false;
+            }
 
+            TotalKills += 1;
             KillsTowardNextLevel += 1;
             if (KillsTowardNextLevel < KillsRequiredForNextLevel)
                 return false;

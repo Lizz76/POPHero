@@ -12,7 +12,11 @@ namespace POPHero
         public AimSettings aim = new();
         public PlayerSettings player = new();
         public BoardSettings board = new();
-        public BuffSettings buffs = new();
+        public BlockRewardSettings blockRewards = new();
+        public StickerSettings stickers = new();
+        public ModSettings mods = new();
+        public ShopSettings shop = new();
+        public IntermissionSettings intermission = new();
         public EnemyProgressionSettings enemies = new();
         public DebugSettings debug = new();
 
@@ -81,6 +85,13 @@ namespace POPHero
     {
         public InputAimMode currentAimMode = InputAimMode.PCMouseAimClick;
         public float dragStartRadius = 0.95f;
+        public float inputLockStartRadius = 0.95f;
+        public float inputRecalcDistance = 0.34f;
+        public float inputReleaseDistance = 0.18f;
+        public float inputRecalcAngle = 2.8f;
+        public float inputHoldAngle = 1.25f;
+        public float aimAssistBonus = 0.2f;
+        public bool showTrajectoryMemory = false;
         public float wallAimSnapFactor = 0.45f;
         public float wallAimReleaseFactor = 0.9f;
     }
@@ -124,15 +135,88 @@ namespace POPHero
     }
 
     [Serializable]
-    public class BuffSettings
+    public class StickerSettings
     {
-        public int attackAddBonus = 3;
-        public int shieldBonus = 3;
-        public float multiplierBonus = 0.2f;
-        public int upgradedAttackValue = 20;
-        public int upgradedShieldValue = 12;
-        public int additionalAttackBlockValue = 10;
-        public int choicesPerReward = 3;
+        public int baseInventoryCapacity = 6;
+        public int defaultSocketsPerCard = 2;
+        public int unlockedSocketsPerCard = 1;
+        public int maxSocketsPerCard = 3;
+    }
+
+    [Serializable]
+    public class ModSettings
+    {
+        public int modUseCap = 6;
+    }
+
+    [Serializable]
+    public class ShopSettings
+    {
+        public int stickerSkipMoney = 6;
+        public int stickerRerollMoney = 4;
+        public int shopRerollMoney = 3;
+        public int blockRemovalCost = 18;
+    }
+
+    [Serializable]
+    public class IntermissionSettings
+    {
+        public int rewardChoiceCount = 3;
+        public int shopStickerSlots = 3;
+        public int shopModSlots = 1;
+        public int shopGrowthSlots = 1;
+    }
+
+    [Serializable]
+    public class BlockRewardSettings
+    {
+        public int initialChoiceCount = 3;
+        public int rewardChoiceCount = 3;
+        public int maxActiveBlocks = 10;
+        public int maxReserveBlocks = 3;
+        public List<RarityOddsStage> rarityOdds = new()
+        {
+            new RarityOddsStage { minimumKills = 0, white = 75, blue = 20, purple = 5, gold = 0 },
+            new RarityOddsStage { minimumKills = 3, white = 55, blue = 30, purple = 12, gold = 3 },
+            new RarityOddsStage { minimumKills = 6, white = 40, blue = 35, purple = 18, gold = 7 },
+            new RarityOddsStage { minimumKills = 10, white = 28, blue = 35, purple = 25, gold = 12 },
+            new RarityOddsStage { minimumKills = 15, white = 20, blue = 32, purple = 30, gold = 18 }
+        };
+
+        public RarityValueTable attackValues = new() { white = 8f, blue = 14f, purple = 22f, gold = 34f };
+        public RarityValueTable shieldValues = new() { white = 6f, blue = 11f, purple = 18f, gold = 28f };
+        public RarityValueTable multiplierValues = new() { white = 1.2f, blue = 1.5f, purple = 1.9f, gold = 2.5f };
+    }
+
+    [Serializable]
+    public class RarityOddsStage
+    {
+        public int minimumKills;
+        public float white;
+        public float blue;
+        public float purple;
+        public float gold;
+    }
+
+    [Serializable]
+    public class RarityValueTable
+    {
+        public float white;
+        public float blue;
+        public float purple;
+        public float gold;
+
+        public float Get(BlockRarity rarity)
+        {
+            return rarity switch
+            {
+                BlockRarity.White => white,
+                BlockRarity.Blue => blue,
+                BlockRarity.Purple => purple,
+                BlockRarity.Gold => gold,
+                _ => white
+            };
+        }
     }
 
     [Serializable]
