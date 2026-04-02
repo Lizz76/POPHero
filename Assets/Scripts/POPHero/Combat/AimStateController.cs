@@ -41,7 +41,7 @@ namespace POPHero
         }
     }
 
-    public class AimStateController
+    public class AimStateController : IAimService
     {
         readonly AimLockContext context = new();
 

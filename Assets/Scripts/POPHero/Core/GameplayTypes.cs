@@ -13,6 +13,48 @@ namespace POPHero
         public int priority;
     }
 
+    public struct WallHitMemory
+    {
+        public bool hasValue;
+        public ArenaSurfaceType surfaceType;
+        public Vector2 hitPoint;
+        public Vector2 hitNormal;
+        public Collider2D collider;
+
+        public void Set(ArenaSurfaceType surface, Vector2 point, Vector2 normal, Collider2D hitCollider)
+        {
+            hasValue = true;
+            surfaceType = surface;
+            hitPoint = point;
+            hitNormal = normal;
+            collider = hitCollider;
+        }
+
+        public void Clear()
+        {
+            hasValue = false;
+            surfaceType = ArenaSurfaceType.Block;
+            hitPoint = Vector2.zero;
+            hitNormal = Vector2.zero;
+            collider = null;
+        }
+    }
+
+    public struct CornerBounceResult
+    {
+        public Vector2 safePoint;
+        public Vector2 combinedNormal;
+        public Collider2D ignoredColliderA;
+        public Collider2D ignoredColliderB;
+    }
+
+    public struct EmbeddedRecoveryResult
+    {
+        public Vector2 safePoint;
+        public Vector2 recoveryNormal;
+        public Collider2D ignoredCollider;
+    }
+
     public enum RoundState
     {
         Aim,

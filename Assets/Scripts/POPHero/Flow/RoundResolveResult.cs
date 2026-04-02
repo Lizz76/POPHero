@@ -11,5 +11,9 @@ namespace POPHero
         public int enemyCounterDamage;
         public bool enemyDefeated;
         public bool playerDefeated;
+        public int enemyDisplayHpBeforeHit;
+        public int enemyDisplayHpAfterHit;
+        public int playerDisplayHpBeforeCounter;
+        public int playerDisplayHpAfterCounter;
     }
 }

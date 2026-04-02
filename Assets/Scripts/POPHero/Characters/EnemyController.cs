@@ -17,7 +17,8 @@ namespace POPHero
         TextMesh hpLabel;
         Color baseColor = Color.white;
         float flashTimer;
-        int pendingDamagePreview;
+        int snapshotHp = -1;
+        int snapshotMaxHp = -1;
 
         public EnemyData CurrentEnemy => currentEnemy;
 
@@ -35,9 +36,9 @@ namespace POPHero
             hpPreviewRenderer = PrototypeVisualFactory.CreateSpriteObject("HpPreview", transform, PrototypeVisualFactory.SquareSprite, new Color(0.56f, 0.16f, 0.18f, 0.92f), 14, new Vector2(HpBarWidth, HpBarHeight)).GetComponent<SpriteRenderer>();
             hpPreviewRenderer.transform.localPosition = new Vector3(0f, -1.8f, -0.015f);
 
-            nameLabel = PrototypeVisualFactory.CreateTextObject("EnemyName", transform, "敌人", Color.white, 15, 0.11f);
+            nameLabel = PrototypeVisualFactory.CreateTextObject("EnemyName", transform, "\u654c\u4eba", Color.white, 15, 0.11f);
             nameLabel.transform.localPosition = new Vector3(0f, 1.65f, 0f);
-            intentLabel = PrototypeVisualFactory.CreateTextObject("EnemyIntent", transform, "攻击 0", new Color(1f, 0.78f, 0.34f, 1f), 16, 0.085f);
+            intentLabel = PrototypeVisualFactory.CreateTextObject("EnemyIntent", transform, "\u653b\u51fb 0", new Color(1f, 0.78f, 0.34f, 1f), 16, 0.085f);
             intentLabel.transform.localPosition = new Vector3(0f, 2.15f, 0f);
             hpLabel = PrototypeVisualFactory.CreateTextObject("EnemyHp", transform, "0/0", Color.white, 15, 0.08f, FontStyle.Normal);
             hpLabel.transform.localPosition = new Vector3(0f, -2.2f, 0f);
@@ -46,20 +47,26 @@ namespace POPHero
         public void SetEnemy(EnemyData enemyData)
         {
             currentEnemy = enemyData;
-            pendingDamagePreview = 0;
+            snapshotHp = -1;
+            snapshotMaxHp = -1;
             baseColor = enemyData.AccentColor;
             Refresh();
         }
 
         public void SetPreviewDamage(int pendingDamage)
         {
-            pendingDamagePreview = Mathf.Max(0, pendingDamage);
-            RefreshHpBar();
+            // 飞行中的伤害只显示在左侧累计面板，不再驱动敌人血条或数字。
         }
 
-        public void ClearPreviewDamage()
+        public void ClearPreviewDamage(bool refreshDisplay = true)
         {
-            pendingDamagePreview = 0;
+            // 兼容旧调用，当前不再维护飞行中的敌人虚血显示。
+        }
+
+        public void SetHpSnapshot(int hp, int maxHp)
+        {
+            snapshotHp = Mathf.Max(0, hp);
+            snapshotMaxHp = Mathf.Max(1, maxHp);
             RefreshHpBar();
         }
 
@@ -68,9 +75,11 @@ namespace POPHero
             if (currentEnemy == null)
                 return;
 
+            snapshotHp = -1;
+            snapshotMaxHp = -1;
             bodyRenderer.color = baseColor;
             nameLabel.text = currentEnemy.DisplayName;
-            intentLabel.text = currentEnemy.CurrentHp > 0 ? $"攻击 {currentEnemy.AttackDamage}" : string.Empty;
+            intentLabel.text = currentEnemy.CurrentHp > 0 ? $"\u653b\u51fb {currentEnemy.AttackDamage}" : string.Empty;
             coreRenderer.color = new Color(1f, 1f, 1f, Mathf.Lerp(0.08f, 0.24f, currentEnemy.CurrentHp / (float)currentEnemy.MaxHp));
             RefreshHpBar();
         }
@@ -87,15 +96,14 @@ namespace POPHero
             if (currentEnemy == null)
                 return;
 
-            var displayHp = Mathf.Max(0, currentEnemy.CurrentHp - pendingDamagePreview);
-            var realRatio = currentEnemy.MaxHp <= 0 ? 0f : currentEnemy.CurrentHp / (float)currentEnemy.MaxHp;
-            var previewRatio = currentEnemy.MaxHp <= 0 ? 0f : displayHp / (float)currentEnemy.MaxHp;
-            var previewLossRatio = Mathf.Max(0f, realRatio - previewRatio);
+            var baseHp = snapshotHp >= 0 ? snapshotHp : currentEnemy.CurrentHp;
+            var maxHp = snapshotMaxHp > 0 ? snapshotMaxHp : currentEnemy.MaxHp;
+            var displayHp = Mathf.Max(0, baseHp);
+            var realRatio = maxHp <= 0 ? 0f : displayHp / (float)maxHp;
 
-            hpLabel.text = $"{displayHp}/{currentEnemy.MaxHp}";
+            hpLabel.text = $"{displayHp}/{maxHp}";
             UpdateBar(hpFillRenderer, realRatio, new Color(0.98f, 0.92f, 0.72f, 1f));
-            UpdateBar(hpPreviewRenderer, previewLossRatio, new Color(0.56f, 0.16f, 0.18f, 0.92f), previewRatio);
-            hpPreviewRenderer.enabled = pendingDamagePreview > 0 && previewLossRatio > 0.001f;
+            hpPreviewRenderer.enabled = false;
         }
 
         void UpdateBar(SpriteRenderer renderer, float ratio, Color color, float startRatio = 0f)

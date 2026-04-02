@@ -240,29 +240,42 @@ namespace POPHero
             var currentPosition = body.position;
             var currentDirection = lastMoveDirection.sqrMagnitude > 0.001f ? lastMoveDirection.normalized : Vector2.up;
             var loopGuard = 0;
+            Collider2D ignoredCollider = null;
+            Collider2D secondaryIgnoredCollider = null;
+            WallHitMemory previousWallHit = default;
+            var repeatedCornerCount = 0;
+            Collider2D recoveryCollider = null;
+            var recoveryCount = 0;
 
-            while (remainingDistance > epsilon && loopGuard < 8 && isFlying)
+            while (remainingDistance > epsilon && loopGuard < 16 && isFlying)
             {
                 loopGuard += 1;
+                var segmentStart = currentPosition;
 
-                if (trajectoryPredictor == null || !trajectoryPredictor.TryCastStep(currentPosition, currentDirection, remainingDistance, out var step))
+                if (game.BounceStepSolver == null || !game.BounceStepSolver.TryCastStep(currentPosition, currentDirection, remainingDistance, ignoredCollider, secondaryIgnoredCollider, out var step))
                 {
                     currentPosition += currentDirection * remainingDistance;
                     remainingDistance = 0f;
                     break;
                 }
 
-                if (step.travelDistance <= epsilon * 0.5f)
+                var cornerResolved = game.BounceStepSolver.TryResolveCornerBounce(previousWallHit, step, out var cornerBounce);
+                if (cornerResolved)
                 {
-                    currentPosition += currentDirection * epsilon;
-                    remainingDistance = Mathf.Max(0f, remainingDistance - epsilon);
-                    break;
+                    step.hitPoint = cornerBounce.safePoint;
+                    step.hitNormal = cornerBounce.combinedNormal;
+                    step.travelDistance = Mathf.Max(step.travelDistance, Vector2.Distance(segmentStart, step.hitPoint));
+                    repeatedCornerCount += 1;
+                }
+                else
+                {
+                    repeatedCornerCount = 0;
                 }
 
                 currentPosition = step.hitPoint;
                 RecordActualPoint(currentPosition, true);
 
-                if (step.block != null && CanTrigger(step.collider))
+                if (!step.isRecoveryStep && step.block != null && CanTrigger(step.collider))
                     step.block.HandleBallHit(this);
 
                 if (step.marker != null && step.marker.surfaceType == ArenaSurfaceType.Bottom)
@@ -273,16 +286,70 @@ namespace POPHero
                     return;
                 }
 
-                currentSpeed = Mathf.Min(game.config.ball.maxSpeed, currentSpeed + game.config.ball.accelerationPerBounce);
+                if (step.isRecoveryStep)
+                {
+                    recoveryCount = recoveryCollider == step.collider ? recoveryCount + 1 : 1;
+                    recoveryCollider = step.collider;
+                }
+                else
+                {
+                    recoveryCount = 0;
+                    recoveryCollider = null;
+                }
+
+                if (!step.isRecoveryStep)
+                    currentSpeed = Mathf.Min(game.config.ball.maxSpeed, currentSpeed + game.config.ball.accelerationPerBounce);
                 currentDirection = Vector2.Reflect(currentDirection, step.hitNormal).normalized;
                 if (currentDirection.sqrMagnitude <= 0.0001f)
                     currentDirection = lastMoveDirection.sqrMagnitude > 0.001f ? -lastMoveDirection.normalized : Vector2.down;
 
                 lastMoveDirection = currentDirection;
-                BoostTrail();
-                remainingDistance -= Mathf.Max(step.travelDistance, epsilon);
-                currentPosition += currentDirection * epsilon;
-                remainingDistance = Mathf.Max(0f, remainingDistance - epsilon);
+                if (!step.isRecoveryStep)
+                    BoostTrail();
+                var travelCost = step.isRecoveryStep
+                    ? Mathf.Max(epsilon, game.config.ball.sameColliderMinTravel)
+                    : Mathf.Max(step.travelDistance, epsilon);
+                remainingDistance = Mathf.Max(0f, remainingDistance - travelCost);
+                var pushDistance = repeatedCornerCount >= 2
+                    ? Mathf.Max(epsilon * 2f, BallRadiusWorld * 0.16f)
+                    : cornerResolved
+                        ? Mathf.Max(epsilon * 1.5f, BallRadiusWorld * 0.1f)
+                        : step.isRecoveryStep
+                            ? Mathf.Max(epsilon * 1.5f, BallRadiusWorld * 0.12f)
+                            : epsilon;
+                currentPosition += currentDirection * pushDistance;
+                if (cornerResolved)
+                {
+                    ignoredCollider = cornerBounce.ignoredColliderA;
+                    secondaryIgnoredCollider = cornerBounce.ignoredColliderB;
+                    previousWallHit.Clear();
+                }
+                else if (step.isRecoveryStep)
+                {
+                    ignoredCollider = step.collider;
+                    secondaryIgnoredCollider = null;
+                    previousWallHit.Clear();
+                    if (recoveryCount >= Mathf.Max(1, game.config.ball.interiorRepeatLimit))
+                    {
+                        currentPosition += currentDirection * Mathf.Max(epsilon * 2f, BallRadiusWorld * 0.18f);
+                        recoveryCount = 0;
+                        recoveryCollider = null;
+                    }
+                }
+                else
+                {
+                    ignoredCollider = step.collider;
+                    secondaryIgnoredCollider = null;
+                    if (step.marker != null &&
+                        (step.marker.surfaceType == ArenaSurfaceType.Top || step.marker.surfaceType == ArenaSurfaceType.Left || step.marker.surfaceType == ArenaSurfaceType.Right))
+                    {
+                        previousWallHit.Set(step.marker.surfaceType, step.hitPoint, step.hitNormal, step.collider);
+                    }
+                    else
+                    {
+                        previousWallHit.Clear();
+                    }
+                }
             }
 
             body.position = currentPosition;

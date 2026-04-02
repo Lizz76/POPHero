@@ -7,11 +7,13 @@ namespace POPHero
         PopHeroGame game;
         BallController ballController;
         TrajectoryPredictor trajectoryPredictor;
-        AimStateController aimStateController;
+        IAimService aimStateController;
         Camera mainCamera;
         LineRenderer aimLine;
         LineRenderer memoryLine;
         bool isDragging;
+        readonly IAimInputStrategy pcAimInputStrategy = new PcAimInputStrategy();
+        readonly IAimInputStrategy mobileAimInputStrategy = new MobileAimInputStrategy();
 
         public AimLockContext AimContext => aimStateController?.Context;
 
@@ -41,15 +43,7 @@ namespace POPHero
                 return;
             }
 
-            switch (game.CurrentAimMode)
-            {
-                case InputAimMode.MobileDragConfirm:
-                    HandleMobileAimInput();
-                    break;
-                default:
-                    HandlePcAimInput();
-                    break;
-            }
+            GetCurrentInputStrategy().Tick(this);
         }
 
         public void CancelAim()
@@ -63,7 +57,12 @@ namespace POPHero
             game?.ClearAimPreview();
         }
 
-        void HandlePcAimInput()
+        IAimInputStrategy GetCurrentInputStrategy()
+        {
+            return game.CurrentAimMode == InputAimMode.MobileDragConfirm ? mobileAimInputStrategy : pcAimInputStrategy;
+        }
+
+        internal void TickPcAimInput()
         {
             if (mainCamera == null || Input.touchCount > 0)
                 return;
@@ -75,7 +74,7 @@ namespace POPHero
                 LaunchCurrentAim();
         }
 
-        void HandleMobileAimInput()
+        internal void TickMobileAimInput()
         {
             if (mainCamera == null)
                 return;

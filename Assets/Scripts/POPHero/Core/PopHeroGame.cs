@@ -1,13 +1,30 @@
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 namespace POPHero
 {
-    public class PopHeroGame : MonoBehaviour
+    public class PopHeroGame : MonoBehaviour, IGameReadModel, IHudCommandSink
     {
         static readonly float[] WallStoneShadePattern = { -0.22f, 0.1f, -0.08f, 0.16f, -0.14f, 0.05f, 0.12f, -0.04f };
 
+        enum IntermissionActionKind
+        {
+            None,
+            SelectBlockReward,
+            SkipBlockReward,
+            EnterStickerRewardPhase,
+            SelectReward,
+            RerollRewardChoices,
+            SkipRewardChoices,
+            OpenShop,
+            CloseShop,
+            FinishLoadout
+        }
+
         public PopHeroPrototypeConfig config;
+        public PopHeroPrototypeConfig Config => config;
 
         public RoundState State { get; private set; }
         public PlayerData Player { get; private set; }
@@ -29,18 +46,27 @@ namespace POPHero
         public RoundController RoundController => roundController;
         public BoardManager BoardManager => boardManager;
         public EnemyController EnemyPresenter => enemyController;
+        public PlayerPresenter HeroPresenter => playerPresenter;
         public StickerCatalog StickerCatalog => stickerCatalog;
         public StickerInventory StickerInventory => stickerInventory;
         public StickerEffectRunner StickerEffectRunner => stickerEffectRunner;
         public RewardChoiceController RewardChoiceController => rewardChoiceController;
         public ModManager ModManager => modManager;
         public ShopManager ShopManager => shopManager;
+        public ICombatEventHub CombatEventHub => combatEventHub;
+        public IBounceStepSolver BounceStepSolver => bounceStepSolver;
+        public IBlockCollectionService BlockCollections => blockCollectionService;
+        public IBlockRewardService BlockRewards => blockRewardService;
+        public IRuntimeBoardService RuntimeBoard => runtimeBoardService;
+        public IModService Mods => modService;
+        public IShopService Shops => shopService;
         public int EncounterIndex => enemyEncounterIndex + 1;
         public int MaxLaunchesPerEnemy => Mathf.Max(1, config.enemies.maxLaunchesPerEnemy + (Player?.BonusLaunchesPerEnemy ?? 0));
         public InputAimMode CurrentAimMode => config.aim.currentAimMode;
         public bool IsInitialBlockDraftPending => initialBlockDraftPending;
         public bool CanManageBlockAssignments => State == RoundState.Shop || State == RoundState.LoadoutManage;
-        public string CurrentAimModeLabel => CurrentAimMode == InputAimMode.PCMouseAimClick ? "鼠标移动瞄准，左键确认发射" : "拖动定方向，第二次点击发射";
+        public string AimModeDisplayText => CurrentAimMode == InputAimMode.PCMouseAimClick ? "鼠标移动瞄准，左键确认发射" : "拖动确定方向，再点击一次发射";
+        public string CurrentAimModeLabel => CurrentAimMode == InputAimMode.PCMouseAimClick ? "鼠标移动瞄准，左键确认发射" : "拖动确定方向，再点击一次发射";
         public Vector2 CurrentLaunchPoint => roundController != null ? roundController.LaunchPosition : new Vector2(BoardRect.center.x, LaunchY);
         public IReadOnlyList<WallAimPoint> WallAimPoints => wallAimPoints;
 
@@ -50,19 +76,39 @@ namespace POPHero
         BoardManager boardManager;
         RoundController roundController;
         EnemyController enemyController;
+        PlayerPresenter playerPresenter;
         PopHeroHud hud;
         DamageCounterView damageCounterView;
         PhysicsMaterial2D bounceMaterial;
         Transform launchMarker;
+        Transform battleStageRoot;
+        Transform battleEffectsRoot;
         StickerCatalog stickerCatalog;
         StickerInventory stickerInventory;
         StickerEffectRunner stickerEffectRunner;
         RewardChoiceController rewardChoiceController;
         ModManager modManager;
         ShopManager shopManager;
+        ICombatEventHub combatEventHub;
+        IBounceStepSolver bounceStepSolver;
+        IBlockCollectionService blockCollectionService;
+        IBlockRewardService blockRewardService;
+        IRuntimeBoardService runtimeBoardService;
+        IModService modService;
+        IShopService shopService;
+        GamePhaseStateMachine phaseStateMachine;
+        GameSessionController gameSessionController;
+        BattleFlowController battleFlowController;
+        IntermissionFlowController intermissionFlowController;
         readonly List<WallAimPoint> wallAimPoints = new();
         int enemyEncounterIndex;
         bool initialBlockDraftPending;
+        IntermissionActionKind pendingIntermissionAction;
+        int pendingIntermissionIndex = -1;
+        bool isBattlePresentationPlaying;
+        Coroutine battlePresentationRoutine;
+        Vector3 playerIdlePosition;
+        Vector3 enemyIdlePosition;
 
         void Awake()
         {
@@ -76,7 +122,7 @@ namespace POPHero
 
         public bool CanSimulate()
         {
-            return State != RoundState.GameOver;
+            return State != RoundState.GameOver && !isBattlePresentationPlaying;
         }
 
         public void ApplyPreviewResult(TrajectoryPreviewResult preview)
@@ -132,13 +178,11 @@ namespace POPHero
             if (State == RoundState.BallFlying)
             {
                 var pendingDamage = roundController != null ? roundController.PendingDamage : 0;
-                enemyController?.SetPreviewDamage(pendingDamage);
                 damageCounterView?.Show();
                 damageCounterView?.SetValue(pendingDamage);
                 return;
             }
 
-            enemyController?.ClearPreviewDamage();
             damageCounterView?.Hide();
         }
 
@@ -213,6 +257,7 @@ namespace POPHero
             boardManager.Initialize(this, blockRoot, bounceMaterial);
             trajectoryPredictor.Initialize(this, ballController);
             ballController.SetTrajectoryPredictor(trajectoryPredictor);
+            bounceStepSolver = new BounceStepSolver(this, ballController);
 
             stickerCatalog = new StickerCatalog();
             stickerInventory = new StickerInventory();
@@ -220,6 +265,7 @@ namespace POPHero
             rewardChoiceController = new RewardChoiceController();
             modManager = new ModManager();
             shopManager = new ShopManager();
+            combatEventHub = new CombatEventHub();
 
             stickerInventory.Initialize(this);
             stickerEffectRunner.Initialize(this);
@@ -227,12 +273,32 @@ namespace POPHero
             modManager.Initialize(this);
             shopManager.Initialize(this);
 
+            blockCollectionService = new BlockCollectionServiceFacade(boardManager);
+            blockRewardService = new BlockRewardServiceFacade(boardManager);
+            runtimeBoardService = new RuntimeBoardServiceFacade(boardManager);
+            modService = new ModServiceFacade(modManager);
+            shopService = new ShopServiceFacade(shopManager);
+            ConfigurePhaseStateMachine();
+            gameSessionController = new GameSessionController(this);
+            battleFlowController = new BattleFlowController(this);
+            intermissionFlowController = new IntermissionFlowController(this);
+
             launcher = ballController.gameObject.AddComponent<PlayerLauncher>();
             launcher.Initialize(this, ballController, trajectoryPredictor);
             damageCounterView.Initialize(this);
         }
 
+        void Update()
+        {
+            intermissionFlowController?.ProcessPendingAction();
+        }
+
         void StartPrototype()
+        {
+            gameSessionController?.StartSession();
+        }
+
+        internal void StartPrototypeCore()
         {
             Player = new PlayerData(config.player.maxHp, config.player.currentHp, config.player.startShield, config.player.startGold);
             Player.IncreaseInventoryCapacity(config.stickers.baseInventoryCapacity - Player.StickerInventoryCapacity);
@@ -244,7 +310,12 @@ namespace POPHero
             initialBlockDraftPending = true;
             GameOverMessage = "本局结束。";
             IntermissionMessage = string.Empty;
+            ClearPendingIntermissionAction();
             damageCounterView?.ResetCounter();
+            isBattlePresentationPlaying = false;
+            enemyController.gameObject.SetActive(false);
+            playerPresenter?.Refresh(Player);
+            ResetBattleActorPositions();
             UpdateLaunchMarker();
             BeginBlockRewardDraft(true);
         }
@@ -254,14 +325,23 @@ namespace POPHero
             var panelCenter = new Vector2(BoardRect.center.x, BoardRect.yMax + config.arena.topPanelHeight * 0.56f);
             var panel = PrototypeVisualFactory.CreateSpriteObject("EnemyPanel", parent, PrototypeVisualFactory.SquareSprite, config.arena.topPanelColor, 1, new Vector2(BoardRect.width, config.arena.topPanelHeight));
             panel.transform.position = panelCenter;
-            var accentLeft = PrototypeVisualFactory.CreateSpriteObject("AccentLeft", parent, PrototypeVisualFactory.SquareSprite, config.arena.enemyPanelAccent, 2, new Vector2(2.5f, 0.32f));
-            accentLeft.transform.position = panelCenter + new Vector2(-BoardRect.width * 0.25f, 0.9f);
-            var accentRight = PrototypeVisualFactory.CreateSpriteObject("AccentRight", parent, PrototypeVisualFactory.SquareSprite, config.arena.enemyPanelAccent, 2, new Vector2(2.5f, 0.32f));
-            accentRight.transform.position = panelCenter + new Vector2(BoardRect.width * 0.25f, 0.9f);
+
+            battleStageRoot = new GameObject("BattleStage").transform;
+            battleStageRoot.SetParent(parent, false);
+            battleEffectsRoot = new GameObject("BattleEffects").transform;
+            battleEffectsRoot.SetParent(parent, false);
+            playerIdlePosition = panelCenter + new Vector2(-BoardRect.width * 0.28f, -0.16f);
+            enemyIdlePosition = panelCenter + new Vector2(BoardRect.width * 0.2f, -0.08f);
+
+            var heroGo = new GameObject("Hero");
+            heroGo.transform.SetParent(battleStageRoot, false);
+            heroGo.transform.position = playerIdlePosition;
+            playerPresenter = heroGo.AddComponent<PlayerPresenter>();
+            playerPresenter.Initialize();
 
             var enemyGo = new GameObject("Enemy");
-            enemyGo.transform.SetParent(parent, false);
-            enemyGo.transform.position = panelCenter + new Vector2(0f, -0.12f);
+            enemyGo.transform.SetParent(battleStageRoot, false);
+            enemyGo.transform.position = enemyIdlePosition;
             enemyController = enemyGo.AddComponent<EnemyController>();
             enemyController.Initialize(this);
         }
@@ -489,6 +569,11 @@ namespace POPHero
 
         public void TryLaunchBall(Vector2 direction, TrajectoryPreviewResult preview = null)
         {
+            battleFlowController?.TryLaunchBall(direction, preview);
+        }
+
+        internal void TryLaunchBallCore(Vector2 direction, TrajectoryPreviewResult preview = null)
+        {
             if (State != RoundState.Aim || direction.sqrMagnitude <= 0.001f || RemainingLaunchesForEnemy <= 0)
                 return;
 
@@ -503,40 +588,38 @@ namespace POPHero
 
         public void OnBallReturned(Vector2 landingPoint)
         {
+            battleFlowController?.OnBallReturned(landingPoint);
+        }
+
+        internal void OnBallReturnedCore(Vector2 landingPoint)
+        {
             if (State != RoundState.BallFlying)
                 return;
 
+            var enemyDisplayBefore = CurrentEnemy != null ? CurrentEnemy.CurrentHp : 0;
+            var enemyMaxHp = CurrentEnemy != null ? CurrentEnemy.MaxHp : 0;
+            var playerDisplayBefore = Player != null ? Player.CurrentHp : 0;
+            var playerMaxHp = Player != null ? Player.MaxHp : 0;
             ChangeState(RoundState.RoundResolve);
             var result = roundController.ResolveRound(landingPoint);
-            enemyController.Refresh();
+            result.enemyDisplayHpBeforeHit = enemyDisplayBefore;
+            result.enemyDisplayHpAfterHit = CurrentEnemy != null ? CurrentEnemy.CurrentHp : 0;
+            result.playerDisplayHpBeforeCounter = playerDisplayBefore;
+            result.playerDisplayHpAfterCounter = Player != null ? Player.CurrentHp : 0;
+            enemyController?.SetHpSnapshot(result.enemyDisplayHpBeforeHit, enemyMaxHp);
+            playerPresenter?.SetHpSnapshot(result.playerDisplayHpBeforeCounter, playerMaxHp);
             UpdateLaunchMarker();
-
-            if (result.playerDefeated)
-            {
-                TriggerGameOver("生命归零，战斗结束。");
-                return;
-            }
-
-            if (result.enemyDefeated)
-            {
-                HandleEnemyDefeated();
-                return;
-            }
-
-            var interest = modManager.GetInterestIncome(Player.Gold);
-            if (interest > 0)
-                Player.AddGold(interest);
-
-            if (RemainingLaunchesForEnemy <= 0)
-            {
-                TriggerGameOver("当前敌人的可发射次数已经用完。");
-                return;
-            }
-
-            PrepareNextRound();
+            if (battlePresentationRoutine != null)
+                StopCoroutine(battlePresentationRoutine);
+            battlePresentationRoutine = StartCoroutine(PlayResolvePresentation(result));
         }
 
         void HandleEnemyDefeated()
+        {
+            gameSessionController?.HandleEnemyDefeated();
+        }
+
+        internal void HandleEnemyDefeatedCore()
         {
             if (CurrentEnemy != null)
             {
@@ -545,6 +628,7 @@ namespace POPHero
                 Player.RestoreToFullHealth();
             }
 
+            playerPresenter?.Refresh(Player);
             Player.RegisterKillAndTryLevelUp();
             BeginBlockRewardDraft(false);
         }
@@ -553,23 +637,13 @@ namespace POPHero
         {
             initialBlockDraftPending = initialDraft;
             boardManager.GenerateRewardOptions(Player.TotalKills, initialDraft ? config.blockRewards.initialChoiceCount : config.blockRewards.rewardChoiceCount);
-            if (initialDraft)
-            {
-                IntermissionMessage = "先选一张初始方块，再开始第一场战斗。";
-            }
-            else if (!boardManager.CanAcceptRewardBlock)
-            {
-                IntermissionMessage = "上阵区与仓库区都已满，请跳过本次方块奖励，稍后在商店或整理阶段删除/替换方块。";
-            }
-            else if (boardManager.RewardWillGoToReserve)
-            {
-                IntermissionMessage = "上阵区已满，本次选到的新方块会进入仓库。";
-            }
-            else
-            {
-                IntermissionMessage = "击败敌人后，选择一张方块加入上阵区，或直接跳过。";
-            }
-
+            IntermissionMessage = initialDraft
+                ? "先选一张初始方块，再开始第一场战斗。"
+                : !boardManager.CanAcceptRewardBlock
+                    ? "上阵区与仓库区都已满，请跳过本次方块奖励，稍后在商店或整理阶段删除或替换方块。"
+                    : boardManager.RewardWillGoToReserve
+                        ? "上阵区已满，本次选到的新方块会进入仓库。"
+                        : "击败敌人后，选择一张方块加入上阵区，或直接跳过。";
             ChangeState(RoundState.BlockRewardChoose);
         }
 
@@ -594,6 +668,9 @@ namespace POPHero
             boardManager.AdvanceBlockProgression();
             boardManager.ShuffleBlocks(CurrentLaunchPoint);
             ballController.PlaceAt(CurrentLaunchPoint);
+            ResetBattleActorPositions();
+            playerPresenter?.Refresh(Player);
+            enemyController?.Refresh();
             RefreshLaunchCounter();
             UpdateLaunchMarker();
             IntermissionMessage = string.Empty;
@@ -612,6 +689,8 @@ namespace POPHero
             CurrentEnemy = BuildEnemyForIndex(index);
             RemainingLaunchesForEnemy = MaxLaunchesPerEnemy;
             RefreshLaunchCounter();
+            enemyController.gameObject.SetActive(true);
+            ResetBattleActorPositions();
             enemyController.SetEnemy(CurrentEnemy);
         }
 
@@ -625,8 +704,22 @@ namespace POPHero
             var rewardGold = template.rewardGold + overflow * config.enemies.endlessGoldGrowth;
             var rewardHeal = template.rewardHeal + overflow * config.enemies.endlessHealGrowth;
             var attackDamage = template.attackDamage + overflow * config.enemies.endlessAttackGrowth;
-            var name = overflow > 0 ? $"{template.displayName}+{overflow}" : template.displayName;
+            var baseName = GetCleanEnemyName(clampedIndex, template.displayName);
+            var name = overflow > 0 ? $"{baseName}+{overflow}" : baseName;
             return new EnemyData(name, hp, rewardGold, rewardHeal, attackDamage, template.color);
+        }
+
+                static string GetCleanEnemyName(int index, string fallbackName)
+        {
+            return index switch
+            {
+                0 => "荆石偶像",
+                1 => "铁皮信使",
+                2 => "尖刺图腾",
+                3 => "狂战祭司",
+                4 => "深渊领主",
+                _ => string.IsNullOrWhiteSpace(fallbackName) ? "敌人" : fallbackName
+            };
         }
 
         void UpdateLaunchMarker()
@@ -636,6 +729,14 @@ namespace POPHero
         }
 
         public void TrySelectBlockReward(int index)
+        {
+            if (State != RoundState.BlockRewardChoose)
+                return;
+
+            QueueIntermissionAction(IntermissionActionKind.SelectBlockReward, index);
+        }
+
+        void ExecuteSelectBlockReward(int index)
         {
             if (State != RoundState.BlockRewardChoose)
                 return;
@@ -651,7 +752,7 @@ namespace POPHero
             if (initialBlockDraftPending)
                 CompleteInitialDraft();
             else
-                EnterStickerRewardPhase();
+                QueueIntermissionAction(IntermissionActionKind.EnterStickerRewardPhase);
         }
 
         public void SkipBlockReward()
@@ -659,8 +760,16 @@ namespace POPHero
             if (State != RoundState.BlockRewardChoose || initialBlockDraftPending)
                 return;
 
+            QueueIntermissionAction(IntermissionActionKind.SkipBlockReward);
+        }
+
+        void ExecuteSkipBlockReward()
+        {
+            if (State != RoundState.BlockRewardChoose || initialBlockDraftPending)
+                return;
+
             boardManager.ClearRewardOptions();
-            EnterStickerRewardPhase();
+            QueueIntermissionAction(IntermissionActionKind.EnterStickerRewardPhase);
         }
 
         public void TrySelectReward(int index)
@@ -668,13 +777,27 @@ namespace POPHero
             if (State != RoundState.RewardChoose)
                 return;
 
+            QueueIntermissionAction(IntermissionActionKind.SelectReward, index);
+        }
+
+        void ExecuteSelectReward(int index)
+        {
+            if (State != RoundState.RewardChoose)
+                return;
+
             if (!rewardChoiceController.TrySelectChoice(index))
                 return;
 
-            EnterShop();
+            QueueIntermissionAction(IntermissionActionKind.OpenShop);
         }
 
         public void TryRerollRewardChoices()
+        {
+            if (State == RoundState.RewardChoose)
+                QueueIntermissionAction(IntermissionActionKind.RerollRewardChoices);
+        }
+
+        void ExecuteRerollRewardChoices()
         {
             if (State == RoundState.RewardChoose && rewardChoiceController.TryRerollChoices())
                 IntermissionMessage = rewardChoiceController.LastStatusMessage;
@@ -685,9 +808,17 @@ namespace POPHero
             if (State != RoundState.RewardChoose)
                 return;
 
+            QueueIntermissionAction(IntermissionActionKind.SkipRewardChoices);
+        }
+
+        void ExecuteSkipRewardChoices()
+        {
+            if (State != RoundState.RewardChoose)
+                return;
+
             rewardChoiceController.SkipChoices();
             IntermissionMessage = rewardChoiceController.LastStatusMessage;
-            EnterShop();
+            QueueIntermissionAction(IntermissionActionKind.OpenShop);
         }
 
         void EnterShop()
@@ -740,6 +871,14 @@ namespace POPHero
             if (State != RoundState.Shop)
                 return;
 
+            QueueIntermissionAction(IntermissionActionKind.CloseShop);
+        }
+
+        void ExecuteCloseShop()
+        {
+            if (State != RoundState.Shop)
+                return;
+
             shopManager.CloseShop();
             ChangeState(RoundState.LoadoutManage);
         }
@@ -754,6 +893,11 @@ namespace POPHero
             stickerInventory.CancelDrag();
         }
 
+        public void SetIntermissionMessage(string message)
+        {
+            IntermissionMessage = message ?? string.Empty;
+        }
+
         public bool TryInstallDraggedSticker(string cardId, int socketIndex, out string failReason)
         {
             failReason = string.Empty;
@@ -764,13 +908,10 @@ namespace POPHero
                 return false;
             }
 
-            var sticker = stickerInventory.TakeDraggingSticker();
-            if (!boardManager.TryInstallSticker(cardId, socketIndex, sticker, out failReason))
-            {
-                stickerInventory.ReturnToInventory(sticker);
+            if (!boardManager.TryInstallSticker(cardId, socketIndex, dragging, out failReason))
                 return false;
-            }
 
+            stickerInventory.TakeDraggingSticker();
             return true;
         }
 
@@ -810,10 +951,7 @@ namespace POPHero
         public void FinishLoadout()
         {
             if (State == RoundState.LoadoutManage)
-            {
-                boardManager.EnsureAtLeastOneActive();
-                ContinueToNextEnemy();
-            }
+                QueueIntermissionAction(IntermissionActionKind.FinishLoadout);
         }
 
         public void DebugShuffleBoard()
@@ -837,6 +975,79 @@ namespace POPHero
                 launcher?.CancelAim();
         }
 
+        public void ExecuteHudCommand(HudCommand command)
+        {
+            switch (command.Type)
+            {
+                case HudCommandType.ToggleAimMode:
+                    ToggleAimMode();
+                    break;
+                case HudCommandType.DebugShuffleBoard:
+                    DebugShuffleBoard();
+                    break;
+                case HudCommandType.DebugAddGold:
+                    DebugAddGold(command.IntValue);
+                    break;
+                case HudCommandType.DebugKillEnemy:
+                    DebugKillEnemy();
+                    break;
+                case HudCommandType.DebugDamagePlayer:
+                    DebugDamagePlayer(command.IntValue);
+                    break;
+                case HudCommandType.TrySelectBlockReward:
+                    TrySelectBlockReward(command.IntValue);
+                    break;
+                case HudCommandType.SkipBlockReward:
+                    SkipBlockReward();
+                    break;
+                case HudCommandType.TrySelectReward:
+                    TrySelectReward(command.IntValue);
+                    break;
+                case HudCommandType.TryRerollRewardChoices:
+                    TryRerollRewardChoices();
+                    break;
+                case HudCommandType.SkipRewardChoices:
+                    SkipRewardChoices();
+                    break;
+                case HudCommandType.TryBuyShopItem:
+                    TryBuyShopItem(command.IntValue);
+                    break;
+                case HudCommandType.TryRerollShop:
+                    TryRerollShop();
+                    break;
+                case HudCommandType.CloseShop:
+                    CloseShop();
+                    break;
+                case HudCommandType.FinishLoadout:
+                    FinishLoadout();
+                    break;
+                case HudCommandType.BeginStickerDrag:
+                    BeginStickerDrag(command.PrimaryId);
+                    break;
+                case HudCommandType.CancelStickerDrag:
+                    CancelStickerDrag();
+                    break;
+                case HudCommandType.ToggleModActivation:
+                    ToggleModActivation(command.PrimaryId);
+                    break;
+                case HudCommandType.TryRemoveBlockInShop:
+                    TryRemoveBlockInShop(command.PrimaryId);
+                    break;
+                case HudCommandType.TrySwapActiveReserve:
+                    TrySwapActiveReserve(command.PrimaryId, command.SecondaryId);
+                    break;
+                case HudCommandType.TryInstallDraggedSticker:
+                    if (TryInstallDraggedSticker(command.PrimaryId, command.IntValue, out var failReason))
+                        SetIntermissionMessage("已安装嵌片。");
+                    else
+                        SetIntermissionMessage(failReason);
+                    break;
+                case HudCommandType.RemoveStickerFromCard:
+                    RemoveStickerFromCard(command.PrimaryId, command.IntValue);
+                    break;
+            }
+        }
+
         public void DebugKillEnemy()
         {
             if (CurrentEnemy == null || State == RoundState.GameOver || State == RoundState.BlockRewardChoose || State == RoundState.RewardChoose || State == RoundState.Shop || State == RoundState.LoadoutManage)
@@ -854,6 +1065,8 @@ namespace POPHero
                 return;
 
             Player.ApplyDamage(amount);
+            playerPresenter?.Refresh(Player);
+            playerPresenter?.PlayHitFeedback(amount >= 18);
             if (Player.IsDead)
                 TriggerGameOver("生命归零，战斗结束。");
         }
@@ -861,8 +1074,150 @@ namespace POPHero
         public void TriggerGameOver(string reason = null)
         {
             GameOverMessage = string.IsNullOrWhiteSpace(reason) ? "本局结束。" : reason;
+            ClearPendingIntermissionAction();
+            if (battlePresentationRoutine != null)
+            {
+                StopCoroutine(battlePresentationRoutine);
+                battlePresentationRoutine = null;
+            }
+            isBattlePresentationPlaying = false;
             ChangeState(RoundState.GameOver);
             ballController?.StopImmediately();
+        }
+
+        IEnumerator PlayResolvePresentation(RoundResolveResult result)
+        {
+            isBattlePresentationPlaying = true;
+            if (result.attackDamage > 0)
+            {
+                yield return PlayAttackLeap(playerPresenter != null ? playerPresenter.transform : null, playerIdlePosition, enemyController != null ? enemyController.transform.position + new Vector3(0f, 1.18f, 0f) : enemyIdlePosition, new Color(0.35f, 0.92f, 1f, 1f), () =>
+                {
+                    enemyController?.Refresh();
+                    enemyController?.PlayHitFeedback(result.enemyDefeated);
+                });
+            }
+            else
+            {
+                enemyController?.SetHpSnapshot(result.enemyDisplayHpAfterHit, CurrentEnemy != null ? CurrentEnemy.MaxHp : Mathf.Max(1, result.enemyDisplayHpAfterHit));
+            }
+
+            if (!result.enemyDefeated && CurrentEnemy != null && result.enemyCounterDamage > 0)
+            {
+                yield return new WaitForSeconds(0.06f);
+                yield return PlayAttackLeap(enemyController != null ? enemyController.transform : null, enemyIdlePosition, playerPresenter != null ? playerPresenter.transform.position + new Vector3(0f, 1.04f, 0f) : playerIdlePosition, CurrentEnemy.AccentColor, () =>
+                {
+                    playerPresenter?.Refresh(Player);
+                    playerPresenter?.PlayHitFeedback(result.playerDefeated || result.enemyCounterDamage >= 18);
+                });
+            }
+            else if (result.enemyCounterDamage <= 0)
+            {
+                playerPresenter?.SetHpSnapshot(result.playerDisplayHpAfterCounter, Player != null ? Player.MaxHp : Mathf.Max(1, result.playerDisplayHpAfterCounter));
+            }
+
+            isBattlePresentationPlaying = false;
+            battlePresentationRoutine = null;
+            CompleteResolvePresentation(result);
+        }
+
+        void CompleteResolvePresentation(RoundResolveResult result)
+        {
+            if (result.playerDefeated)
+            {
+                TriggerGameOver("生命归零，战斗结束。");
+                return;
+            }
+
+            if (result.enemyDefeated)
+            {
+                HandleEnemyDefeated();
+                return;
+            }
+
+            var interest = modManager.GetInterestIncome(Player.Gold);
+            if (interest > 0)
+                Player.AddGold(interest);
+
+            playerPresenter?.Refresh(Player);
+            if (RemainingLaunchesForEnemy <= 0)
+            {
+                TriggerGameOver("当前敌人的可发射次数已经用完。");
+                return;
+            }
+
+            PrepareNextRound();
+        }
+
+        IEnumerator PlayAttackLeap(Transform actor, Vector3 startWorldPosition, Vector3 impactWorldPosition, Color impactColor, Action onImpact)
+        {
+            if (actor == null)
+                yield break;
+
+            const float leapOutDuration = 0.16f;
+            const float returnDuration = 0.18f;
+            const float arcHeight = 0.78f;
+            var startScale = actor.localScale;
+            var targetScale = startScale * 1.08f;
+
+            for (var t = 0f; t < 1f; t += Time.deltaTime / leapOutDuration)
+            {
+                var lerpT = Mathf.Clamp01(t);
+                actor.position = Vector3.Lerp(startWorldPosition, impactWorldPosition, lerpT) + Vector3.up * Mathf.Sin(lerpT * Mathf.PI) * arcHeight;
+                actor.localScale = Vector3.Lerp(startScale, targetScale, Mathf.Sin(lerpT * Mathf.PI));
+                yield return null;
+            }
+
+            actor.position = impactWorldPosition;
+            actor.localScale = targetScale;
+            onImpact?.Invoke();
+            yield return StartCoroutine(PlayImpactBurst(impactWorldPosition, impactColor));
+
+            for (var t = 0f; t < 1f; t += Time.deltaTime / returnDuration)
+            {
+                var lerpT = Mathf.Clamp01(t);
+                actor.position = Vector3.Lerp(impactWorldPosition, startWorldPosition, lerpT) + Vector3.up * Mathf.Sin((1f - lerpT) * Mathf.PI) * (arcHeight * 0.55f);
+                actor.localScale = Vector3.Lerp(targetScale, startScale, lerpT);
+                yield return null;
+            }
+
+            actor.position = startWorldPosition;
+            actor.localScale = startScale;
+        }
+
+        IEnumerator PlayImpactBurst(Vector3 position, Color color)
+        {
+            if (battleEffectsRoot == null)
+                yield break;
+
+            var ringObject = PrototypeVisualFactory.CreateSpriteObject("ImpactBurst", battleEffectsRoot, PrototypeVisualFactory.CircleSprite, color, 22, Vector2.one * 0.18f);
+            ringObject.transform.position = position;
+            var renderer = ringObject.GetComponent<SpriteRenderer>();
+            const float duration = 0.14f;
+            for (var t = 0f; t < 1f; t += Time.deltaTime / duration)
+            {
+                var lerpT = Mathf.Clamp01(t);
+                var alpha = 1f - lerpT;
+                renderer.color = new Color(color.r, color.g, color.b, alpha);
+                ringObject.transform.localScale = Vector3.one * Mathf.Lerp(0.18f, 0.92f, lerpT);
+                yield return null;
+            }
+
+            Destroy(ringObject);
+        }
+
+        void ResetBattleActorPositions()
+        {
+            if (playerPresenter != null)
+            {
+                playerPresenter.transform.position = playerIdlePosition;
+                playerPresenter.transform.localScale = Vector3.one;
+            }
+
+            if (enemyController != null)
+            {
+                enemyController.transform.position = enemyIdlePosition;
+                enemyController.transform.localScale = Vector3.one;
+            }
         }
 
         void RefreshLaunchCounter()
@@ -870,9 +1225,88 @@ namespace POPHero
             ballController?.SetLaunchCounter(RemainingLaunchesForEnemy, MaxLaunchesPerEnemy);
         }
 
+        void QueueIntermissionAction(IntermissionActionKind actionKind, int index = -1)
+        {
+            if (pendingIntermissionAction != IntermissionActionKind.None)
+                return;
+
+            pendingIntermissionAction = actionKind;
+            pendingIntermissionIndex = index;
+        }
+
+        void ClearPendingIntermissionAction()
+        {
+            pendingIntermissionAction = IntermissionActionKind.None;
+            pendingIntermissionIndex = -1;
+        }
+
+        void ProcessPendingIntermissionAction()
+        {
+            intermissionFlowController?.ProcessPendingAction();
+        }
+
+        internal void ProcessPendingIntermissionActionCore()
+        {
+            if (pendingIntermissionAction == IntermissionActionKind.None)
+                return;
+
+            var action = pendingIntermissionAction;
+            var index = pendingIntermissionIndex;
+            ClearPendingIntermissionAction();
+
+            switch (action)
+            {
+                case IntermissionActionKind.SelectBlockReward:
+                    ExecuteSelectBlockReward(index);
+                    break;
+                case IntermissionActionKind.SkipBlockReward:
+                    ExecuteSkipBlockReward();
+                    break;
+                case IntermissionActionKind.EnterStickerRewardPhase:
+                    EnterStickerRewardPhase();
+                    break;
+                case IntermissionActionKind.SelectReward:
+                    ExecuteSelectReward(index);
+                    break;
+                case IntermissionActionKind.RerollRewardChoices:
+                    ExecuteRerollRewardChoices();
+                    break;
+                case IntermissionActionKind.SkipRewardChoices:
+                    ExecuteSkipRewardChoices();
+                    break;
+                case IntermissionActionKind.OpenShop:
+                    EnterShop();
+                    break;
+                case IntermissionActionKind.CloseShop:
+                    ExecuteCloseShop();
+                    break;
+                case IntermissionActionKind.FinishLoadout:
+                    if (State == RoundState.LoadoutManage)
+                    {
+                        boardManager.EnsureAtLeastOneActive();
+                        ContinueToNextEnemy();
+                    }
+                    break;
+            }
+        }
+
+        void ConfigurePhaseStateMachine()
+        {
+            phaseStateMachine = new GamePhaseStateMachine();
+            phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.Aim, true));
+            phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.BallFlying, false));
+            phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.RoundResolve, false));
+            phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.BlockRewardChoose, false));
+            phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.RewardChoose, false));
+            phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.Shop, false));
+            phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.LoadoutManage, false));
+            phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.GameOver, false));
+        }
+
         void ChangeState(RoundState newState)
         {
             var previousState = State;
+            phaseStateMachine?.Change(newState);
             State = newState;
             if (previousState == RoundState.Aim && newState != RoundState.Aim)
             {
@@ -891,7 +1325,6 @@ namespace POPHero
             else
             {
                 damageCounterView?.Hide();
-                enemyController?.ClearPreviewDamage();
             }
         }
     }
@@ -971,7 +1404,7 @@ namespace POPHero
             var oldMatrix = GUI.matrix;
             GUIUtility.ScaleAroundPivot(new Vector2(scale, scale), pivot);
             GUI.Box(panelRect, GUIContent.none, panelStyle);
-            GUI.Label(new Rect(panelRect.x, panelRect.y + 16f, panelRect.width, 28f), "伤害", titleStyle);
+            GUI.Label(new Rect(panelRect.x, panelRect.y + 16f, panelRect.width, 28f), "\u4f24\u5bb3", titleStyle);
             GUI.Label(new Rect(panelRect.x, panelRect.y + 44f, panelRect.width, 72f), currentValue.ToString(), valueStyle);
             GUI.matrix = oldMatrix;
         }
@@ -1007,3 +1440,4 @@ namespace POPHero
         }
     }
 }
+

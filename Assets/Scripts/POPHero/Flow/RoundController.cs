@@ -35,8 +35,7 @@ namespace POPHero
             RoundHitCount = 0;
             StickerState.Reset();
             game.Player.ClearShield();
-            game.EnemyPresenter?.ClearPreviewDamage();
-            game.StickerEffectRunner.HandleRoundStart();
+            game.CombatEventHub?.Publish(new CombatEventPayload(StickerTriggerType.OnRoundStart));
         }
 
         public void ProcessBlockHit(BoardBlock block)
@@ -47,7 +46,19 @@ namespace POPHero
             RoundHitCount += 1;
             RegisterBlockHit(block.CardState);
             ApplyBaseBlockEffect(block);
-            game.StickerEffectRunner.HandleBlockHit(block);
+            game.CombatEventHub?.Publish(new CombatEventPayload(StickerTriggerType.OnBlockHit, block));
+            switch (block.blockType)
+            {
+                case BoardBlockType.AttackAdd:
+                    game.CombatEventHub?.Publish(new CombatEventPayload(StickerTriggerType.OnAttackBlockHit, block));
+                    break;
+                case BoardBlockType.AttackMultiply:
+                    game.CombatEventHub?.Publish(new CombatEventPayload(StickerTriggerType.OnMultiplierBlockHit, block));
+                    break;
+                case BoardBlockType.Shield:
+                    game.CombatEventHub?.Publish(new CombatEventPayload(StickerTriggerType.OnShieldBlockHit, block));
+                    break;
+            }
             game.RefreshPendingDamagePreview();
         }
 
@@ -143,7 +154,7 @@ namespace POPHero
         {
             LaunchPosition = landingPoint;
 
-            game.StickerEffectRunner.HandleRoundEnd();
+            game.CombatEventHub?.Publish(new CombatEventPayload(StickerTriggerType.OnRoundEnd));
 
             var result = new RoundResolveResult
             {
@@ -159,13 +170,10 @@ namespace POPHero
             if (game.CurrentEnemy != null && RoundAttackScore > 0)
             {
                 result.enemyDefeated = game.CurrentEnemy.ApplyDamage(RoundAttackScore);
-                game.EnemyPresenter.PlayHitFeedback(result.enemyDefeated);
-                game.StickerEffectRunner.HandleEnemyDamaged(RoundAttackScore);
+                game.CombatEventHub?.Publish(new CombatEventPayload(StickerTriggerType.OnEnemyDamaged, damage: RoundAttackScore));
                 if (result.enemyDefeated)
-                    game.StickerEffectRunner.HandleEnemyKilled();
+                    game.CombatEventHub?.Publish(new CombatEventPayload(StickerTriggerType.OnEnemyKilled));
             }
-
-            game.EnemyPresenter?.ClearPreviewDamage();
 
             if (game.CurrentEnemy != null && !result.enemyDefeated && game.CurrentEnemy.AttackDamage > 0)
             {

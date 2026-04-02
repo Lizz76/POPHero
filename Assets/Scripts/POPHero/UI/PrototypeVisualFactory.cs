@@ -6,6 +6,7 @@ namespace POPHero
     {
         static Sprite squareSprite;
         static Sprite circleSprite;
+        static Font cachedCjkFont;
 
         public static Sprite SquareSprite => squareSprite ??= CreateSolidSprite(false);
         public static Sprite CircleSprite => circleSprite ??= CreateSolidSprite(true);
@@ -34,10 +35,37 @@ namespace POPHero
             mesh.characterSize = characterSize;
             mesh.color = color;
             mesh.fontStyle = fontStyle;
+            mesh.font = GetCjkRuntimeFont();
             var renderer = go.GetComponent<MeshRenderer>();
             renderer.sortingLayerName = "Default";
             renderer.sortingOrder = sortingOrder;
+            if (mesh.font != null && mesh.font.material != null)
+                renderer.sharedMaterial = mesh.font.material;
             return mesh;
+        }
+
+        public static Font GetCjkRuntimeFont()
+        {
+            if (cachedCjkFont != null)
+                return cachedCjkFont;
+
+            try
+            {
+                cachedCjkFont = Font.CreateDynamicFontFromOSFont(new[] { "Microsoft YaHei", "SimHei", "SimSun", "Arial" }, 64);
+            }
+            catch
+            {
+                try
+                {
+                    cachedCjkFont = Font.CreateDynamicFontFromOSFont("Arial", 64);
+                }
+                catch
+                {
+                    cachedCjkFont = null;
+                }
+            }
+
+            return cachedCjkFont;
         }
 
         static Sprite CreateSolidSprite(bool circle)
