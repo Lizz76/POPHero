@@ -9,8 +9,11 @@ namespace POPHero
         TrajectoryPredictor trajectoryPredictor;
         IAimService aimStateController;
         Camera mainCamera;
-        LineRenderer aimLine;
-        LineRenderer memoryLine;
+
+        [Header("Scene References (auto-found from children if not assigned)")]
+        [SerializeField] LineRenderer aimLine;
+        [SerializeField] LineRenderer memoryLine;
+
         bool isDragging;
         readonly IAimInputStrategy pcAimInputStrategy = new PcAimInputStrategy();
         readonly IAimInputStrategy mobileAimInputStrategy = new MobileAimInputStrategy();
@@ -26,8 +29,23 @@ namespace POPHero
             aimStateController = new AimStateController();
             aimStateController.Initialize(game, trajectoryPredictor);
 
-            aimLine = BuildLineRenderer("AimPreviewLine", game.config.ball.previewColor, game.config.ball.previewLineStartWidth, game.config.ball.previewLineEndWidth, 500);
-            memoryLine = BuildLineRenderer("AimMemoryLine", new Color(0.22f, 0.78f, 1f, 0.35f), game.config.ball.previewLineStartWidth * 0.72f, game.config.ball.previewLineEndWidth * 0.72f, 499);
+            // Bind from children if not assigned
+            if (aimLine == null)
+            {
+                var t = transform.Find("AimPreviewLine");
+                if (t != null) aimLine = t.GetComponent<LineRenderer>();
+            }
+            if (memoryLine == null)
+            {
+                var t = transform.Find("AimMemoryLine");
+                if (t != null) memoryLine = t.GetComponent<LineRenderer>();
+            }
+
+            // Fallback: create if missing
+            if (aimLine == null)
+                aimLine = BuildLineRenderer("AimPreviewLine", game.config.ball.previewColor, game.config.ball.previewLineStartWidth, game.config.ball.previewLineEndWidth, 500);
+            if (memoryLine == null)
+                memoryLine = BuildLineRenderer("AimMemoryLine", new Color(0.22f, 0.78f, 1f, 0.35f), game.config.ball.previewLineStartWidth * 0.72f, game.config.ball.previewLineEndWidth * 0.72f, 499);
         }
 
         void Update()

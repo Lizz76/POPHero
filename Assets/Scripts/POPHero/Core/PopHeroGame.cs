@@ -26,6 +26,44 @@ namespace POPHero
         public PopHeroPrototypeConfig config;
         public PopHeroPrototypeConfig Config => config;
 
+        // Scene references assigned from the Battle scene.
+        [Header("Scene References")]
+        [SerializeField] Transform worldRoot;
+        [SerializeField] Transform boardRoot;
+        [SerializeField] Transform blockRoot;
+        [SerializeField] Transform enemyLayerRoot;
+        [SerializeField] Transform battleStageRef;
+        [SerializeField] Transform battleEffectsRef;
+
+        [Header("Board Visuals")]
+        [SerializeField] SpriteRenderer boardFrame;
+        [SerializeField] SpriteRenderer boardBackground;
+        [SerializeField] SpriteRenderer launchGuide;
+        [SerializeField] Transform launchMarkerRef;
+        [SerializeField] GameObject bottomLineObject;
+        [SerializeField] Transform wallTopRoot;
+        [SerializeField] Transform wallLeftRoot;
+        [SerializeField] Transform wallRightRoot;
+
+        [Header("Enemy Layer Visuals")]
+        [SerializeField] SpriteRenderer enemyPanel;
+
+        [Header("Characters")]
+        [SerializeField] PlayerPresenter playerPresenterRef;
+        [SerializeField] EnemyController enemyControllerRef;
+
+        [Header("Ball")]
+        [SerializeField] BallController ballControllerRef;
+        [SerializeField] Rigidbody2D ballRigidbody;
+        [SerializeField] CircleCollider2D ballCircleCollider;
+        [SerializeField] TrailRenderer ballTrail;
+        [SerializeField] PlayerLauncher launcherRef;
+
+        [Header("Components on this GameObject")]
+        [SerializeField] PopHeroHud hudRef;
+        [SerializeField] DamageCounterView damageCounterRef;
+        [SerializeField] CanvasHudController canvasHudRef;
+
         public RoundState State { get; private set; }
         public PlayerData Player { get; private set; }
         public EnemyData CurrentEnemy { get; private set; }
@@ -65,8 +103,8 @@ namespace POPHero
         public InputAimMode CurrentAimMode => config.aim.currentAimMode;
         public bool IsInitialBlockDraftPending => initialBlockDraftPending;
         public bool CanManageBlockAssignments => State == RoundState.Shop || State == RoundState.LoadoutManage;
-        public string AimModeDisplayText => CurrentAimMode == InputAimMode.PCMouseAimClick ? "鼠标移动瞄准，左键确认发射" : "拖动确定方向，再点击一次发射";
-        public string CurrentAimModeLabel => CurrentAimMode == InputAimMode.PCMouseAimClick ? "鼠标移动瞄准，左键确认发射" : "拖动确定方向，再点击一次发射";
+        public string AimModeDisplayText => CurrentAimMode == InputAimMode.PCMouseAimClick ? "移动鼠标瞄准，左键发射" : "拖动瞄准，再点一次发射";
+        public string CurrentAimModeLabel => CurrentAimMode == InputAimMode.PCMouseAimClick ? "移动鼠标瞄准，左键发射" : "拖动瞄准，再点一次发射";
         public Vector2 CurrentLaunchPoint => roundController != null ? roundController.LaunchPosition : new Vector2(BoardRect.center.x, LaunchY);
         public IReadOnlyList<WallAimPoint> WallAimPoints => wallAimPoints;
 
@@ -78,6 +116,7 @@ namespace POPHero
         EnemyController enemyController;
         PlayerPresenter playerPresenter;
         PopHeroHud hud;
+        CanvasHudController canvasHud;
         DamageCounterView damageCounterView;
         PhysicsMaterial2D bounceMaterial;
         Transform launchMarker;
@@ -220,6 +259,7 @@ namespace POPHero
             var camera = Camera.main;
             if (camera == null)
             {
+                Debug.LogWarning("[POPHero] Main Camera not found in scene. Creating one.");
                 var cameraGo = new GameObject("Main Camera");
                 camera = cameraGo.AddComponent<Camera>();
                 cameraGo.tag = "MainCamera";
@@ -236,23 +276,26 @@ namespace POPHero
         {
             bounceMaterial = new PhysicsMaterial2D("POPHeroBounce") { bounciness = 1f, friction = 0f };
 
-            var worldRoot = new GameObject("World").transform;
-            var boardRoot = new GameObject("Board").transform;
-            boardRoot.SetParent(worldRoot, false);
-            var blockRoot = new GameObject("Blocks").transform;
-            blockRoot.SetParent(worldRoot, false);
-            var enemyRoot = new GameObject("EnemyLayer").transform;
-            enemyRoot.SetParent(worldRoot, false);
+            // Use scene references instead of creating frontend GameObjects.
+            if (worldRoot == null) worldRoot = transform.Find("World");
+            if (boardRoot == null) boardRoot = worldRoot?.Find("Board");
+            if (blockRoot == null) blockRoot = worldRoot?.Find("Blocks");
+            if (enemyLayerRoot == null) enemyLayerRoot = worldRoot?.Find("EnemyLayer");
+            if (worldRoot == null) Debug.LogError("[POPHero] Battle scene is missing World root.");
+            if (boardRoot == null) Debug.LogError("[POPHero] Battle scene is missing World/Board.");
+            if (blockRoot == null) Debug.LogError("[POPHero] Battle scene is missing World/Blocks.");
+            if (enemyLayerRoot == null) Debug.LogError("[POPHero] Battle scene is missing World/EnemyLayer.");
 
-            BuildEnemyLayer(enemyRoot);
-            BuildBoard(boardRoot);
-            BuildBall(worldRoot);
+            BindEnemyLayer();
+            BindBoard();
+            BindBall();
 
-            roundController = gameObject.AddComponent<RoundController>();
-            boardManager = gameObject.AddComponent<BoardManager>();
-            trajectoryPredictor = gameObject.AddComponent<TrajectoryPredictor>();
-            hud = gameObject.AddComponent<PopHeroHud>();
-            damageCounterView = gameObject.AddComponent<DamageCounterView>();
+            roundController = GetComponent<RoundController>() ?? gameObject.AddComponent<RoundController>();
+            boardManager = GetComponent<BoardManager>() ?? gameObject.AddComponent<BoardManager>();
+            trajectoryPredictor = GetComponent<TrajectoryPredictor>() ?? gameObject.AddComponent<TrajectoryPredictor>();
+            canvasHud = canvasHudRef != null ? canvasHudRef : FindCanvasHudControllerInScene();
+            hud = hudRef != null ? hudRef : GetComponent<PopHeroHud>();
+            damageCounterView = damageCounterRef != null ? damageCounterRef : GetComponent<DamageCounterView>();
 
             boardManager.Initialize(this, blockRoot, bounceMaterial);
             trajectoryPredictor.Initialize(this, ballController);
@@ -283,9 +326,37 @@ namespace POPHero
             battleFlowController = new BattleFlowController(this);
             intermissionFlowController = new IntermissionFlowController(this);
 
-            launcher = ballController.gameObject.AddComponent<PlayerLauncher>();
+            launcher = launcherRef != null ? launcherRef : (ballController.GetComponent<PlayerLauncher>() ?? ballController.gameObject.AddComponent<PlayerLauncher>());
             launcher.Initialize(this, ballController, trajectoryPredictor);
-            damageCounterView.Initialize(this);
+            if (canvasHud != null)
+            {
+                canvasHud.Initialize(this);
+                if (hud != null)
+                    hud.enabled = false;
+                if (damageCounterView != null)
+                    damageCounterView.enabled = false;
+            }
+            else
+            {
+                Debug.LogError("[POPHero] CanvasHudController not found in Battle scene. Falling back to legacy IMGUI HUD. Check CanvasFrontend bindings.");
+                hud ??= gameObject.AddComponent<PopHeroHud>();
+                damageCounterView ??= gameObject.AddComponent<DamageCounterView>();
+                hud.Initialize(this);
+                damageCounterView.Initialize(this);
+            }
+        }
+
+        CanvasHudController FindCanvasHudControllerInScene()
+        {
+            var local = GetComponentInChildren<CanvasHudController>(true) ?? GetComponent<CanvasHudController>();
+            if (local != null)
+                return local;
+
+            var all = FindObjectsOfType<CanvasHudController>(true);
+            if (all != null && all.Length > 0)
+                return all[0];
+
+            return null;
         }
 
         void Update()
@@ -320,89 +391,194 @@ namespace POPHero
             BeginBlockRewardDraft(true);
         }
 
-        void BuildEnemyLayer(Transform parent)
+        void BindEnemyLayer()
         {
             var panelCenter = new Vector2(BoardRect.center.x, BoardRect.yMax + config.arena.topPanelHeight * 0.56f);
-            var panel = PrototypeVisualFactory.CreateSpriteObject("EnemyPanel", parent, PrototypeVisualFactory.SquareSprite, config.arena.topPanelColor, 1, new Vector2(BoardRect.width, config.arena.topPanelHeight));
-            panel.transform.position = panelCenter;
 
-            battleStageRoot = new GameObject("BattleStage").transform;
-            battleStageRoot.SetParent(parent, false);
-            battleEffectsRoot = new GameObject("BattleEffects").transform;
-            battleEffectsRoot.SetParent(parent, false);
+            // Use scene reference or find in hierarchy
+            if (enemyPanel == null)
+            {
+                var panelObj = enemyLayerRoot?.Find("EnemyPanel");
+                if (panelObj != null) enemyPanel = panelObj.GetComponent<SpriteRenderer>();
+            }
+            if (enemyPanel != null)
+            {
+                enemyPanel.transform.position = panelCenter;
+                enemyPanel.sprite = PrototypeVisualFactory.SquareSprite;
+                enemyPanel.color = config.arena.topPanelColor;
+                enemyPanel.sortingOrder = 1;
+                enemyPanel.transform.localScale = new Vector3(BoardRect.width, config.arena.topPanelHeight, 1f);
+            }
+
+            if (battleStageRef == null) battleStageRef = enemyLayerRoot?.Find("BattleStage");
+            battleStageRoot = battleStageRef;
+            if (battleEffectsRef == null) battleEffectsRef = enemyLayerRoot?.Find("BattleEffects");
+            battleEffectsRoot = battleEffectsRef;
+
             playerIdlePosition = panelCenter + new Vector2(-BoardRect.width * 0.28f, -0.16f);
             enemyIdlePosition = panelCenter + new Vector2(BoardRect.width * 0.2f, -0.08f);
 
-            var heroGo = new GameObject("Hero");
-            heroGo.transform.SetParent(battleStageRoot, false);
-            heroGo.transform.position = playerIdlePosition;
-            playerPresenter = heroGo.AddComponent<PlayerPresenter>();
-            playerPresenter.Initialize();
+            // Bind Hero
+            if (playerPresenterRef == null) playerPresenterRef = battleStageRoot?.GetComponentInChildren<PlayerPresenter>(true);
+            playerPresenter = playerPresenterRef;
+            if (playerPresenter != null)
+            {
+                playerPresenter.transform.position = playerIdlePosition;
+                playerPresenter.Initialize();
+            }
 
-            var enemyGo = new GameObject("Enemy");
-            enemyGo.transform.SetParent(battleStageRoot, false);
-            enemyGo.transform.position = enemyIdlePosition;
-            enemyController = enemyGo.AddComponent<EnemyController>();
-            enemyController.Initialize(this);
+            // Bind Enemy
+            if (enemyControllerRef == null) enemyControllerRef = battleStageRoot?.GetComponentInChildren<EnemyController>(true);
+            enemyController = enemyControllerRef;
+            if (enemyController != null)
+            {
+                enemyController.transform.position = enemyIdlePosition;
+                enemyController.Initialize(this);
+            }
         }
 
-        void BuildBall(Transform parent)
+        void BindBall()
         {
-            var ballGo = new GameObject("Ball");
-            ballGo.transform.SetParent(parent, false);
-            PrototypeVisualFactory.CreateSpriteObject("BallVisual", ballGo.transform, PrototypeVisualFactory.CircleSprite, config.ball.color, 40, Vector2.one * (config.ball.radius * 2f));
+            // Use scene references
+            if (ballControllerRef == null) ballControllerRef = worldRoot?.GetComponentInChildren<BallController>(true);
+            ballController = ballControllerRef;
 
-            var trail = ballGo.AddComponent<TrailRenderer>();
-            trail.material = new Material(Shader.Find("Sprites/Default"));
-            trail.sortingLayerName = "Default";
-            trail.sortingOrder = 39;
-            trail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            trail.receiveShadows = false;
-            trail.minVertexDistance = 0.03f;
-            trail.numCornerVertices = 2;
-            trail.numCapVertices = 2;
-            trail.startColor = new Color(0.2f, 1f, 0.78f, 0.82f);
-            trail.endColor = new Color(0.2f, 1f, 0.78f, 0f);
-            trail.emitting = false;
+            if (ballController == null)
+            {
+                Debug.LogError("[POPHero] BallController not found in scene! Make sure Ball object exists under World.");
+                return;
+            }
 
-            var rigidbody2D = ballGo.AddComponent<Rigidbody2D>();
-            rigidbody2D.gravityScale = 0f;
-            rigidbody2D.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
-            rigidbody2D.sharedMaterial = bounceMaterial;
-            rigidbody2D.interpolation = RigidbodyInterpolation2D.Interpolate;
+            if (ballRigidbody == null) ballRigidbody = ballController.GetComponent<Rigidbody2D>();
+            if (ballCircleCollider == null) ballCircleCollider = ballController.GetComponent<CircleCollider2D>();
+            if (ballTrail == null) ballTrail = ballController.GetComponent<TrailRenderer>();
 
-            var circleCollider = ballGo.AddComponent<CircleCollider2D>();
-            circleCollider.radius = config.ball.radius;
-            circleCollider.sharedMaterial = bounceMaterial;
+            // Configure physics
+            ballRigidbody.gravityScale = 0f;
+            ballRigidbody.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+            ballRigidbody.sharedMaterial = bounceMaterial;
+            ballRigidbody.interpolation = RigidbodyInterpolation2D.Interpolate;
+            ballCircleCollider.radius = config.ball.radius;
+            ballCircleCollider.sharedMaterial = bounceMaterial;
 
-            ballController = ballGo.AddComponent<BallController>();
-            ballController.Initialize(this, rigidbody2D, circleCollider, trail);
+            // Configure trail
+            if (ballTrail != null)
+            {
+                ballTrail.material = new Material(Shader.Find("Sprites/Default"));
+                ballTrail.sortingLayerName = "Default";
+                ballTrail.sortingOrder = 39;
+                ballTrail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                ballTrail.receiveShadows = false;
+                ballTrail.minVertexDistance = 0.03f;
+                ballTrail.numCornerVertices = 2;
+                ballTrail.numCapVertices = 2;
+                ballTrail.startColor = new Color(0.2f, 1f, 0.78f, 0.82f);
+                ballTrail.endColor = new Color(0.2f, 1f, 0.78f, 0f);
+                ballTrail.emitting = false;
+            }
+
+            ballController.Initialize(this, ballRigidbody, ballCircleCollider, ballTrail);
         }
 
-        void BuildBoard(Transform parent)
+        void BindBoard()
         {
-            var frame = PrototypeVisualFactory.CreateSpriteObject("BoardFrame", parent, PrototypeVisualFactory.SquareSprite, config.arena.boardFrameColor, 2, new Vector2(BoardRect.width + config.arena.wallThickness * 2f, BoardRect.height + config.arena.wallThickness * 2f));
-            frame.transform.position = BoardRect.center;
-            var background = PrototypeVisualFactory.CreateSpriteObject("BoardBackground", parent, PrototypeVisualFactory.SquareSprite, config.arena.boardBackgroundColor, 3, BoardRect.size);
-            background.transform.position = BoardRect.center;
-            var launchGuide = PrototypeVisualFactory.CreateSpriteObject("LaunchGuide", parent, PrototypeVisualFactory.SquareSprite, config.arena.launchGuideColor, 6, new Vector2(BoardRect.width - 0.4f, 0.34f));
-            launchGuide.transform.position = new Vector3(BoardRect.center.x, LaunchY - 0.15f, 0f);
+            // Board Frame
+            if (boardFrame == null)
+            {
+                var t = boardRoot?.Find("BoardFrame");
+                if (t != null) boardFrame = t.GetComponent<SpriteRenderer>();
+            }
+            if (boardFrame != null)
+            {
+                boardFrame.sprite = PrototypeVisualFactory.SquareSprite;
+                boardFrame.color = config.arena.boardFrameColor;
+                boardFrame.sortingOrder = 2;
+                boardFrame.transform.localScale = new Vector3(BoardRect.width + config.arena.wallThickness * 2f, BoardRect.height + config.arena.wallThickness * 2f, 1f);
+                boardFrame.transform.position = BoardRect.center;
+            }
 
-            var launchMarkerSize = Mathf.Max(0.14f, config.ball.radius * 2.2f);
-            launchMarker = PrototypeVisualFactory.CreateSpriteObject("LaunchMarker", parent, PrototypeVisualFactory.CircleSprite, new Color(0.97f, 0.97f, 1f, 0.65f), 25, Vector2.one * launchMarkerSize).transform;
+            // Board Background
+            if (boardBackground == null)
+            {
+                var t = boardRoot?.Find("BoardBackground");
+                if (t != null) boardBackground = t.GetComponent<SpriteRenderer>();
+            }
+            if (boardBackground != null)
+            {
+                boardBackground.sprite = PrototypeVisualFactory.SquareSprite;
+                boardBackground.color = config.arena.boardBackgroundColor;
+                boardBackground.sortingOrder = 3;
+                boardBackground.transform.localScale = new Vector3(BoardRect.width, BoardRect.height, 1f);
+                boardBackground.transform.position = BoardRect.center;
+            }
 
-            CreateBrickWall(parent, "WallTop", ArenaSurfaceType.Top, 0);
-            CreateBrickWall(parent, "WallLeft", ArenaSurfaceType.Left, 3);
-            CreateBrickWall(parent, "WallRight", ArenaSurfaceType.Right, 6);
+            // Launch Guide
+            if (launchGuide == null)
+            {
+                var t = boardRoot?.Find("LaunchGuide");
+                if (t != null) launchGuide = t.GetComponent<SpriteRenderer>();
+            }
+            if (launchGuide != null)
+            {
+                launchGuide.sprite = PrototypeVisualFactory.SquareSprite;
+                launchGuide.color = config.arena.launchGuideColor;
+                launchGuide.sortingOrder = 6;
+                launchGuide.transform.localScale = new Vector3(BoardRect.width - 0.4f, 0.34f, 1f);
+                launchGuide.transform.position = new Vector3(BoardRect.center.x, LaunchY - 0.15f, 0f);
+            }
+
+            // Launch Marker
+            if (launchMarkerRef == null) launchMarkerRef = boardRoot?.Find("LaunchMarker");
+            launchMarker = launchMarkerRef;
+            if (launchMarker != null)
+            {
+                var launchMarkerSize = Mathf.Max(0.14f, config.ball.radius * 2.2f);
+                var sr = launchMarker.GetComponent<SpriteRenderer>();
+                if (sr != null)
+                {
+                    sr.sprite = PrototypeVisualFactory.CircleSprite;
+                    sr.color = new Color(0.97f, 0.97f, 1f, 0.65f);
+                    sr.sortingOrder = 25;
+                }
+                launchMarker.localScale = Vector3.one * launchMarkerSize;
+            }
+
+            // Walls 鈥?containers exist in scene, bricks are built at runtime
+            if (wallTopRoot == null) wallTopRoot = boardRoot?.Find("WallTop");
+            if (wallLeftRoot == null) wallLeftRoot = boardRoot?.Find("WallLeft");
+            if (wallRightRoot == null) wallRightRoot = boardRoot?.Find("WallRight");
+            CreateBrickWall(wallTopRoot, "WallTop", ArenaSurfaceType.Top, 0);
+            CreateBrickWall(wallLeftRoot, "WallLeft", ArenaSurfaceType.Left, 3);
+            CreateBrickWall(wallRightRoot, "WallRight", ArenaSurfaceType.Right, 6);
             RebuildWallAimPoints();
 
-            var bottomLine = PrototypeVisualFactory.CreateSpriteObject("BottomLine", parent, PrototypeVisualFactory.SquareSprite, new Color(0.93f, 0.66f, 0.18f, 0.36f), 7, new Vector2(BoardRect.width, 0.14f));
-            bottomLine.transform.position = new Vector3(BoardRect.center.x, BoardRect.yMin + 0.02f, 0f);
-            var bottomTrigger = bottomLine.AddComponent<BoxCollider2D>();
-            bottomTrigger.isTrigger = true;
-            bottomTrigger.size = new Vector2(BoardRect.width, config.arena.bottomTriggerHeight);
-            var marker = bottomLine.AddComponent<ArenaSurfaceMarker>();
-            marker.surfaceType = ArenaSurfaceType.Bottom;
+            // Bottom Line
+            if (bottomLineObject == null)
+            {
+                var t = boardRoot?.Find("BottomLine");
+                if (t != null) bottomLineObject = t.gameObject;
+            }
+            if (bottomLineObject != null)
+            {
+                var sr = bottomLineObject.GetComponent<SpriteRenderer>();
+                if (sr != null)
+                {
+                    sr.sprite = PrototypeVisualFactory.SquareSprite;
+                    sr.color = new Color(0.93f, 0.66f, 0.18f, 0.36f);
+                    sr.sortingOrder = 7;
+                }
+                bottomLineObject.transform.localScale = new Vector3(BoardRect.width, 0.14f, 1f);
+                bottomLineObject.transform.position = new Vector3(BoardRect.center.x, BoardRect.yMin + 0.02f, 0f);
+
+                var bottomTrigger = bottomLineObject.GetComponent<BoxCollider2D>();
+                if (bottomTrigger == null) bottomTrigger = bottomLineObject.AddComponent<BoxCollider2D>();
+                bottomTrigger.isTrigger = true;
+                bottomTrigger.size = new Vector2(BoardRect.width, config.arena.bottomTriggerHeight);
+
+                var marker = bottomLineObject.GetComponent<ArenaSurfaceMarker>();
+                if (marker == null) marker = bottomLineObject.AddComponent<ArenaSurfaceMarker>();
+                marker.surfaceType = ArenaSurfaceType.Bottom;
+            }
         }
 
         public bool TryGetWallSnap(ArenaSurfaceType surfaceType, Vector2 rawBallCenter, out Vector2 snappedBallCenter, out Vector2 wallNormal)
@@ -432,10 +608,13 @@ namespace POPHero
             return false;
         }
 
-        void CreateBrickWall(Transform parent, string objectName, ArenaSurfaceType surfaceType, int patternOffset)
+        void CreateBrickWall(Transform root, string objectName, ArenaSurfaceType surfaceType, int patternOffset)
         {
-            var root = new GameObject(objectName).transform;
-            root.SetParent(parent, false);
+            if (root == null) return;
+
+            // Clear any existing brick children (for re-init)
+            for (int i = root.childCount - 1; i >= 0; i--)
+                Destroy(root.GetChild(i).gameObject);
 
             var thickness = config.arena.wallThickness;
             var visualGap = Mathf.Clamp(config.arena.wallStoneVisualGap, 0f, thickness * 0.5f);
@@ -638,12 +817,12 @@ namespace POPHero
             initialBlockDraftPending = initialDraft;
             boardManager.GenerateRewardOptions(Player.TotalKills, initialDraft ? config.blockRewards.initialChoiceCount : config.blockRewards.rewardChoiceCount);
             IntermissionMessage = initialDraft
-                ? "先选一张初始方块，再开始第一场战斗。"
+                ? "在第一场战斗开始前，先选择一张起始方块。"
                 : !boardManager.CanAcceptRewardBlock
-                    ? "上阵区与仓库区都已满，请跳过本次方块奖励，稍后在商店或整理阶段删除或替换方块。"
+                    ? "上阵和仓库都已满。请先跳过本次方块奖励，之后再到商店或整理阶段处理。"
                     : boardManager.RewardWillGoToReserve
-                        ? "上阵区已满，本次选到的新方块会进入仓库。"
-                        : "击败敌人后，选择一张方块加入上阵区，或直接跳过。";
+                        ? "上阵已满，选中的方块会被送入仓库。"
+                        : "击败敌人后，可选择一张方块加入上阵，或直接跳过。";
             ChangeState(RoundState.BlockRewardChoose);
         }
 
@@ -713,10 +892,10 @@ namespace POPHero
         {
             return index switch
             {
-                0 => "荆石偶像",
-                1 => "铁皮信使",
+                0 => "荆棘神像",
+                1 => "铁信使",
                 2 => "尖刺图腾",
-                3 => "狂战祭司",
+                3 => "战祭司",
                 4 => "深渊领主",
                 _ => string.IsNullOrWhiteSpace(fallbackName) ? "敌人" : fallbackName
             };
@@ -747,7 +926,7 @@ namespace POPHero
                 return;
             }
 
-            IntermissionMessage = addedToReserve ? "新方块已进入仓库区。" : "新方块已加入上阵区。";
+            IntermissionMessage = addedToReserve ? "新方块已加入仓库。" : "新方块已加入上阵。";
 
             if (initialBlockDraftPending)
                 CompleteInitialDraft();
@@ -861,7 +1040,7 @@ namespace POPHero
                 return;
 
             if (boardManager.TrySwapActiveAndReserve(activeCardId, reserveCardId, out var failReason))
-                IntermissionMessage = "已完成上阵区与仓库区方块互换。";
+                IntermissionMessage = "已交换上阵和仓库中的方块。";
             else
                 IntermissionMessage = failReason;
         }
@@ -904,7 +1083,7 @@ namespace POPHero
             var dragging = stickerInventory.DraggingSticker;
             if (dragging == null)
             {
-                failReason = "当前没有选中的嵌片。";
+                failReason = "No sticker is currently selected.";
                 return false;
             }
 
@@ -1038,7 +1217,7 @@ namespace POPHero
                     break;
                 case HudCommandType.TryInstallDraggedSticker:
                     if (TryInstallDraggedSticker(command.PrimaryId, command.IntValue, out var failReason))
-                        SetIntermissionMessage("已安装嵌片。");
+                        SetIntermissionMessage("Sticker installed.");
                     else
                         SetIntermissionMessage(failReason);
                     break;
@@ -1068,7 +1247,7 @@ namespace POPHero
             playerPresenter?.Refresh(Player);
             playerPresenter?.PlayHitFeedback(amount >= 18);
             if (Player.IsDead)
-                TriggerGameOver("生命归零，战斗结束。");
+            TriggerGameOver("生命归零，本局结束。");
         }
 
         public void TriggerGameOver(string reason = null)
@@ -1124,7 +1303,7 @@ namespace POPHero
         {
             if (result.playerDefeated)
             {
-                TriggerGameOver("生命归零，战斗结束。");
+                TriggerGameOver("生命归零，本局结束。");
                 return;
             }
 
@@ -1141,7 +1320,7 @@ namespace POPHero
             playerPresenter?.Refresh(Player);
             if (RemainingLaunchesForEnemy <= 0)
             {
-                TriggerGameOver("当前敌人的可发射次数已经用完。");
+                TriggerGameOver("该敌人的发射次数已经耗尽。");
                 return;
             }
 
@@ -1440,4 +1619,5 @@ namespace POPHero
         }
     }
 }
+
 

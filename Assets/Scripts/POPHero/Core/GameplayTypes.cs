@@ -313,7 +313,7 @@ namespace POPHero
             failReason = string.Empty;
             if (card == null)
             {
-                failReason = "方块实例无效。";
+                failReason = "Invalid block instance.";
                 return false;
             }
 
@@ -330,7 +330,7 @@ namespace POPHero
                 return true;
             }
 
-            failReason = "上阵区和仓库区都已满。";
+            failReason = "Active and reserve are both full.";
             return false;
         }
 

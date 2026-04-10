@@ -129,13 +129,13 @@ namespace POPHero
             var cost = game.config.shop.stickerRerollMoney;
             if (game.Player.Gold < cost)
             {
-                LastStatusMessage = "金币不足，无法刷新奖励。";
+                LastStatusMessage = "Not enough gold to reroll rewards.";
                 return false;
             }
 
             game.Player.SpendGold(cost);
             GenerateChoices();
-            LastStatusMessage = "奖励已刷新。";
+            LastStatusMessage = "Rewards rerolled.";
             return true;
         }
 
@@ -143,7 +143,7 @@ namespace POPHero
         {
             game.Player.AddGold(game.config.shop.stickerSkipMoney);
             activeChoices.Clear();
-            LastStatusMessage = "你跳过了奖励，改拿一笔金币。";
+            LastStatusMessage = "Reward skipped. You took bonus gold instead.";
         }
 
         RewardChoiceEntry CreateStickerChoice()
@@ -211,9 +211,9 @@ namespace POPHero
 
         void BuildGrowthPool()
         {
-            growthPool.Add(new GrowthRewardData { id = "growth_socket", name = "扩展槽位", description = "随机一张载体卡立即解锁 1 个额外槽位。", rewardType = GrowthRewardType.UnlockSocket, value = 1 });
-            growthPool.Add(new GrowthRewardData { id = "growth_inventory", name = "扩容库存", description = "嵌片库存上限 +1。", rewardType = GrowthRewardType.IncreaseInventoryCapacity, value = 1 });
-            growthPool.Add(new GrowthRewardData { id = "growth_launch", name = "备用弹珠", description = "每只敌人的可发射数 +1。", rewardType = GrowthRewardType.IncreaseLaunchCapacity, value = 1 });
+            growthPool.Add(new GrowthRewardData { id = "growth_socket", name = "Extra Socket", description = "Unlock 1 extra socket on a random carrier card.", rewardType = GrowthRewardType.UnlockSocket, value = 1 });
+            growthPool.Add(new GrowthRewardData { id = "growth_inventory", name = "Inventory Up", description = "Sticker inventory capacity +1.", rewardType = GrowthRewardType.IncreaseInventoryCapacity, value = 1 });
+            growthPool.Add(new GrowthRewardData { id = "growth_launch", name = "Spare Ball", description = "Launch count per enemy +1.", rewardType = GrowthRewardType.IncreaseLaunchCapacity, value = 1 });
         }
     }
 }

@@ -55,11 +55,11 @@ namespace POPHero
         {
             return rarity switch
             {
-                BlockRarity.White => "白色",
-                BlockRarity.Blue => "蓝色",
-                BlockRarity.Purple => "紫色",
-                BlockRarity.Gold => "金色",
-                _ => "白色"
+                BlockRarity.White => "白",
+                BlockRarity.Blue => "蓝",
+                BlockRarity.Purple => "紫",
+                BlockRarity.Gold => "金",
+                _ => "白"
             };
         }
 
@@ -88,10 +88,10 @@ namespace POPHero
         {
             return cardState.family switch
             {
-                BlockFamily.Strike => "偏向直接输出，适合承接爆发与重复命中类嵌片。",
-                BlockFamily.Guard => "偏向单回合护盾与反击削减，适合转化与防御构筑。",
-                BlockFamily.Prism => "偏向倍率与中继，适合作为连段启动器。",
-                _ => "可以与多种 family 组合。"
+                BlockFamily.Strike => "偏重直接伤害，适合和爆发或重复命中的嵌片联动。",
+                BlockFamily.Guard => "偏重单回合护盾和反击减伤，适合走转化与防守路线。",
+                BlockFamily.Prism => "偏重倍率和连携，是很强的连招起点。",
+                _ => "能和多种嵌片家族稳定配合。"
             };
         }
 
@@ -113,10 +113,10 @@ namespace POPHero
             cardState.cardName = $"{GetRarityName(cardState.rarity)}{GetBlockTypeName(cardState.baseBlockType)}方块";
             cardState.mainActionText = cardState.baseBlockType switch
             {
-                BoardBlockType.AttackAdd => $"命中时增加 {Mathf.RoundToInt(cardState.baseValueA)} 点伤害。",
-                BoardBlockType.AttackMultiply => $"命中时把当前伤害乘以 {cardState.baseValueA:0.0#}。",
-                BoardBlockType.Shield => $"命中时增加 {Mathf.RoundToInt(cardState.baseValueA)} 点护盾。",
-                _ => "命中时触发复合规则。"
+                BoardBlockType.AttackAdd => $"命中时获得 {Mathf.RoundToInt(cardState.baseValueA)} 点伤害。",
+                BoardBlockType.AttackMultiply => $"命中时将当前伤害乘以 {cardState.baseValueA:0.0#}。",
+                BoardBlockType.Shield => $"命中时获得 {Mathf.RoundToInt(cardState.baseValueA)} 点护盾。",
+                _ => "命中时触发混合效果。"
             };
 
             cardState.detailLines.Clear();
@@ -188,7 +188,7 @@ internal sealed class BlockCollectionService
 
             if (!context.BlockCollection.TryRemoveCard(cardId, out removedCard, out removedFromActive))
             {
-                failReason = "没有找到这张方块。";
+                failReason = "没有找到对应的方块。";
                 return false;
             }
 
@@ -201,7 +201,7 @@ internal sealed class BlockCollectionService
             failReason = string.Empty;
             if (!context.BlockCollection.SwapActiveAndReserve(activeCardId, reserveCardId))
             {
-                failReason = "上阵区或仓库区中没有找到对应方块。";
+                failReason = "没有在上阵或仓库中找到要交换的方块。";
                 return false;
             }
 
@@ -464,33 +464,33 @@ internal sealed class RuntimeBoardService
             var card = collectionService.FindCard(cardId);
             if (card == null || sticker?.data == null)
             {
-                failReason = "目标卡片或嵌片无效。";
+                failReason = "Invalid card or sticker target.";
                 return false;
             }
 
             if (socketIndex < 0 || socketIndex >= card.sockets.Count)
             {
-                failReason = "槽位不存在。";
+                failReason = "Socket does not exist.";
                 return false;
             }
 
             var socket = card.sockets[socketIndex];
             if (!socket.isUnlocked)
             {
-                failReason = "这个槽位还没解锁。";
+                failReason = "This socket is still locked.";
                 return false;
             }
 
             if (socket.installedSticker != null)
             {
-                failReason = "这个槽位已经装了嵌片。";
+                failReason = "This socket already has a sticker.";
                 return false;
             }
 
             var requiredMask = BlockPresentationUtility.GetMaskForBlock(card.baseBlockType);
             if ((socket.targetMask & requiredMask) == 0 || (sticker.data.targetBlockType & requiredMask) == 0)
             {
-                failReason = "这张载体和这枚嵌片不匹配。";
+                failReason = "This card cannot use that sticker.";
                 return false;
             }
 
