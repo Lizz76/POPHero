@@ -1,4 +1,6 @@
 using UnityEngine;
+using TMPro;
+using UnityEngine.TextCore.LowLevel;
 
 namespace POPHero
 {
@@ -7,6 +9,7 @@ namespace POPHero
         static Sprite squareSprite;
         static Sprite circleSprite;
         static Font cachedCjkFont;
+        static TMP_FontAsset cachedCjkTmpFont;
 
         public static Sprite SquareSprite => squareSprite ??= CreateSolidSprite(false);
         public static Sprite CircleSprite => circleSprite ??= CreateSolidSprite(true);
@@ -49,6 +52,10 @@ namespace POPHero
             if (cachedCjkFont != null)
                 return cachedCjkFont;
 
+            cachedCjkFont = Resources.Load<Font>("Fonts/VonwaonBitmap-16px");
+            if (cachedCjkFont != null)
+                return cachedCjkFont;
+
             try
             {
                 cachedCjkFont = Font.CreateDynamicFontFromOSFont(new[] { "Microsoft YaHei", "SimHei", "SimSun", "Arial" }, 64);
@@ -66,6 +73,57 @@ namespace POPHero
             }
 
             return cachedCjkFont;
+        }
+
+        public static TMP_FontAsset GetCjkTmpFontAsset()
+        {
+            if (cachedCjkTmpFont != null)
+                return cachedCjkTmpFont;
+
+            var bundledAsset = Resources.Load<TMP_FontAsset>("Fonts/POPHero CJK SDF");
+            if (IsUsableTmpFont(bundledAsset))
+            {
+                cachedCjkTmpFont = bundledAsset;
+                return cachedCjkTmpFont;
+            }
+
+            var runtimeFont = GetCjkRuntimeFont();
+            if (runtimeFont != null)
+            {
+                try
+                {
+                    cachedCjkTmpFont = TMP_FontAsset.CreateFontAsset(
+                        runtimeFont,
+                        64,
+                        8,
+                        GlyphRenderMode.SDFAA,
+                        2048,
+                        2048,
+                        AtlasPopulationMode.Dynamic,
+                        true);
+                    cachedCjkTmpFont.name = "POPHero CJK Runtime";
+                    cachedCjkTmpFont.atlasPopulationMode = AtlasPopulationMode.Dynamic;
+                    cachedCjkTmpFont.isMultiAtlasTexturesEnabled = true;
+                    return cachedCjkTmpFont;
+                }
+                catch (System.Exception ex)
+                {
+                    Debug.LogWarning($"[POPHero] Failed to create runtime CJK TMP font asset: {ex.Message}");
+                }
+            }
+
+            cachedCjkTmpFont = TMP_Settings.defaultFontAsset;
+
+            return cachedCjkTmpFont;
+        }
+
+        static bool IsUsableTmpFont(TMP_FontAsset fontAsset)
+        {
+            if (fontAsset == null)
+                return false;
+
+            var atlasTextures = fontAsset.atlasTextures;
+            return atlasTextures != null && atlasTextures.Length > 0 && atlasTextures[0] != null;
         }
 
         static Sprite CreateSolidSprite(bool circle)

@@ -228,11 +228,11 @@ namespace POPHero
     {
         public List<EnemyTemplate> templates = new()
         {
-            new EnemyTemplate { displayName = "苔石偶像", maxHp = 80, rewardGold = 20, rewardHeal = 8, attackDamage = 8, color = new Color(0.95f, 0.38f, 0.38f, 1f) },
-            new EnemyTemplate { displayName = "铁皮信使", maxHp = 140, rewardGold = 30, rewardHeal = 10, attackDamage = 12, color = new Color(0.99f, 0.52f, 0.25f, 1f) },
-            new EnemyTemplate { displayName = "尖刺图腾", maxHp = 220, rewardGold = 45, rewardHeal = 12, attackDamage = 18, color = new Color(0.95f, 0.74f, 0.24f, 1f) },
-            new EnemyTemplate { displayName = "狂战祭司", maxHp = 320, rewardGold = 60, rewardHeal = 15, attackDamage = 25, color = new Color(0.9f, 0.37f, 0.79f, 1f) },
-            new EnemyTemplate { displayName = "深渊领主", maxHp = 450, rewardGold = 80, rewardHeal = 18, attackDamage = 35, color = new Color(0.52f, 0.48f, 1f, 1f) }
+            new EnemyTemplate { displayName = "Briar Idol", maxHp = 80, rewardGold = 20, rewardHeal = 8, attackDamage = 8, color = new Color(0.95f, 0.38f, 0.38f, 1f) },
+            new EnemyTemplate { displayName = "Iron Courier", maxHp = 140, rewardGold = 30, rewardHeal = 10, attackDamage = 12, color = new Color(0.99f, 0.52f, 0.25f, 1f) },
+            new EnemyTemplate { displayName = "Spike Totem", maxHp = 220, rewardGold = 45, rewardHeal = 12, attackDamage = 18, color = new Color(0.95f, 0.74f, 0.24f, 1f) },
+            new EnemyTemplate { displayName = "War Priest", maxHp = 320, rewardGold = 60, rewardHeal = 15, attackDamage = 25, color = new Color(0.9f, 0.37f, 0.79f, 1f) },
+            new EnemyTemplate { displayName = "Abyss Lord", maxHp = 450, rewardGold = 80, rewardHeal = 18, attackDamage = 35, color = new Color(0.52f, 0.48f, 1f, 1f) }
         };
 
         public int endlessHpGrowth = 90;
@@ -245,7 +245,7 @@ namespace POPHero
     [Serializable]
     public class EnemyTemplate
     {
-        public string displayName = "敌人";
+        public string displayName = "Enemy";
         public int maxHp = 80;
         public int rewardGold = 20;
         public int rewardHeal = 8;

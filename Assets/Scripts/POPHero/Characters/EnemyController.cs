@@ -7,14 +7,16 @@ namespace POPHero
         const float HpBarWidth = 2.5f;
         const float HpBarHeight = 0.16f;
 
+        [Header("Scene References (auto-found from children if not assigned)")]
+        [SerializeField] SpriteRenderer bodyRenderer;
+        [SerializeField] SpriteRenderer coreRenderer;
+        [SerializeField] SpriteRenderer hpFillRenderer;
+        [SerializeField] SpriteRenderer hpPreviewRenderer;
+        [SerializeField] TextMesh nameLabel;
+        [SerializeField] TextMesh intentLabel;
+        [SerializeField] TextMesh hpLabel;
+
         EnemyData currentEnemy;
-        SpriteRenderer bodyRenderer;
-        SpriteRenderer coreRenderer;
-        SpriteRenderer hpFillRenderer;
-        SpriteRenderer hpPreviewRenderer;
-        TextMesh nameLabel;
-        TextMesh intentLabel;
-        TextMesh hpLabel;
         Color baseColor = Color.white;
         float flashTimer;
         int snapshotHp = -1;
@@ -24,24 +26,89 @@ namespace POPHero
 
         public void Initialize(PopHeroGame owner)
         {
-            bodyRenderer = PrototypeVisualFactory.CreateSpriteObject("EnemyBody", transform, PrototypeVisualFactory.SquareSprite, Color.white, 10, new Vector2(2.2f, 2.2f)).GetComponent<SpriteRenderer>();
-            coreRenderer = PrototypeVisualFactory.CreateSpriteObject("EnemyCore", transform, PrototypeVisualFactory.CircleSprite, new Color(1f, 1f, 1f, 0.2f), 11, Vector2.one * 0.72f).GetComponent<SpriteRenderer>();
-            coreRenderer.transform.localPosition = new Vector3(0f, 0.12f, 0f);
+            // Bind from children if not assigned in Inspector
+            if (bodyRenderer == null)
+            {
+                var t = transform.Find("EnemyBody");
+                if (t != null) bodyRenderer = t.GetComponent<SpriteRenderer>();
+            }
+            if (coreRenderer == null)
+            {
+                var t = transform.Find("EnemyCore");
+                if (t != null) coreRenderer = t.GetComponent<SpriteRenderer>();
+            }
+            if (hpFillRenderer == null)
+            {
+                var t = transform.Find("HpFill");
+                if (t != null) hpFillRenderer = t.GetComponent<SpriteRenderer>();
+            }
+            if (hpPreviewRenderer == null)
+            {
+                var t = transform.Find("HpPreview");
+                if (t != null) hpPreviewRenderer = t.GetComponent<SpriteRenderer>();
+            }
+            if (nameLabel == null)
+            {
+                var t = transform.Find("EnemyName");
+                if (t != null) nameLabel = t.GetComponent<TextMesh>();
+            }
+            if (intentLabel == null)
+            {
+                var t = transform.Find("EnemyIntent");
+                if (t != null) intentLabel = t.GetComponent<TextMesh>();
+            }
+            if (hpLabel == null)
+            {
+                var t = transform.Find("EnemyHp");
+                if (t != null) hpLabel = t.GetComponent<TextMesh>();
+            }
 
-            var hpBack = PrototypeVisualFactory.CreateSpriteObject("HpBack", transform, PrototypeVisualFactory.SquareSprite, new Color(0f, 0f, 0f, 0.55f), 12, new Vector2(2.8f, 0.3f)).GetComponent<SpriteRenderer>();
-            hpBack.transform.localPosition = new Vector3(0f, -1.8f, 0f);
+            // Fallback — create if scene is missing them
+            if (bodyRenderer == null)
+                bodyRenderer = PrototypeVisualFactory.CreateSpriteObject("EnemyBody", transform, PrototypeVisualFactory.SquareSprite, Color.white, 10, new Vector2(2.2f, 2.2f)).GetComponent<SpriteRenderer>();
 
-            hpFillRenderer = PrototypeVisualFactory.CreateSpriteObject("HpFill", transform, PrototypeVisualFactory.SquareSprite, new Color(0.98f, 0.92f, 0.72f, 1f), 13, new Vector2(HpBarWidth, HpBarHeight)).GetComponent<SpriteRenderer>();
-            hpFillRenderer.transform.localPosition = new Vector3(0f, -1.8f, -0.02f);
-            hpPreviewRenderer = PrototypeVisualFactory.CreateSpriteObject("HpPreview", transform, PrototypeVisualFactory.SquareSprite, new Color(0.56f, 0.16f, 0.18f, 0.92f), 14, new Vector2(HpBarWidth, HpBarHeight)).GetComponent<SpriteRenderer>();
-            hpPreviewRenderer.transform.localPosition = new Vector3(0f, -1.8f, -0.015f);
+            if (coreRenderer == null)
+            {
+                coreRenderer = PrototypeVisualFactory.CreateSpriteObject("EnemyCore", transform, PrototypeVisualFactory.CircleSprite, new Color(1f, 1f, 1f, 0.2f), 11, Vector2.one * 0.72f).GetComponent<SpriteRenderer>();
+                coreRenderer.transform.localPosition = new Vector3(0f, 0.12f, 0f);
+            }
 
-            nameLabel = PrototypeVisualFactory.CreateTextObject("EnemyName", transform, "\u654c\u4eba", Color.white, 15, 0.11f);
-            nameLabel.transform.localPosition = new Vector3(0f, 1.65f, 0f);
-            intentLabel = PrototypeVisualFactory.CreateTextObject("EnemyIntent", transform, "\u653b\u51fb 0", new Color(1f, 0.78f, 0.34f, 1f), 16, 0.085f);
-            intentLabel.transform.localPosition = new Vector3(0f, 2.15f, 0f);
-            hpLabel = PrototypeVisualFactory.CreateTextObject("EnemyHp", transform, "0/0", Color.white, 15, 0.08f, FontStyle.Normal);
-            hpLabel.transform.localPosition = new Vector3(0f, -2.2f, 0f);
+            if (hpFillRenderer == null)
+            {
+                var hpBack = PrototypeVisualFactory.CreateSpriteObject("HpBack", transform, PrototypeVisualFactory.SquareSprite, new Color(0f, 0f, 0f, 0.55f), 12, new Vector2(2.8f, 0.3f)).GetComponent<SpriteRenderer>();
+                hpBack.transform.localPosition = new Vector3(0f, -1.8f, 0f);
+
+                hpFillRenderer = PrototypeVisualFactory.CreateSpriteObject("HpFill", transform, PrototypeVisualFactory.SquareSprite, new Color(0.98f, 0.92f, 0.72f, 1f), 13, new Vector2(HpBarWidth, HpBarHeight)).GetComponent<SpriteRenderer>();
+                hpFillRenderer.transform.localPosition = new Vector3(0f, -1.8f, -0.02f);
+            }
+
+            if (hpPreviewRenderer == null)
+            {
+                hpPreviewRenderer = PrototypeVisualFactory.CreateSpriteObject("HpPreview", transform, PrototypeVisualFactory.SquareSprite, new Color(0.56f, 0.16f, 0.18f, 0.92f), 14, new Vector2(HpBarWidth, HpBarHeight)).GetComponent<SpriteRenderer>();
+                hpPreviewRenderer.transform.localPosition = new Vector3(0f, -1.8f, -0.015f);
+            }
+
+            if (nameLabel == null)
+            {
+                nameLabel = PrototypeVisualFactory.CreateTextObject("EnemyName", transform, "敌人", Color.white, 15, 0.11f);
+                nameLabel.transform.localPosition = new Vector3(0f, 1.65f, 0f);
+            }
+
+            if (intentLabel == null)
+            {
+                intentLabel = PrototypeVisualFactory.CreateTextObject("EnemyIntent", transform, "攻击 0", new Color(1f, 0.78f, 0.34f, 1f), 16, 0.085f);
+                intentLabel.transform.localPosition = new Vector3(0f, 2.15f, 0f);
+            }
+
+            if (hpLabel == null)
+            {
+                hpLabel = PrototypeVisualFactory.CreateTextObject("EnemyHp", transform, "0/0", Color.white, 15, 0.08f, FontStyle.Normal);
+                hpLabel.transform.localPosition = new Vector3(0f, -2.2f, 0f);
+            }
+
+            ApplyRuntimeFont(nameLabel);
+            ApplyRuntimeFont(intentLabel);
+            ApplyRuntimeFont(hpLabel);
         }
 
         public void SetEnemy(EnemyData enemyData)
@@ -55,12 +122,10 @@ namespace POPHero
 
         public void SetPreviewDamage(int pendingDamage)
         {
-            // 飞行中的伤害只显示在左侧累计面板，不再驱动敌人血条或数字。
         }
 
         public void ClearPreviewDamage(bool refreshDisplay = true)
         {
-            // 兼容旧调用，当前不再维护飞行中的敌人虚血显示。
         }
 
         public void SetHpSnapshot(int hp, int maxHp)
@@ -79,7 +144,7 @@ namespace POPHero
             snapshotMaxHp = -1;
             bodyRenderer.color = baseColor;
             nameLabel.text = currentEnemy.DisplayName;
-            intentLabel.text = currentEnemy.CurrentHp > 0 ? $"\u653b\u51fb {currentEnemy.AttackDamage}" : string.Empty;
+            intentLabel.text = currentEnemy.CurrentHp > 0 ? $"攻击 {currentEnemy.AttackDamage}" : string.Empty;
             coreRenderer.color = new Color(1f, 1f, 1f, Mathf.Lerp(0.08f, 0.24f, currentEnemy.CurrentHp / (float)currentEnemy.MaxHp));
             RefreshHpBar();
         }
@@ -128,6 +193,21 @@ namespace POPHero
             flashTimer -= Time.deltaTime;
             var t = Mathf.Clamp01(flashTimer / 0.32f);
             bodyRenderer.color = Color.Lerp(baseColor, Color.white, t);
+        }
+
+        static void ApplyRuntimeFont(TextMesh label)
+        {
+            if (label == null)
+                return;
+
+            var font = PrototypeVisualFactory.GetCjkRuntimeFont();
+            if (font == null)
+                return;
+
+            label.font = font;
+            var renderer = label.GetComponent<MeshRenderer>();
+            if (renderer != null && font.material != null)
+                renderer.sharedMaterial = font.material;
         }
     }
 }

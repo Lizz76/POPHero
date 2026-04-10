@@ -94,65 +94,18 @@ namespace POPHero
             activeMods.Add(reserve);
         }
 
-        public bool HasActive(string modId)
-        {
-            return activeMods.Exists(mod => mod.data.id == modId);
-        }
-
-        public float GetAimAssistBonus()
-        {
-            return HasActive("aim_assist") ? 1f : 0f;
-        }
-
-        public float GetStableAimBonus()
-        {
-            return HasActive("stable_aim") ? 0.25f : 0f;
-        }
-
-        public float GetFastFingerMultiplier()
-        {
-            return HasActive("fast_fingers") ? 0.8f : 1f;
-        }
-
-        public float GetSlowFingerMultiplier()
-        {
-            return HasActive("slow_fingers") ? 1.2f : 1f;
-        }
-
-        public bool ShowHitCounter()
-        {
-            return HasActive("hit_counter");
-        }
-
-        public bool ShowTrajectoryMemory()
-        {
-            return HasActive("trajectory_memory");
-        }
-
-        public int GetInventoryCapacityBonus()
-        {
-            return HasActive("hold_more") ? 2 : 0;
-        }
-
-        public int GetRewardChoiceCount()
-        {
-            return HasActive("rich_choice") ? 4 : 3;
-        }
-
-        public int GetShopRerollDiscount()
-        {
-            return HasActive("cheap_reroll") ? 1 : 0;
-        }
-
-        public float GetRewardGoldMultiplier()
-        {
-            return HasActive("more_money") ? 1.25f : 1f;
-        }
-
-        public int GetInterestIncome(int currentGold)
-        {
-            return HasActive("interest") ? Mathf.FloorToInt(currentGold / 25f) : 0;
-        }
+        public bool HasActive(string modId) => activeMods.Exists(mod => mod.data.id == modId);
+        public float GetAimAssistBonus() => HasActive("aim_assist") ? 1f : 0f;
+        public float GetStableAimBonus() => HasActive("stable_aim") ? 0.25f : 0f;
+        public float GetFastFingerMultiplier() => HasActive("fast_fingers") ? 0.8f : 1f;
+        public float GetSlowFingerMultiplier() => HasActive("slow_fingers") ? 1.2f : 1f;
+        public bool ShowHitCounter() => HasActive("hit_counter");
+        public bool ShowTrajectoryMemory() => HasActive("trajectory_memory");
+        public int GetInventoryCapacityBonus() => HasActive("hold_more") ? 2 : 0;
+        public int GetRewardChoiceCount() => HasActive("rich_choice") ? 4 : 3;
+        public int GetShopRerollDiscount() => HasActive("cheap_reroll") ? 1 : 0;
+        public float GetRewardGoldMultiplier() => HasActive("more_money") ? 1.25f : 1f;
+        public int GetInterestIncome(int currentGold) => HasActive("interest") ? Mathf.FloorToInt(currentGold / 25f) : 0;
 
         public float GetStickerPowerMultiplier(BlockCardState card, StickerInstance instance)
         {
@@ -182,19 +135,19 @@ namespace POPHero
         void BuildCatalog()
         {
             catalog.Clear();
-            catalog.Add(Make("aim_assist", "Aim Assist", "略微放宽锁定输入的吸附与保持范围。", ModCategory.Information));
-            catalog.Add(Make("hit_counter", "Hit Counter", "瞄准时显示更详细的命中统计。", ModCategory.Information));
-            catalog.Add(Make("trajectory_memory", "Trajectory Memory", "保留上一条锁定路线的短暂残影。", ModCategory.Information));
-            catalog.Add(Make("more_money", "More Money", "击败敌人时额外获得 25% 金币。", ModCategory.Economy));
-            catalog.Add(Make("interest", "Interest", "每回合结束按当前金币获得少量利息。", ModCategory.Economy));
-            catalog.Add(Make("cheap_reroll", "Cheap Reroll", "商店刷新费用 -1。", ModCategory.Economy));
-            catalog.Add(Make("fast_fingers", "Fast Fingers", "切换到新瞄准路线更灵敏。", ModCategory.Operation));
-            catalog.Add(Make("slow_fingers", "Slow Fingers", "锁定路线更稳，不容易因手抖切线。", ModCategory.Operation));
-            catalog.Add(Make("stable_aim", "Stable Aim", "角度阈值更宽，锁定瞄准更稳定。", ModCategory.Operation));
-            catalog.Add(Make("hold_more", "Hold More", "嵌片库存容量增加。", ModCategory.Growth));
-            catalog.Add(Make("socket_plus", "+1 Socket", "随机一张载体卡立刻多 1 个可用槽位。", ModCategory.Growth));
-            catalog.Add(Make("rich_choice", "Rich Choice", "奖励从 3 选 1 提升为 4 选 1。", ModCategory.Growth));
-            catalog.Add(Make("same_sticker_bonus", "Same Sticker Bonus", "同 family 嵌片装在同一张卡上时效果更强。", ModCategory.Build));
+            catalog.Add(Make("aim_assist", "瞄准辅助", "扩大锁定瞄准的吸附和保持范围。", ModCategory.Information));
+            catalog.Add(Make("hit_counter", "命中统计", "瞄准时显示更详细的命中统计。", ModCategory.Information));
+            catalog.Add(Make("trajectory_memory", "轨迹记忆", "保留上一条锁定路线的短暂残影。", ModCategory.Information));
+            catalog.Add(Make("more_money", "更多金币", "击败敌人时额外获得 25% 金币。", ModCategory.Economy));
+            catalog.Add(Make("interest", "利息", "每回合结束时按当前金币获得少量利息。", ModCategory.Economy));
+            catalog.Add(Make("cheap_reroll", "廉价刷新", "商店刷新费用 -1。", ModCategory.Economy));
+            catalog.Add(Make("fast_fingers", "快手", "切换到新瞄准路线时更灵敏。", ModCategory.Operation));
+            catalog.Add(Make("slow_fingers", "稳手", "锁定瞄准更稳定，不容易因轻微抖动切线。", ModCategory.Operation));
+            catalog.Add(Make("stable_aim", "稳定瞄准", "更大的角度阈值会让锁定瞄准更稳定。", ModCategory.Operation));
+            catalog.Add(Make("hold_more", "扩容", "提升嵌片库存容量。", ModCategory.Growth));
+            catalog.Add(Make("socket_plus", "+1 槽位", "随机一张载体方块立刻获得 1 个可用槽位。", ModCategory.Growth));
+            catalog.Add(Make("rich_choice", "更多选择", "奖励选择从 3 选 1 提升到 4 选 1。", ModCategory.Growth));
+            catalog.Add(Make("same_sticker_bonus", "同系嵌片加成", "同一张方块上若有同家族嵌片，效果会更强。", ModCategory.Build));
         }
 
         static ModData Make(string id, string name, string description, ModCategory category)
@@ -213,7 +166,6 @@ namespace POPHero
     {
         readonly List<ShopItemEntry> items = new();
         readonly List<GrowthRewardData> growthPool = new();
-
         PopHeroGame game;
 
         public IReadOnlyList<ShopItemEntry> Items => items;
@@ -230,24 +182,24 @@ namespace POPHero
             growthPool.Add(new GrowthRewardData
             {
                 id = "shop_socket",
-                name = "扩展槽位",
-                description = "随机一张载体卡解锁 1 个槽位。",
+                name = "额外槽位",
+                description = "随机解锁一张载体方块的 1 个槽位。",
                 rewardType = GrowthRewardType.UnlockSocket,
                 value = 1
             });
             growthPool.Add(new GrowthRewardData
             {
                 id = "shop_inventory",
-                name = "扩容背包",
-                description = "嵌片库存上限 +1。",
+                name = "库存扩容",
+                description = "嵌片库存容量 +1。",
                 rewardType = GrowthRewardType.IncreaseInventoryCapacity,
                 value = 1
             });
             growthPool.Add(new GrowthRewardData
             {
                 id = "shop_launch",
-                name = "备用弹珠",
-                description = "每只敌人的可发射次数 +1。",
+                name = "额外弹珠",
+                description = "每个敌人的可发射次数 +1。",
                 rewardType = GrowthRewardType.IncreaseLaunchCapacity,
                 value = 1
             });
@@ -278,18 +230,18 @@ namespace POPHero
             for (var i = 0; i < 3; i++)
             {
                 var sticker = game.StickerCatalog.GetRandomSticker();
-                if (sticker != null)
+                if (sticker == null)
+                    continue;
+
+                items.Add(new ShopItemEntry
                 {
-                    items.Add(new ShopItemEntry
-                    {
-                        id = $"shop_sticker_{i}_{sticker.id}",
-                        kind = ShopItemKind.Sticker,
-                        title = sticker.name,
-                        description = sticker.mainActionText,
-                        stickerData = sticker,
-                        price = GetStickerPrice(sticker)
-                    });
-                }
+                    id = $"shop_sticker_{i}_{sticker.id}",
+                    kind = ShopItemKind.Sticker,
+                    title = sticker.name,
+                    description = sticker.mainActionText,
+                    stickerData = sticker,
+                    price = GetStickerPrice(sticker)
+                });
             }
 
             var mod = game.ModManager.GetRandomUnownedMod();
@@ -339,7 +291,7 @@ namespace POPHero
             item.purchased = true;
             ApplyItem(item);
             EventState = ShopEventState.ShopBuySuccess;
-            LastFeedback = $"{item.title} 已购买。";
+            LastFeedback = $"已购买：{item.title}";
             return true;
         }
 
@@ -364,19 +316,16 @@ namespace POPHero
         {
             if (!InShop)
                 return false;
-
             if (HasRemovedBlockThisVisit)
             {
-                LastFeedback = "这次商店已经删除过 1 张方块了。";
+                LastFeedback = "本次进店已经删除过一张方块。";
                 return false;
             }
-
             if (game.Player.Gold < game.config.shop.blockRemovalCost)
             {
                 LastFeedback = "金币不足，无法删除方块。";
                 return false;
             }
-
             if (!game.BoardManager.TryRemoveOwnedCard(cardId, out var failReason))
             {
                 LastFeedback = failReason;

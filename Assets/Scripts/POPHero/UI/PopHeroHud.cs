@@ -37,6 +37,16 @@ namespace POPHero
         Vector2 inventoryScroll;
         Vector2 modScroll;
 
+        public void Initialize(PopHeroGame owner)
+        {
+            game = owner;
+            commandSink = owner;
+            statusPanelPresenter ??= new StatusPanelPresenter();
+            combatPanelPresenter ??= new CombatPanelPresenter();
+            blockManagementPresenter ??= new BlockManagementPresenter();
+            intermissionPanelPresenter ??= new IntermissionPanelPresenter();
+        }
+
         void Awake()
         {
             game = GetComponent<PopHeroGame>();

@@ -28,7 +28,7 @@ namespace POPHero
         public string runtimeId;
         public StickerData data;
 
-        public string DisplayName => data?.name ?? "嵌片";
+        public string DisplayName => data?.name ?? "Sticker";
     }
 
     public class StickerInventory
