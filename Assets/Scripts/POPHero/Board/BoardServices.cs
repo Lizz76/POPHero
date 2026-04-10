@@ -258,6 +258,12 @@ internal sealed class BlockRewardService
             return true;
         }
 
+        public bool TryGrantCard(BoardBlockType blockType, BlockRarity rarity, out BlockCardState addedCard, out bool addedToReserve, out string failReason)
+        {
+            addedCard = CreateCardState(blockType, rarity);
+            return collectionService.TryAddCard(addedCard, out addedToReserve, out failReason);
+        }
+
         public void ClearRewardOptions()
         {
             context.ActiveRewardOptions.Clear();
@@ -283,13 +289,18 @@ internal sealed class BlockRewardService
 
         BlockCardState CreateCardState(BlockRewardOption option)
         {
+            return CreateCardState(option.blockType, option.rarity);
+        }
+
+        BlockCardState CreateCardState(BoardBlockType blockType, BlockRarity rarity)
+        {
             var state = new BlockCardState
             {
                 id = $"card_{context.CardSerial++:000}",
-                baseBlockType = option.blockType,
-                rarity = option.rarity,
-                family = option.family,
-                baseValueA = option.baseValue,
+                baseBlockType = blockType,
+                rarity = rarity,
+                family = BlockPresentationUtility.GetFamilyForType(blockType),
+                baseValueA = GetRarityValue(blockType, rarity),
                 baseValueB = 0f,
                 templateOrder = collectionService.BlueprintCount
             };
@@ -300,7 +311,7 @@ internal sealed class BlockRewardService
                 {
                     index = socketIndex,
                     isUnlocked = socketIndex < context.Game.config.stickers.unlockedSocketsPerCard,
-                    targetMask = socketIndex == 0 ? BlockPresentationUtility.GetMaskForBlock(option.blockType) : SocketTargetMask.Any
+                    targetMask = socketIndex == 0 ? BlockPresentationUtility.GetMaskForBlock(blockType) : SocketTargetMask.Any
                 });
             }
 

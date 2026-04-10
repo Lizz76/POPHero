@@ -378,7 +378,7 @@ namespace POPHero
             ballController.PlaceAt(CurrentLaunchPoint);
             enemyEncounterIndex = 0;
             CurrentEnemy = null;
-            initialBlockDraftPending = true;
+            initialBlockDraftPending = false;
             GameOverMessage = "本局结束。";
             IntermissionMessage = string.Empty;
             ClearPendingIntermissionAction();
@@ -388,7 +388,11 @@ namespace POPHero
             playerPresenter?.Refresh(Player);
             ResetBattleActorPositions();
             UpdateLaunchMarker();
-            BeginBlockRewardDraft(true);
+            if (!boardManager.GrantStartingCard(BoardBlockType.AttackAdd, BlockRarity.White, out _, out var failReason))
+                throw new InvalidOperationException($"[POPHero] Failed to grant starting block: {failReason}");
+
+            SpawnEnemy(enemyEncounterIndex);
+            PrepareNextRound();
         }
 
         void BindEnemyLayer()

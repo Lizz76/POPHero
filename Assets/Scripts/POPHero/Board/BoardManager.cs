@@ -68,6 +68,13 @@ namespace POPHero
             return rewardService != null && rewardService.TryClaimRewardOption(index, out addedCard, out addedToReserve, out failReason);
         }
 
+        public bool GrantStartingCard(BoardBlockType blockType, BlockRarity rarity, out BlockCardState addedCard, out string failReason)
+        {
+            addedCard = null;
+            failReason = string.Empty;
+            return rewardService != null && rewardService.TryGrantCard(blockType, rarity, out addedCard, out _, out failReason);
+        }
+
         public void ClearRewardOptions()
         {
             rewardService?.ClearRewardOptions();

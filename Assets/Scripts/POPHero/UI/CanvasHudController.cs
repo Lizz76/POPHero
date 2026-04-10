@@ -100,11 +100,19 @@ namespace POPHero
         RectTransform activeModsContent;
         RectTransform reserveModsContent;
 
+        GameObject blockManagementPanel;
         GameObject blockRewardModal;
         GameObject rewardModal;
         GameObject shopModal;
         GameObject loadoutModal;
         GameObject gameOverModal;
+
+        Canvas blockManagementCanvas;
+        GraphicRaycaster blockManagementRaycaster;
+        bool blockManagementCanvasSettingsCaptured;
+        bool blockManagementDefaultOverrideSorting;
+        int blockManagementDefaultSortingOrder;
+        int blockManagementDefaultSortingLayerId;
 
         readonly List<CanvasBlockRowView> activeRows = new();
         readonly List<CanvasBlockRowView> reserveRows = new();
@@ -150,6 +158,7 @@ namespace POPHero
             SafeRefresh("blocks", RefreshBlocks);
             SafeRefresh("damage", RefreshDamage);
             SafeRefresh("modals", RefreshModals);
+            SafeRefresh("layers", RefreshInteractionLayers);
             SafeRefresh("drag", RefreshDragPanel);
             SafeRefresh("tooltip", RefreshTooltip);
         }
@@ -183,6 +192,7 @@ namespace POPHero
             SafeRefresh("blocks", RefreshBlocks);
             SafeRefresh("damage", RefreshDamage);
             SafeRefresh("modals", RefreshModals);
+            SafeRefresh("layers", RefreshInteractionLayers);
             SafeRefresh("drag", RefreshDragPanel);
             SafeRefresh("tooltip", RefreshTooltip);
         }
@@ -242,6 +252,7 @@ namespace POPHero
             killEnemyButton = B("HudRoot/CombatPanel/Buttons/KillEnemyButton");
             damagePlayerButton = B("HudRoot/CombatPanel/Buttons/DamagePlayerButton");
 
+            blockManagementPanel = G("HudRoot/BlockManagementPanel");
             blockHeader = T("HudRoot/BlockManagementPanel/HeaderText");
             blockHint = T("HudRoot/BlockManagementPanel/HintText");
             activeTitle = T("HudRoot/BlockManagementPanel/ActiveSection/TitleText");
@@ -314,6 +325,7 @@ namespace POPHero
         {
             Validate(statusTitle, "HudRoot/StatusPanel/TitleText");
             Validate(combatTitle, "HudRoot/CombatPanel/TitleText");
+            Validate(blockManagementPanel, "HudRoot/BlockManagementPanel");
             Validate(activeRowsRoot, "HudRoot/BlockManagementPanel/ActiveSection/Rows");
             Validate(reserveRowsRoot, "HudRoot/BlockManagementPanel/ReserveSection/Rows");
             Validate(blockRewardModal, "ModalRoot/BlockRewardModal");
@@ -444,6 +456,33 @@ namespace POPHero
 
             if (state == RoundState.GameOver)
                 RefreshGameOver();
+        }
+
+        void RefreshInteractionLayers()
+        {
+            if (game == null || blockManagementPanel == null)
+                return;
+
+            EnsureBlockManagementCanvas();
+            if (blockManagementCanvas == null)
+                return;
+
+            if (game.State == RoundState.LoadoutManage)
+            {
+                blockManagementCanvas.overrideSorting = true;
+                if (canvas != null)
+                    blockManagementCanvas.sortingLayerID = canvas.sortingLayerID;
+                blockManagementCanvas.sortingOrder = (canvas != null ? canvas.sortingOrder : blockManagementDefaultSortingOrder) + 20;
+            }
+            else if (blockManagementCanvasSettingsCaptured)
+            {
+                blockManagementCanvas.overrideSorting = blockManagementDefaultOverrideSorting;
+                blockManagementCanvas.sortingLayerID = blockManagementDefaultSortingLayerId;
+                blockManagementCanvas.sortingOrder = blockManagementDefaultSortingOrder;
+            }
+
+            if (blockManagementRaycaster != null)
+                blockManagementRaycaster.enabled = true;
         }
 
         void RefreshDragPanel()
@@ -882,6 +921,38 @@ namespace POPHero
         {
             if (gameObject != null)
                 gameObject.SetActive(value);
+        }
+
+        void EnsureBlockManagementCanvas()
+        {
+            if (blockManagementPanel == null)
+                return;
+
+            if (blockManagementCanvas == null)
+            {
+                blockManagementCanvas = blockManagementPanel.GetComponent<Canvas>();
+                if (blockManagementCanvas == null)
+                {
+                    blockManagementCanvas = blockManagementPanel.AddComponent<Canvas>();
+                    if (canvas != null)
+                        blockManagementCanvas.sortingLayerID = canvas.sortingLayerID;
+                }
+            }
+
+            if (!blockManagementCanvasSettingsCaptured)
+            {
+                blockManagementDefaultOverrideSorting = blockManagementCanvas.overrideSorting;
+                blockManagementDefaultSortingOrder = blockManagementCanvas.sortingOrder;
+                blockManagementDefaultSortingLayerId = blockManagementCanvas.sortingLayerID;
+                blockManagementCanvasSettingsCaptured = true;
+            }
+
+            if (blockManagementRaycaster == null)
+            {
+                blockManagementRaycaster = blockManagementPanel.GetComponent<GraphicRaycaster>();
+                if (blockManagementRaycaster == null)
+                    blockManagementRaycaster = blockManagementPanel.AddComponent<GraphicRaycaster>();
+            }
         }
 
         static void Bind(Button button, Action action)

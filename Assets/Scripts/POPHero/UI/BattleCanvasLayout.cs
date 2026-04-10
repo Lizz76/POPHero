@@ -107,8 +107,15 @@ namespace POPHero
         RectTransform loadoutFooter;
         RectTransform loadoutColumns;
         RectTransform loadoutInventoryPanel;
+        RectTransform loadoutInventoryTitle;
         RectTransform loadoutInventoryScrollView;
         RectTransform loadoutModsPanel;
+        RectTransform loadoutActiveModsTitle;
+        RectTransform loadoutActiveModsContent;
+        RectTransform loadoutReserveModsTitle;
+        RectTransform loadoutReserveModsContent;
+        RectTransform loadoutCancelButton;
+        RectTransform loadoutContinueButton;
 
         RectTransform gameOverWindow;
         RectTransform gameOverHeader;
@@ -185,8 +192,15 @@ namespace POPHero
             loadoutFooter ??= FindRect("ModalRoot/LoadoutModal/Window/Footer");
             loadoutColumns ??= FindRect("ModalRoot/LoadoutModal/Window/Body/Columns");
             loadoutInventoryPanel ??= FindRect("ModalRoot/LoadoutModal/Window/Body/Columns/InventoryPanel");
+            loadoutInventoryTitle ??= FindRect("ModalRoot/LoadoutModal/Window/Body/Columns/InventoryPanel/InventoryTitleText");
             loadoutInventoryScrollView ??= FindRect("ModalRoot/LoadoutModal/Window/Body/Columns/InventoryPanel/ScrollView");
             loadoutModsPanel ??= FindRect("ModalRoot/LoadoutModal/Window/Body/Columns/ModsPanel");
+            loadoutActiveModsTitle ??= FindRect("ModalRoot/LoadoutModal/Window/Body/Columns/ModsPanel/ActiveTitleText");
+            loadoutActiveModsContent ??= FindRect("ModalRoot/LoadoutModal/Window/Body/Columns/ModsPanel/ActiveContent");
+            loadoutReserveModsTitle ??= FindRect("ModalRoot/LoadoutModal/Window/Body/Columns/ModsPanel/ReserveTitleText");
+            loadoutReserveModsContent ??= FindRect("ModalRoot/LoadoutModal/Window/Body/Columns/ModsPanel/ReserveContent");
+            loadoutCancelButton ??= FindRect("ModalRoot/LoadoutModal/Window/Footer/CancelButton");
+            loadoutContinueButton ??= FindRect("ModalRoot/LoadoutModal/Window/Footer/ContinueButton");
 
             gameOverWindow ??= FindRect("ModalRoot/GameOverModal/Window");
             gameOverHeader ??= FindRect("ModalRoot/GameOverModal/Window/Header");
@@ -442,7 +456,7 @@ namespace POPHero
 
         void ApplyLoadoutModal(LayoutPreset preset)
         {
-            ApplyModalWindow(loadoutWindow, preset.LoadoutSize);
+            ApplyLoadoutWindow(preset.LoadoutSize);
             ApplyStandardModalChrome(loadoutWindow, loadoutHeader, loadoutBody, loadoutFooter, 104f, 72f);
 
             if (loadoutBody == null || loadoutColumns == null)
@@ -454,22 +468,25 @@ namespace POPHero
 
             var totalWidth = Mathf.Max(780f, loadoutColumns.rect.width);
             var gap = canvasRoot.rect.width >= 1600f ? 16f : 12f;
-            var inventoryWidth = Mathf.Clamp(totalWidth * 0.48f, 360f, 520f);
+            var inventoryWidth = Mathf.Clamp((totalWidth - gap) * 0.44f, 360f, 520f);
 
             if (loadoutInventoryPanel != null)
             {
                 DisableLayoutGroup(loadoutInventoryPanel);
-                SetLeftFill(loadoutInventoryPanel, 0f, totalWidth - inventoryWidth + gap * 0.5f, 0f, 0f);
+                DisableContentFitter(loadoutInventoryPanel);
+                SetLeftFill(loadoutInventoryPanel, 0f, totalWidth - inventoryWidth, 0f, 0f);
             }
 
             if (loadoutModsPanel != null)
             {
                 DisableLayoutGroup(loadoutModsPanel);
-                SetRightFill(loadoutModsPanel, inventoryWidth + gap * 0.5f, 0f, 0f, 0f);
+                DisableContentFitter(loadoutModsPanel);
+                SetRightFill(loadoutModsPanel, inventoryWidth + gap, 0f, 0f, 0f);
             }
 
-            if (loadoutInventoryScrollView != null)
-                SetFill(loadoutInventoryScrollView, 12f, 12f, 48f, 12f);
+            ApplyLoadoutInventoryLayout();
+            ApplyLoadoutModsLayout();
+            ApplyLoadoutFooterLayout();
         }
 
         void ApplyGameOverModal(LayoutPreset preset)
@@ -550,6 +567,104 @@ namespace POPHero
             window.sizeDelta = new Vector2(
                 Mathf.Min(size.x, availableWidth),
                 Mathf.Min(size.y, availableHeight - 8f));
+        }
+
+        void ApplyLoadoutWindow(Vector2 size)
+        {
+            if (loadoutWindow == null)
+                return;
+
+            loadoutWindow.anchorMin = new Vector2(0.5f, 0.5f);
+            loadoutWindow.anchorMax = new Vector2(0.5f, 0.5f);
+            loadoutWindow.pivot = new Vector2(0.5f, 0.5f);
+
+            var parent = loadoutWindow.parent as RectTransform;
+            var center = Vector2.zero;
+            var availableWidth = canvasRoot.rect.width;
+            var availableHeight = canvasRoot.rect.height - 8f;
+
+            if (parent != null && centerModalZone != null)
+            {
+                GetLocalRect(parent, centerModalZone, out var zoneMin, out var zoneMax);
+                center = (zoneMin + zoneMax) * 0.5f;
+
+                var safeRight = zoneMax.x;
+                if (blockPanel != null)
+                {
+                    GetLocalRect(parent, blockPanel, out var blockMin, out _);
+                    safeRight = Mathf.Min(safeRight, blockMin.x - 24f);
+                }
+
+                var leftHalf = center.x - zoneMin.x;
+                var rightHalf = safeRight - center.x;
+                var safeHalfWidth = Mathf.Max(180f, Mathf.Min(leftHalf, rightHalf));
+                availableWidth = Mathf.Max(360f, safeHalfWidth * 2f);
+                availableHeight = Mathf.Max(280f, zoneMax.y - zoneMin.y - 8f);
+            }
+
+            loadoutWindow.anchoredPosition = center;
+            loadoutWindow.sizeDelta = new Vector2(
+                Mathf.Min(size.x, availableWidth),
+                Mathf.Min(size.y, availableHeight));
+        }
+
+        void ApplyLoadoutInventoryLayout()
+        {
+            const float padding = 12f;
+            const float titleHeight = 32f;
+            const float gap = 12f;
+
+            if (loadoutInventoryTitle != null)
+                SetTopStretch(loadoutInventoryTitle, padding, padding, padding, titleHeight);
+
+            if (loadoutInventoryScrollView != null)
+                SetFill(loadoutInventoryScrollView, padding, padding, padding + titleHeight + gap, padding);
+        }
+
+        void ApplyLoadoutModsLayout()
+        {
+            if (loadoutModsPanel == null)
+                return;
+
+            const float padding = 12f;
+            const float titleHeight = 32f;
+            const float titleGap = 8f;
+            const float sectionGap = 12f;
+
+            DisableContentFitter(loadoutActiveModsContent);
+            DisableContentFitter(loadoutReserveModsContent);
+
+            if (loadoutActiveModsTitle != null)
+                SetTopStretch(loadoutActiveModsTitle, padding, padding, padding, titleHeight);
+
+            var contentAvailable = Mathf.Max(
+                160f,
+                loadoutModsPanel.rect.height - padding * 2f - titleHeight * 2f - titleGap * 2f - sectionGap);
+            var topContentHeight = Mathf.Max(72f, contentAvailable * 0.5f);
+            var activeContentTop = padding + titleHeight + titleGap;
+            var reserveTitleTop = activeContentTop + topContentHeight + sectionGap;
+
+            if (loadoutActiveModsContent != null)
+                SetTopStretch(loadoutActiveModsContent, padding, padding, activeContentTop, topContentHeight);
+
+            if (loadoutReserveModsTitle != null)
+                SetTopStretch(loadoutReserveModsTitle, padding, padding, reserveTitleTop, titleHeight);
+
+            if (loadoutReserveModsContent != null)
+                SetFill(loadoutReserveModsContent, padding, padding, reserveTitleTop + titleHeight + titleGap, padding);
+        }
+
+        void ApplyLoadoutFooterLayout()
+        {
+            if (loadoutFooter == null)
+                return;
+
+            const float buttonWidth = 220f;
+            const float buttonHeight = 44f;
+            const float buttonGap = 12f;
+
+            SetRightAlignedButton(loadoutContinueButton, 0f, buttonWidth, buttonHeight);
+            SetRightAlignedButton(loadoutCancelButton, buttonWidth + buttonGap, buttonWidth, buttonHeight);
         }
 
         static LayoutPreset ChoosePreset(float width)
@@ -740,6 +855,26 @@ namespace POPHero
             right.pivot = new Vector2(1f, 0.5f);
             right.offsetMin = new Vector2(-rightWidth, 0f);
             right.offsetMax = new Vector2(0f, 0f);
+        }
+
+        static void SetRightAlignedButton(RectTransform rect, float rightOffset, float width, float height)
+        {
+            if (rect == null)
+                return;
+
+            rect.anchorMin = new Vector2(1f, 0.5f);
+            rect.anchorMax = new Vector2(1f, 0.5f);
+            rect.pivot = new Vector2(1f, 0.5f);
+            rect.anchoredPosition = new Vector2(-rightOffset, 0f);
+            rect.sizeDelta = new Vector2(width, height);
+        }
+
+        static void GetLocalRect(RectTransform parent, RectTransform rect, out Vector2 min, out Vector2 max)
+        {
+            var corners = new Vector3[4];
+            rect.GetWorldCorners(corners);
+            min = parent.InverseTransformPoint(corners[0]);
+            max = parent.InverseTransformPoint(corners[2]);
         }
 
         RectTransform FindRect(string path)
