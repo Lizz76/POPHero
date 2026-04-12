@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text;
 using UnityEngine;
 
 namespace POPHero
@@ -24,6 +25,43 @@ namespace POPHero
             AllCardsCache.Clear();
             AllCardsCache.AddRange(BlockCollection.activeBlocks);
             AllCardsCache.AddRange(BlockCollection.reserveBlocks);
+        }
+    }
+
+    internal readonly struct BlockVisualPresentation
+    {
+        public readonly Sprite BackgroundSprite;
+        public readonly Color BackgroundTint;
+        public readonly Sprite IconSprite;
+        public readonly Color IconTint;
+        public readonly string FallbackIconText;
+
+        public BlockVisualPresentation(
+            Sprite backgroundSprite,
+            Color backgroundTint,
+            Sprite iconSprite,
+            Color iconTint,
+            string fallbackIconText)
+        {
+            BackgroundSprite = backgroundSprite;
+            BackgroundTint = backgroundTint;
+            IconSprite = iconSprite;
+            IconTint = iconTint;
+            FallbackIconText = fallbackIconText;
+        }
+    }
+
+    internal readonly struct BlockTooltipPresentation
+    {
+        public readonly string Title;
+        public readonly string Body;
+        public readonly Color AccentColor;
+
+        public BlockTooltipPresentation(string title, string body, Color accentColor)
+        {
+            Title = title;
+            Body = body;
+            AccentColor = accentColor;
         }
     }
 
@@ -107,6 +145,83 @@ namespace POPHero
             };
         }
 
+        public static Color GetRarityColor(BlockRarity rarity)
+        {
+            return rarity switch
+            {
+                BlockRarity.White => new Color(0.94f, 0.96f, 1f, 1f),
+                BlockRarity.Blue => new Color(0.42f, 0.68f, 1f, 1f),
+                BlockRarity.Purple => new Color(0.78f, 0.48f, 1f, 1f),
+                BlockRarity.Gold => new Color(1f, 0.82f, 0.34f, 1f),
+                _ => Color.white
+            };
+        }
+
+        public static Color GetBaseColor(BoardSettings settings, BoardBlockType blockType)
+        {
+            if (settings == null)
+                return Color.white;
+
+            return blockType switch
+            {
+                BoardBlockType.AttackAdd => settings.attackAddColor,
+                BoardBlockType.Shield => settings.shieldColor,
+                BoardBlockType.AttackMultiply => settings.attackMultiplyColor,
+                _ => Color.white
+            };
+        }
+
+        public static Color GetBlockTint(BoardSettings settings, BoardBlockType blockType, BlockRarity rarity)
+        {
+            return GetRewardColor(blockType, rarity, GetBaseColor(settings, blockType));
+        }
+
+        public static BlockVisualPresentation GetBlockVisual(BoardSettings settings, BlockCardState cardState)
+        {
+            if (cardState == null)
+            {
+                return new BlockVisualPresentation(
+                    null,
+                    new Color(0.24f, 0.26f, 0.3f, 1f),
+                    null,
+                    new Color(0.94f, 0.96f, 1f, 1f),
+                    "-");
+            }
+
+            var visualSettings = settings?.visuals;
+            visualSettings?.MigrateLegacyIfNeeded();
+
+            var backgroundSprite = visualSettings?.GetBackgroundSprite(cardState.rarity);
+            var iconSprite = visualSettings?.GetIconSprite(cardState.baseBlockType, cardState.rarity);
+            return new BlockVisualPresentation(
+                backgroundSprite,
+                backgroundSprite != null ? Color.white : new Color(0.8f, 0.83f, 0.88f, 1f),
+                iconSprite,
+                iconSprite != null ? Color.white : new Color(0.18f, 0.2f, 0.24f, 1f),
+                GetFallbackIconText(cardState.baseBlockType));
+        }
+
+        public static BlockTooltipPresentation BuildTooltip(BlockCardState cardState)
+        {
+            if (cardState == null)
+                return new BlockTooltipPresentation(string.Empty, string.Empty, Color.white);
+
+            var builder = new StringBuilder();
+            builder.AppendLine($"类型：{GetBlockTypeName(cardState.baseBlockType)}方块");
+            builder.AppendLine($"稀有度：{GetRarityName(cardState.rarity)}");
+            builder.AppendLine($"基础值：{FormatValue(cardState.baseBlockType, cardState.baseValueA)}");
+            builder.AppendLine($"已装嵌片：{cardState.InstalledStickerCount}/{cardState.UnlockedSocketCount}");
+            if (!string.IsNullOrWhiteSpace(cardState.mainActionText))
+                builder.AppendLine(cardState.mainActionText);
+            if (cardState.detailLines.Count > 0)
+                builder.AppendLine(string.Join("\n", cardState.detailLines));
+
+            return new BlockTooltipPresentation(
+                cardState.cardName,
+                builder.ToString().Trim(),
+                new Color(0.94f, 0.96f, 1f, 1f));
+        }
+
         public static void RefreshCardPresentation(BlockCardState cardState)
         {
             cardState.tags.Clear();
@@ -129,6 +244,22 @@ namespace POPHero
                 cardState.detailLines.Add(socket.installedSticker.data.mainActionText);
                 cardState.tags.Add(socket.installedSticker.data.family.ToString());
             }
+        }
+
+        static string GetFallbackIconText(BoardBlockType blockType)
+        {
+            return blockType switch
+            {
+                BoardBlockType.AttackAdd => "ATK",
+                BoardBlockType.Shield => "SHD",
+                BoardBlockType.AttackMultiply => "AMP",
+                _ => "HYB"
+            };
+        }
+
+        static string FormatValue(BoardBlockType blockType, float value)
+        {
+            return blockType == BoardBlockType.AttackMultiply ? $"x{value:0.0#}" : $"+{Mathf.RoundToInt(value)}";
         }
     }
 
@@ -363,18 +494,7 @@ internal sealed class BlockRewardService
 
         Color GetRewardColor(BoardBlockType blockType, BlockRarity rarity)
         {
-            return BlockPresentationUtility.GetRewardColor(blockType, rarity, GetBaseColor(blockType));
-        }
-
-        static Color GetBaseColor(BoardBlockType blockType)
-        {
-            return blockType switch
-            {
-                BoardBlockType.AttackAdd => new Color(0.35f, 0.56f, 0.95f),
-                BoardBlockType.Shield => new Color(0.25f, 0.82f, 0.45f),
-                BoardBlockType.AttackMultiply => new Color(0.72f, 0.42f, 1f),
-                _ => Color.white
-            };
+            return BlockPresentationUtility.GetBlockTint(context.Game.config.board, blockType, rarity);
         }
     }
 
@@ -636,8 +756,7 @@ internal sealed class RuntimeBoardService
 
         void CreateRuntimeBlock(BlockCardState cardState, Vector2 position)
         {
-            var go = new GameObject(cardState.id);
-            go.transform.SetParent(context.BlockRoot, false);
+            var go = InstantiateRuntimeBlockObject(cardState.id);
 
             BoardBlock block = cardState.baseBlockType switch
             {
@@ -653,9 +772,25 @@ internal sealed class RuntimeBoardService
                 context.Game.config.board.blockSize,
                 GetRandomRotation(),
                 context.Game.config.board.keepLabelUpright,
-                GetRewardColor(cardState.baseBlockType, cardState.rarity),
                 context.BounceMaterial);
             context.RuntimeBlocks.Add(block);
+        }
+
+        GameObject InstantiateRuntimeBlockObject(string objectName)
+        {
+            var prefab = context.Game.config.board.worldBlockViewPrefab;
+            GameObject instance;
+            if (prefab != null)
+            {
+                instance = Object.Instantiate(prefab.gameObject, context.BlockRoot, false);
+            }
+            else
+            {
+                instance = BlockWorldView.CreateFallbackObject(objectName, context.BlockRoot).gameObject;
+            }
+
+            instance.name = objectName;
+            return instance;
         }
 
         void UpdateSafeZoneMarker()
@@ -690,18 +825,7 @@ internal sealed class RuntimeBoardService
 
         Color GetRewardColor(BoardBlockType blockType, BlockRarity rarity)
         {
-            return BlockPresentationUtility.GetRewardColor(blockType, rarity, GetBaseColor(blockType));
-        }
-
-        static Color GetBaseColor(BoardBlockType blockType)
-        {
-            return blockType switch
-            {
-                BoardBlockType.AttackAdd => new Color(0.35f, 0.56f, 0.95f),
-                BoardBlockType.Shield => new Color(0.25f, 0.82f, 0.45f),
-                BoardBlockType.AttackMultiply => new Color(0.72f, 0.42f, 1f),
-                _ => Color.white
-            };
+            return BlockPresentationUtility.GetBlockTint(context.Game.config.board, blockType, rarity);
         }
 
         float GetRandomRotation()

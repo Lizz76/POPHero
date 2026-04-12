@@ -1,0 +1,239 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 90b3b3af4a62c9444b5fe741c9537532, type: 3}
+  m_Name: PopHeroPrototypeConfig
+  m_EditorClassIdentifier: 
+  arena:
+    boardCenter: {x: 0, y: -1.6}
+    boardSize: {x: 10.6, y: 10.8}
+    wallThickness: 0.45
+    wallStoneUnitLength: 0.62
+    wallPointSubdivisions: 3
+    wallStoneVisualGap: 0.08
+    wallStoneColliderOverlap: 0.04
+    wallStoneColorVariance: 0.18
+    topPanelHeight: 3
+    launchLineOffset: 0.42
+    bottomTriggerHeight: 0.3
+    cameraSize: 8.9
+    backgroundColor: {r: 0.08, g: 0.08, b: 0.08, a: 1}
+    boardBackgroundColor: {r: 0.05, g: 0.05, b: 0.06, a: 1}
+    boardFrameColor: {r: 0.44, g: 0.27, b: 0.13, a: 1}
+    wallColor: {r: 0.71, g: 0.47, b: 0.24, a: 1}
+    launchGuideColor: {r: 0.2, g: 0.85, b: 0.45, a: 0.28}
+    safeZoneColor: {r: 0.18, g: 0.55, b: 0.88, a: 0.16}
+    topPanelColor: {r: 0.16, g: 0.09, b: 0.09, a: 1}
+    enemyPanelAccent: {r: 0.72, g: 0.07, b: 0.17, a: 1}
+  ball:
+    radius: 0.15
+    speed: 12
+    accelerationPerBounce: 1.5
+    maxSpeed: 24
+    maxFlightDuration: 18
+    outOfBoundsRecoveryPadding: 0.8
+    minAimAngle: 18
+    maxAimAngle: 162
+    previewSegments: 30
+    previewDistance: 100
+    previewHitEpsilon: 0.01
+    previewMinHitGap: 0.02
+    cornerHitGap: 0.08
+    interiorPushOutPadding: 0.03
+    interiorRepeatLimit: 2
+    sameColliderMinTravel: 0.025
+    previewLineStartWidth: 0.08
+    previewLineEndWidth: 0.05
+    hitCooldown: 0.05
+    baseTrailTime: 0.14
+    boostTrailTime: 0.26
+    boostDuration: 0.18
+    baseTrailWidth: 0.14
+    boostTrailWidth: 0.24
+    color: {r: 0.92, g: 0.95, b: 1, a: 1}
+    previewColor: {r: 0.04, g: 1, b: 0.2, a: 0.92}
+  aim:
+    currentAimMode: 1
+    dragStartRadius: 0.95
+    inputLockStartRadius: 0.95
+    inputRecalcDistance: 0.34
+    inputReleaseDistance: 0.18
+    inputRecalcAngle: 2.8
+    inputHoldAngle: 1.25
+    aimAssistBonus: 0.2
+    showTrajectoryMemory: 0
+    wallAimSnapFactor: 0.45
+    wallAimReleaseFactor: 0.9
+  player:
+    maxHp: 100
+    currentHp: 100
+    startShield: 0
+    startGold: 0
+  board:
+    blockSize: {x: 1.18, y: 1.18}
+    attackAddCount: 6
+    attackMultiplyCount: 2
+    shieldCount: 3
+    startingVisibleBlockCount: 1
+    visibleBlockIncreasePerRound: 0
+    minRotationAngle: -45
+    maxRotationAngle: 45
+    rotationStep: 15
+    keepLabelUpright: 1
+    attackAddValues: 080000000a0000000c0000000f000000
+    attackMultiplyValues:
+    - 1.2
+    - 1.4
+    - 1.6
+    shieldValues: 05000000080000000a000000
+    sidePadding: 0.85
+    topPadding: 1.25
+    bottomPadding: 2.1
+    launchSafeWidth: 2.8
+    launchSafeHeight: 1.8
+    perBlockPlacementTries: 50
+    shuffleRetryCount: 8
+    worldBlockViewPrefab: {fileID: 8009263793539684192, guid: a7bf4fc8a8ca55341bf4aa6557fa7d56, type: 3}
+    blockCellViewPrefab: {fileID: 9205224667434084869, guid: 681afa5c84b2a0d429783d7cbef5fa2e, type: 3}
+    visuals:
+      whiteBackgroundSprite: {fileID: -1319250859, guid: 9a91fe5677f782745ba735ed9bb2207a, type: 3}
+      blueBackgroundSprite: {fileID: -1319250859, guid: 9a91fe5677f782745ba735ed9bb2207a, type: 3}
+      purpleBackgroundSprite: {fileID: -1319250859, guid: 9a91fe5677f782745ba735ed9bb2207a, type: 3}
+      goldBackgroundSprite: {fileID: -1319250859, guid: 9a91fe5677f782745ba735ed9bb2207a, type: 3}
+      whiteAttackIconSprite: {fileID: -250863344, guid: 9a91fe5677f782745ba735ed9bb2207a, type: 3}
+      blueAttackIconSprite: {fileID: 34168378, guid: 9a91fe5677f782745ba735ed9bb2207a, type: 3}
+      purpleAttackIconSprite: {fileID: -41429544, guid: 9a91fe5677f782745ba735ed9bb2207a, type: 3}
+      goldAttackIconSprite: {fileID: 1989427428, guid: 9a91fe5677f782745ba735ed9bb2207a, type: 3}
+      whiteShieldIconSprite: {fileID: 1109617243, guid: 9a91fe5677f782745ba735ed9bb2207a, type: 3}
+      blueShieldIconSprite: {fileID: 2119795748, guid: 9a91fe5677f782745ba735ed9bb2207a, type: 3}
+      purpleShieldIconSprite: {fileID: 1754478166, guid: 9a91fe5677f782745ba735ed9bb2207a, type: 3}
+      goldShieldIconSprite: {fileID: -764252696, guid: 9a91fe5677f782745ba735ed9bb2207a, type: 3}
+      whiteMultiplierIconSprite: {fileID: 0}
+      blueMultiplierIconSprite: {fileID: 0}
+      purpleMultiplierIconSprite: {fileID: 0}
+      goldMultiplierIconSprite: {fileID: 0}
+      backgroundSprite: {fileID: -1319250859, guid: 9a91fe5677f782745ba735ed9bb2207a, type: 3}
+      attackIconSprite: {fileID: -250863344, guid: 9a91fe5677f782745ba735ed9bb2207a, type: 3}
+      shieldIconSprite: {fileID: 1109617243, guid: 9a91fe5677f782745ba735ed9bb2207a, type: 3}
+      multiplierIconSprite: {fileID: 0}
+      whiteRarityBadgeSprite: {fileID: 0}
+      blueRarityBadgeSprite: {fileID: 0}
+      purpleRarityBadgeSprite: {fileID: 0}
+      goldRarityBadgeSprite: {fileID: 0}
+      legacyVisualsMigrated: 0
+    attackAddColor: {r: 0.38, g: 0.18, b: 0.86, a: 1}
+    attackMultiplyColor: {r: 0.2, g: 0.52, b: 0.95, a: 1}
+    shieldColor: {r: 0.16, g: 0.75, b: 0.34, a: 1}
+    labelColor: {r: 0.97, g: 0.99, b: 1, a: 1}
+  blockRewards:
+    initialChoiceCount: 3
+    rewardChoiceCount: 3
+    maxActiveBlocks: 10
+    maxReserveBlocks: 3
+    rarityOdds:
+    - minimumKills: 0
+      white: 75
+      blue: 20
+      purple: 5
+      gold: 0
+    - minimumKills: 3
+      white: 55
+      blue: 30
+      purple: 12
+      gold: 3
+    - minimumKills: 6
+      white: 40
+      blue: 35
+      purple: 18
+      gold: 7
+    - minimumKills: 10
+      white: 28
+      blue: 35
+      purple: 25
+      gold: 12
+    - minimumKills: 15
+      white: 20
+      blue: 32
+      purple: 30
+      gold: 18
+    attackValues:
+      white: 8
+      blue: 14
+      purple: 22
+      gold: 34
+    shieldValues:
+      white: 6
+      blue: 11
+      purple: 18
+      gold: 28
+    multiplierValues:
+      white: 1.2
+      blue: 1.5
+      purple: 1.9
+      gold: 2.5
+  stickers:
+    baseInventoryCapacity: 6
+    defaultSocketsPerCard: 2
+    unlockedSocketsPerCard: 1
+    maxSocketsPerCard: 3
+  mods:
+    modUseCap: 6
+  shop:
+    stickerSkipMoney: 6
+    stickerRerollMoney: 4
+    shopRerollMoney: 3
+    blockRemovalCost: 18
+  intermission:
+    rewardChoiceCount: 3
+    shopStickerSlots: 3
+    shopModSlots: 1
+    shopGrowthSlots: 1
+  enemies:
+    templates:
+    - displayName: Briar Idol
+      maxHp: 80
+      rewardGold: 20
+      rewardHeal: 8
+      attackDamage: 8
+      color: {r: 0.95, g: 0.38, b: 0.38, a: 1}
+    - displayName: Iron Courier
+      maxHp: 140
+      rewardGold: 30
+      rewardHeal: 10
+      attackDamage: 12
+      color: {r: 0.99, g: 0.52, b: 0.25, a: 1}
+    - displayName: Spike Totem
+      maxHp: 220
+      rewardGold: 45
+      rewardHeal: 12
+      attackDamage: 18
+      color: {r: 0.95, g: 0.74, b: 0.24, a: 1}
+    - displayName: War Priest
+      maxHp: 320
+      rewardGold: 60
+      rewardHeal: 15
+      attackDamage: 25
+      color: {r: 0.9, g: 0.37, b: 0.79, a: 1}
+    - displayName: Abyss Lord
+      maxHp: 450
+      rewardGold: 80
+      rewardHeal: 18
+      attackDamage: 35
+      color: {r: 0.52, g: 0.48, b: 1, a: 1}
+    endlessHpGrowth: 90
+    endlessGoldGrowth: 14
+    endlessHealGrowth: 3
+    endlessAttackGrowth: 5
+    maxLaunchesPerEnemy: 6
+  debug:
+    showSpawnSafeZone: 1
+    showTrajectoryComparison: 1
+    showActualHitMarkers: 1

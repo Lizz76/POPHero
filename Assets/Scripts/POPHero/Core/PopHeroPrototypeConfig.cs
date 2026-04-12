@@ -44,13 +44,14 @@ namespace POPHero
         public float bottomTriggerHeight = 0.3f;
         public float cameraSize = 8.9f;
         public Color backgroundColor = new(0.08f, 0.08f, 0.08f, 1f);
-        public Color topPanelColor = new(0.16f, 0.09f, 0.09f, 1f);
         public Color boardBackgroundColor = new(0.05f, 0.05f, 0.06f, 1f);
         public Color boardFrameColor = new(0.44f, 0.27f, 0.13f, 1f);
         public Color wallColor = new(0.71f, 0.47f, 0.24f, 1f);
         public Color launchGuideColor = new(0.2f, 0.85f, 0.45f, 0.28f);
         public Color safeZoneColor = new(0.18f, 0.55f, 0.88f, 0.16f);
-        public Color enemyPanelAccent = new(0.72f, 0.07f, 0.17f, 1f);
+
+        [HideInInspector] public Color topPanelColor = new(0.16f, 0.09f, 0.09f, 1f);
+        [HideInInspector] public Color enemyPanelAccent = new(0.72f, 0.07f, 0.17f, 1f);
     }
 
     [Serializable]
@@ -132,10 +133,136 @@ namespace POPHero
         public float launchSafeHeight = 1.8f;
         public int perBlockPlacementTries = 50;
         public int shuffleRetryCount = 8;
-        public Color attackAddColor = new(0.38f, 0.18f, 0.86f, 1f);
-        public Color attackMultiplyColor = new(0.2f, 0.52f, 0.95f, 1f);
-        public Color shieldColor = new(0.16f, 0.75f, 0.34f, 1f);
-        public Color labelColor = new(0.97f, 0.99f, 1f, 1f);
+
+        [Header("Block View Prefabs")]
+        [Tooltip("World-space block prefab used in battle.")]
+        public BlockWorldView worldBlockViewPrefab;
+
+        [Tooltip("UI block cell prefab used in BlockManagementPanel.")]
+        public BlockCellView blockCellViewPrefab;
+
+        [Header("Block Art Sprites")]
+        [Tooltip("Sprites used by both world blocks and right-side block cells.")]
+        public BoardBlockVisualSettings visuals = new();
+
+        [HideInInspector] public Color attackAddColor = new(0.38f, 0.18f, 0.86f, 1f);
+        [HideInInspector] public Color attackMultiplyColor = new(0.2f, 0.52f, 0.95f, 1f);
+        [HideInInspector] public Color shieldColor = new(0.16f, 0.75f, 0.34f, 1f);
+        [HideInInspector] public Color labelColor = new(0.97f, 0.99f, 1f, 1f);
+    }
+
+    [Serializable]
+    public class BoardBlockVisualSettings
+    {
+        [Header("Rarity Backgrounds")]
+        public Sprite whiteBackgroundSprite;
+        public Sprite blueBackgroundSprite;
+        public Sprite purpleBackgroundSprite;
+        public Sprite goldBackgroundSprite;
+
+        [Header("Attack Icons")]
+        public Sprite whiteAttackIconSprite;
+        public Sprite blueAttackIconSprite;
+        public Sprite purpleAttackIconSprite;
+        public Sprite goldAttackIconSprite;
+
+        [Header("Shield Icons")]
+        public Sprite whiteShieldIconSprite;
+        public Sprite blueShieldIconSprite;
+        public Sprite purpleShieldIconSprite;
+        public Sprite goldShieldIconSprite;
+
+        [Header("Multiplier Icons")]
+        public Sprite whiteMultiplierIconSprite;
+        public Sprite blueMultiplierIconSprite;
+        public Sprite purpleMultiplierIconSprite;
+        public Sprite goldMultiplierIconSprite;
+
+        [HideInInspector] public Sprite backgroundSprite;
+        [HideInInspector] public Sprite attackIconSprite;
+        [HideInInspector] public Sprite shieldIconSprite;
+        [HideInInspector] public Sprite multiplierIconSprite;
+        [HideInInspector] public Sprite whiteRarityBadgeSprite;
+        [HideInInspector] public Sprite blueRarityBadgeSprite;
+        [HideInInspector] public Sprite purpleRarityBadgeSprite;
+        [HideInInspector] public Sprite goldRarityBadgeSprite;
+        [HideInInspector] public bool legacyVisualsMigrated;
+
+        public bool MigrateLegacyIfNeeded()
+        {
+            if (legacyVisualsMigrated)
+                return false;
+
+            var changed = false;
+
+            changed |= CopyIfEmpty(ref whiteBackgroundSprite, backgroundSprite);
+            changed |= CopyIfEmpty(ref blueBackgroundSprite, backgroundSprite);
+            changed |= CopyIfEmpty(ref purpleBackgroundSprite, backgroundSprite);
+            changed |= CopyIfEmpty(ref goldBackgroundSprite, backgroundSprite);
+
+            changed |= CopyIfEmpty(ref whiteAttackIconSprite, attackIconSprite);
+            changed |= CopyIfEmpty(ref blueAttackIconSprite, attackIconSprite);
+            changed |= CopyIfEmpty(ref purpleAttackIconSprite, attackIconSprite);
+            changed |= CopyIfEmpty(ref goldAttackIconSprite, attackIconSprite);
+
+            changed |= CopyIfEmpty(ref whiteShieldIconSprite, shieldIconSprite);
+            changed |= CopyIfEmpty(ref blueShieldIconSprite, shieldIconSprite);
+            changed |= CopyIfEmpty(ref purpleShieldIconSprite, shieldIconSprite);
+            changed |= CopyIfEmpty(ref goldShieldIconSprite, shieldIconSprite);
+
+            changed |= CopyIfEmpty(ref whiteMultiplierIconSprite, multiplierIconSprite);
+            changed |= CopyIfEmpty(ref blueMultiplierIconSprite, multiplierIconSprite);
+            changed |= CopyIfEmpty(ref purpleMultiplierIconSprite, multiplierIconSprite);
+            changed |= CopyIfEmpty(ref goldMultiplierIconSprite, multiplierIconSprite);
+
+            if (changed)
+                legacyVisualsMigrated = true;
+
+            return changed;
+        }
+
+        public Sprite GetBackgroundSprite(BlockRarity rarity)
+        {
+            MigrateLegacyIfNeeded();
+            return rarity switch
+            {
+                BlockRarity.White => whiteBackgroundSprite,
+                BlockRarity.Blue => blueBackgroundSprite,
+                BlockRarity.Purple => purpleBackgroundSprite,
+                BlockRarity.Gold => goldBackgroundSprite,
+                _ => whiteBackgroundSprite
+            };
+        }
+
+        public Sprite GetIconSprite(BoardBlockType blockType, BlockRarity rarity)
+        {
+            MigrateLegacyIfNeeded();
+            return (blockType, rarity) switch
+            {
+                (BoardBlockType.AttackAdd, BlockRarity.White) => whiteAttackIconSprite,
+                (BoardBlockType.AttackAdd, BlockRarity.Blue) => blueAttackIconSprite,
+                (BoardBlockType.AttackAdd, BlockRarity.Purple) => purpleAttackIconSprite,
+                (BoardBlockType.AttackAdd, BlockRarity.Gold) => goldAttackIconSprite,
+                (BoardBlockType.Shield, BlockRarity.White) => whiteShieldIconSprite,
+                (BoardBlockType.Shield, BlockRarity.Blue) => blueShieldIconSprite,
+                (BoardBlockType.Shield, BlockRarity.Purple) => purpleShieldIconSprite,
+                (BoardBlockType.Shield, BlockRarity.Gold) => goldShieldIconSprite,
+                (BoardBlockType.AttackMultiply, BlockRarity.White) => whiteMultiplierIconSprite,
+                (BoardBlockType.AttackMultiply, BlockRarity.Blue) => blueMultiplierIconSprite,
+                (BoardBlockType.AttackMultiply, BlockRarity.Purple) => purpleMultiplierIconSprite,
+                (BoardBlockType.AttackMultiply, BlockRarity.Gold) => goldMultiplierIconSprite,
+                _ => null
+            };
+        }
+
+        static bool CopyIfEmpty(ref Sprite target, Sprite legacy)
+        {
+            if (target != null || legacy == null)
+                return false;
+
+            target = legacy;
+            return true;
+        }
     }
 
     [Serializable]
@@ -250,7 +377,7 @@ namespace POPHero
         public int rewardGold = 20;
         public int rewardHeal = 8;
         public int attackDamage = 8;
-        public Color color = new(0.95f, 0.38f, 0.38f, 1f);
+        [HideInInspector] public Color color = new(0.95f, 0.38f, 0.38f, 1f);
     }
 
     [Serializable]

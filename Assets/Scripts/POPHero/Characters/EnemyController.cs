@@ -6,6 +6,7 @@ namespace POPHero
     {
         const float HpBarWidth = 2.5f;
         const float HpBarHeight = 0.16f;
+        static readonly Color HitFlashTint = new(1f, 0.95f, 0.88f, 1f);
 
         [Header("Scene References (auto-found from children if not assigned)")]
         [SerializeField] SpriteRenderer bodyRenderer;
@@ -17,10 +18,14 @@ namespace POPHero
         [SerializeField] TextMesh hpLabel;
 
         EnemyData currentEnemy;
-        Color baseColor = Color.white;
+        Color bodyBaseColor = Color.white;
+        Color coreBaseColor = new(1f, 1f, 1f, 0.2f);
         float flashTimer;
+        float flashDuration;
         int snapshotHp = -1;
         int snapshotMaxHp = -1;
+        Renderer[] sortingRenderers;
+        int[] baseSortingOrders;
 
         public EnemyData CurrentEnemy => currentEnemy;
 
@@ -109,6 +114,8 @@ namespace POPHero
             ApplyRuntimeFont(nameLabel);
             ApplyRuntimeFont(intentLabel);
             ApplyRuntimeFont(hpLabel);
+            CaptureBaseColors();
+            CacheSortingRenderers();
         }
 
         public void SetEnemy(EnemyData enemyData)
@@ -116,7 +123,7 @@ namespace POPHero
             currentEnemy = enemyData;
             snapshotHp = -1;
             snapshotMaxHp = -1;
-            baseColor = enemyData.AccentColor;
+            CaptureBaseColors();
             Refresh();
         }
 
@@ -142,18 +149,33 @@ namespace POPHero
 
             snapshotHp = -1;
             snapshotMaxHp = -1;
-            bodyRenderer.color = baseColor;
+            ApplyActorColors();
             nameLabel.text = currentEnemy.DisplayName;
             intentLabel.text = currentEnemy.CurrentHp > 0 ? $"攻击 {currentEnemy.AttackDamage}" : string.Empty;
-            coreRenderer.color = new Color(1f, 1f, 1f, Mathf.Lerp(0.08f, 0.24f, currentEnemy.CurrentHp / (float)currentEnemy.MaxHp));
             RefreshHpBar();
         }
 
         public void PlayHitFeedback(bool wasKillingBlow)
         {
-            flashTimer = wasKillingBlow ? 0.32f : 0.14f;
-            if (wasKillingBlow)
-                bodyRenderer.color = Color.white;
+            flashDuration = wasKillingBlow ? 0.32f : 0.14f;
+            flashTimer = flashDuration;
+            ApplyActorColors(1f);
+        }
+
+        public void SetSortingOffset(int sortingOffset)
+        {
+            CacheSortingRenderers();
+            if (sortingRenderers == null || baseSortingOrders == null)
+                return;
+
+            for (var index = 0; index < sortingRenderers.Length; index++)
+            {
+                var renderer = sortingRenderers[index];
+                if (renderer == null)
+                    continue;
+
+                renderer.sortingOrder = baseSortingOrders[index] + sortingOffset;
+            }
         }
 
         void RefreshHpBar()
@@ -191,8 +213,48 @@ namespace POPHero
                 return;
 
             flashTimer -= Time.deltaTime;
-            var t = Mathf.Clamp01(flashTimer / 0.32f);
-            bodyRenderer.color = Color.Lerp(baseColor, Color.white, t);
+            ApplyActorColors(flashDuration > 0f ? Mathf.Clamp01(flashTimer / flashDuration) : 0f);
+        }
+
+        void CaptureBaseColors()
+        {
+            if (bodyRenderer != null)
+                bodyBaseColor = bodyRenderer.color;
+
+            if (coreRenderer != null)
+                coreBaseColor = coreRenderer.color;
+        }
+
+        void ApplyActorColors(float flashStrength = 0f)
+        {
+            if (bodyRenderer != null)
+                bodyRenderer.color = Color.Lerp(bodyBaseColor, HitFlashTint, Mathf.Clamp01(flashStrength * 0.7f));
+
+            if (coreRenderer != null)
+            {
+                var hpRatio = currentEnemy != null && currentEnemy.MaxHp > 0
+                    ? currentEnemy.CurrentHp / (float)currentEnemy.MaxHp
+                    : 1f;
+                var alpha = Mathf.Clamp01(Mathf.Lerp(0.08f, 0.24f, hpRatio) + flashStrength * 0.5f);
+                coreRenderer.color = new Color(coreBaseColor.r, coreBaseColor.g, coreBaseColor.b, alpha);
+            }
+        }
+
+        void CacheSortingRenderers()
+        {
+            if (sortingRenderers != null && baseSortingOrders != null && sortingRenderers.Length == baseSortingOrders.Length)
+                return;
+
+            sortingRenderers = GetComponentsInChildren<Renderer>(true);
+            if (sortingRenderers == null)
+            {
+                baseSortingOrders = null;
+                return;
+            }
+
+            baseSortingOrders = new int[sortingRenderers.Length];
+            for (var index = 0; index < sortingRenderers.Length; index++)
+                baseSortingOrders[index] = sortingRenderers[index] != null ? sortingRenderers[index].sortingOrder : 0;
         }
 
         static void ApplyRuntimeFont(TextMesh label)

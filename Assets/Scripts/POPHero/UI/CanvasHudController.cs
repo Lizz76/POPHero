@@ -128,6 +128,9 @@ namespace POPHero
         string tooltipTitleValue;
         string tooltipBodyValue;
         Color tooltipColor = Color.white;
+        string passiveTooltipTitleValue;
+        string passiveTooltipBodyValue;
+        Color passiveTooltipColor = Color.white;
         string selectedActiveId;
         string selectedReserveId;
         bool initialized;
@@ -220,6 +223,19 @@ namespace POPHero
         {
             tooltipTitleValue = string.Empty;
             tooltipBodyValue = string.Empty;
+        }
+
+        public void SetPassiveTooltip(string title, string body, Color color)
+        {
+            passiveTooltipTitleValue = title ?? string.Empty;
+            passiveTooltipBodyValue = body ?? string.Empty;
+            passiveTooltipColor = color;
+        }
+
+        public void ClearPassiveTooltip()
+        {
+            passiveTooltipTitleValue = string.Empty;
+            passiveTooltipBodyValue = string.Empty;
         }
 
         void BindScene()
@@ -392,16 +408,17 @@ namespace POPHero
         {
             var model = blockPresenter.Build(game);
             var blockCollections = game?.BlockCollections;
+            var blockCellPrefab = game?.Config?.board?.blockCellViewPrefab;
             Set(blockHeader, model.HeaderText);
             Set(blockHint, BuildBlockHint(model.HintText));
             Set(activeTitle, $"上阵 {blockCollections?.ActiveCardCount ?? 0}/{blockCollections?.ActiveCapacity ?? 0}");
             Set(reserveTitle, $"仓库 {blockCollections?.ReserveCardCount ?? 0}/{blockCollections?.ReserveCapacity ?? 0}");
 
-            EnsureRows(activeRows, activeRowsRoot, model.ActiveRows.Count);
+            EnsureRows(activeRows, activeRowsRoot, model.ActiveRows.Count, blockCellPrefab);
             for (var index = 0; index < model.ActiveRows.Count; index++)
                 ConfigureRow(activeRows[index], model.ActiveRows[index], true);
 
-            EnsureRows(reserveRows, reserveRowsRoot, model.ReserveRows.Count);
+            EnsureRows(reserveRows, reserveRowsRoot, model.ReserveRows.Count, blockCellPrefab);
             for (var index = 0; index < model.ReserveRows.Count; index++)
                 ConfigureRow(reserveRows[index], model.ReserveRows[index], false);
         }
@@ -501,15 +518,18 @@ namespace POPHero
 
         void RefreshTooltip()
         {
-            var visible = !string.IsNullOrWhiteSpace(tooltipTitleValue);
+            var title = !string.IsNullOrWhiteSpace(tooltipTitleValue) ? tooltipTitleValue : passiveTooltipTitleValue;
+            var body = !string.IsNullOrWhiteSpace(tooltipTitleValue) ? tooltipBodyValue : passiveTooltipBodyValue;
+            var color = !string.IsNullOrWhiteSpace(tooltipTitleValue) ? tooltipColor : passiveTooltipColor;
+            var visible = !string.IsNullOrWhiteSpace(title);
             SetActive(tooltipPanel, visible);
             if (!visible)
                 return;
 
-            Set(tooltipTitle, tooltipTitleValue);
-            Set(tooltipBody, tooltipBodyValue);
+            Set(tooltipTitle, title);
+            Set(tooltipBody, body);
             if (tooltipTitle != null)
-                tooltipTitle.color = tooltipColor;
+                tooltipTitle.color = color;
             Position(tooltipPanel, Input.mousePosition, 18f, 18f);
         }
 
@@ -626,10 +646,11 @@ namespace POPHero
             {
                 var card = cards[index];
                 var view = views[index];
+                var tooltip = BlockPresentationUtility.BuildTooltip(card);
                 view.gameObject.SetActive(true);
                 view.Set(card.cardName, BlockIcon(card.baseBlockType), Format(card), BlockColor(card), () => Run(new HudCommand(HudCommandType.TryRemoveBlockInShop, 0, card.id)));
                 view.SetInteractable(!disabled);
-                view.SetTooltip(card.cardName, BlockTooltip(card), RarityColor(card.rarity), this);
+                view.SetTooltip(tooltip.Title, tooltip.Body, tooltip.AccentColor, this);
             }
         }
 
@@ -656,15 +677,17 @@ namespace POPHero
 
             if (model.Card == null)
             {
-                view.SetType("-", new Color(0.24f, 0.26f, 0.3f, 0.8f), null);
+                view.SetTypePlaceholder("-", new Color(0.24f, 0.26f, 0.3f, 0.8f), null);
                 view.SetTypeTooltip("空槽位", activeSection ? "这里还没有上阵方块。" : "这里还没有仓库方块。", new Color(0.72f, 0.76f, 0.84f, 1f), this);
                 view.SetStickerCount(0);
                 view.SetSocketCount(0);
                 return;
             }
 
-            view.SetType(BlockIcon(model.Card.baseBlockType), BlockColor(model.Card), () => ClickBlock(model.Card, activeSection));
-            view.SetTypeTooltip(model.Card.cardName, BlockTooltip(model.Card), RarityColor(model.Card.rarity), this);
+            var blockVisual = BlockPresentationUtility.GetBlockVisual(game?.Config?.board, model.Card);
+            var tooltip = BlockPresentationUtility.BuildTooltip(model.Card);
+            view.SetTypeVisual(model.Card, blockVisual, () => ClickBlock(model.Card, activeSection));
+            view.SetTypeTooltip(tooltip.Title, tooltip.Body, tooltip.AccentColor, this);
 
             var stickers = new List<StickerInstance>();
             foreach (var socket in model.Card.sockets)
@@ -736,7 +759,8 @@ namespace POPHero
 
             if (!game.CanManageBlockAssignments)
             {
-                SetTooltip(card.cardName, BlockTooltip(card), RarityColor(card.rarity));
+                var tooltip = BlockPresentationUtility.BuildTooltip(card);
+                SetTooltip(tooltip.Title, tooltip.Body, tooltip.AccentColor);
                 return;
             }
 
@@ -784,19 +808,7 @@ namespace POPHero
 
         string BlockTooltip(BlockCardState card)
         {
-            if (card == null)
-                return string.Empty;
-
-            var builder = new StringBuilder();
-            builder.AppendLine($"类型：{BlockType(card.baseBlockType)}");
-            builder.AppendLine($"稀有度：{Format(card.rarity)}");
-            builder.AppendLine($"基础值：{Format(card)}");
-            builder.AppendLine($"已装嵌片：{card.InstalledStickerCount}/{card.UnlockedSocketCount}");
-            if (!string.IsNullOrWhiteSpace(card.mainActionText))
-                builder.AppendLine(card.mainActionText);
-            if (card.detailLines.Count > 0)
-                builder.AppendLine(string.Join("\n", card.detailLines));
-            return builder.ToString().Trim();
+            return BlockPresentationUtility.BuildTooltip(card).Body;
         }
 
         string StickerTooltip(StickerInstance sticker)
@@ -964,10 +976,10 @@ namespace POPHero
                 button.onClick.AddListener(() => action());
         }
 
-        void EnsureRows(List<CanvasBlockRowView> rows, RectTransform root, int count)
+        void EnsureRows(List<CanvasBlockRowView> rows, RectTransform root, int count, BlockCellView blockCellPrefab)
         {
             while (rows.Count < count)
-                rows.Add(CanvasBlockRowView.Create(root));
+                rows.Add(CanvasBlockRowView.Create(root, blockCellPrefab));
             HideExtra(rows, count);
         }
 

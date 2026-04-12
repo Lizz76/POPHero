@@ -6,10 +6,5 @@ namespace POPHero
         {
             game.RoundController.ProcessBlockHit(this);
         }
-
-        protected override string GetLabelText()
-        {
-            return $"x{valueA:0.0#}";
-        }
     }
 }

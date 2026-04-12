@@ -18,6 +18,8 @@ namespace POPHero
         float flashTimer;
         int snapshotHp = -1;
         int snapshotMaxHp = -1;
+        Renderer[] sortingRenderers;
+        int[] baseSortingOrders;
 
         public void Initialize()
         {
@@ -80,6 +82,7 @@ namespace POPHero
 
             ApplyRuntimeFont(nameLabel);
             ApplyRuntimeFont(hpLabel);
+            CacheSortingRenderers();
         }
 
         public void SetHpSnapshot(int currentHp, int maxHp)
@@ -107,6 +110,22 @@ namespace POPHero
             bodyRenderer.color = Color.white;
         }
 
+        public void SetSortingOffset(int sortingOffset)
+        {
+            CacheSortingRenderers();
+            if (sortingRenderers == null || baseSortingOrders == null)
+                return;
+
+            for (var index = 0; index < sortingRenderers.Length; index++)
+            {
+                var renderer = sortingRenderers[index];
+                if (renderer == null)
+                    continue;
+
+                renderer.sortingOrder = baseSortingOrders[index] + sortingOffset;
+            }
+        }
+
         void UpdateDisplayedHp(int currentHp, int maxHp)
         {
             hpLabel.text = $"{currentHp}/{maxHp}";
@@ -132,6 +151,23 @@ namespace POPHero
             flashTimer -= Time.deltaTime;
             var t = Mathf.Clamp01(flashTimer / 0.3f);
             bodyRenderer.color = Color.Lerp(baseColor, Color.white, t);
+        }
+
+        void CacheSortingRenderers()
+        {
+            if (sortingRenderers != null && baseSortingOrders != null && sortingRenderers.Length == baseSortingOrders.Length)
+                return;
+
+            sortingRenderers = GetComponentsInChildren<Renderer>(true);
+            if (sortingRenderers == null)
+            {
+                baseSortingOrders = null;
+                return;
+            }
+
+            baseSortingOrders = new int[sortingRenderers.Length];
+            for (var index = 0; index < sortingRenderers.Length; index++)
+                baseSortingOrders[index] = sortingRenderers[index] != null ? sortingRenderers[index].sortingOrder : 0;
         }
 
         static void ApplyRuntimeFont(TextMesh label)

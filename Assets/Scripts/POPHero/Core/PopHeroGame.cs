@@ -2,12 +2,15 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 namespace POPHero
 {
     public class PopHeroGame : MonoBehaviour, IGameReadModel, IHudCommandSink
     {
         static readonly float[] WallStoneShadePattern = { -0.22f, 0.1f, -0.08f, 0.16f, -0.14f, 0.05f, 0.12f, -0.04f };
+        static readonly Color NeutralEnemyImpactColor = new(1f, 0.96f, 0.9f, 1f);
+        const int AttackForegroundSortingOffset = 20;
 
         enum IntermissionActionKind
         {
@@ -148,6 +151,7 @@ namespace POPHero
         Coroutine battlePresentationRoutine;
         Vector3 playerIdlePosition;
         Vector3 enemyIdlePosition;
+        BoardBlock hoveredWorldTooltipBlock;
 
         void Awake()
         {
@@ -362,6 +366,7 @@ namespace POPHero
         void Update()
         {
             intermissionFlowController?.ProcessPendingAction();
+            RefreshWorldBlockTooltip();
         }
 
         void StartPrototype()
@@ -408,8 +413,8 @@ namespace POPHero
             if (enemyPanel != null)
             {
                 enemyPanel.transform.position = panelCenter;
-                enemyPanel.sprite = PrototypeVisualFactory.SquareSprite;
-                enemyPanel.color = config.arena.topPanelColor;
+                if (enemyPanel.sprite == null)
+                    enemyPanel.sprite = PrototypeVisualFactory.SquareSprite;
                 enemyPanel.sortingOrder = 1;
                 enemyPanel.transform.localScale = new Vector3(BoardRect.width, config.arena.topPanelHeight, 1f);
             }
@@ -793,7 +798,10 @@ namespace POPHero
             playerPresenter?.SetHpSnapshot(result.playerDisplayHpBeforeCounter, playerMaxHp);
             UpdateLaunchMarker();
             if (battlePresentationRoutine != null)
+            {
                 StopCoroutine(battlePresentationRoutine);
+                ClearAttackForegroundSorting();
+            }
             battlePresentationRoutine = StartCoroutine(PlayResolvePresentation(result));
         }
 
@@ -1264,6 +1272,7 @@ namespace POPHero
                 battlePresentationRoutine = null;
             }
             isBattlePresentationPlaying = false;
+            ClearAttackForegroundSorting();
             ChangeState(RoundState.GameOver);
             ballController?.StopImmediately();
         }
@@ -1273,11 +1282,13 @@ namespace POPHero
             isBattlePresentationPlaying = true;
             if (result.attackDamage > 0)
             {
+                playerPresenter?.SetSortingOffset(AttackForegroundSortingOffset);
                 yield return PlayAttackLeap(playerPresenter != null ? playerPresenter.transform : null, playerIdlePosition, enemyController != null ? enemyController.transform.position + new Vector3(0f, 1.18f, 0f) : enemyIdlePosition, new Color(0.35f, 0.92f, 1f, 1f), () =>
                 {
                     enemyController?.Refresh();
                     enemyController?.PlayHitFeedback(result.enemyDefeated);
                 });
+                playerPresenter?.SetSortingOffset(0);
             }
             else
             {
@@ -1287,11 +1298,13 @@ namespace POPHero
             if (!result.enemyDefeated && CurrentEnemy != null && result.enemyCounterDamage > 0)
             {
                 yield return new WaitForSeconds(0.06f);
-                yield return PlayAttackLeap(enemyController != null ? enemyController.transform : null, enemyIdlePosition, playerPresenter != null ? playerPresenter.transform.position + new Vector3(0f, 1.04f, 0f) : playerIdlePosition, CurrentEnemy.AccentColor, () =>
+                enemyController?.SetSortingOffset(AttackForegroundSortingOffset);
+                yield return PlayAttackLeap(enemyController != null ? enemyController.transform : null, enemyIdlePosition, playerPresenter != null ? playerPresenter.transform.position + new Vector3(0f, 1.04f, 0f) : playerIdlePosition, NeutralEnemyImpactColor, () =>
                 {
                     playerPresenter?.Refresh(Player);
                     playerPresenter?.PlayHitFeedback(result.playerDefeated || result.enemyCounterDamage >= 18);
                 });
+                enemyController?.SetSortingOffset(0);
             }
             else if (result.enemyCounterDamage <= 0)
             {
@@ -1401,6 +1414,73 @@ namespace POPHero
                 enemyController.transform.position = enemyIdlePosition;
                 enemyController.transform.localScale = Vector3.one;
             }
+
+            ClearAttackForegroundSorting();
+        }
+
+        void ClearAttackForegroundSorting()
+        {
+            playerPresenter?.SetSortingOffset(0);
+            enemyController?.SetSortingOffset(0);
+        }
+
+        void RefreshWorldBlockTooltip()
+        {
+            if (canvasHud == null)
+                return;
+
+            if (State != RoundState.Aim || Input.GetMouseButton(0) || Input.touchCount > 0)
+            {
+                ClearWorldBlockTooltip();
+                return;
+            }
+
+            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+            {
+                ClearWorldBlockTooltip();
+                return;
+            }
+
+            var hoveredBlock = FindHoveredBoardBlock();
+            if (hoveredBlock == null || hoveredBlock.CardState == null)
+            {
+                ClearWorldBlockTooltip();
+                return;
+            }
+
+            if (hoveredWorldTooltipBlock == hoveredBlock)
+                return;
+
+            hoveredWorldTooltipBlock = hoveredBlock;
+            var tooltip = BlockPresentationUtility.BuildTooltip(hoveredBlock.CardState);
+            canvasHud.SetPassiveTooltip(tooltip.Title, tooltip.Body, tooltip.AccentColor);
+        }
+
+        BoardBlock FindHoveredBoardBlock()
+        {
+            var camera = Camera.main;
+            if (camera == null)
+                return null;
+
+            var worldPoint = camera.ScreenToWorldPoint(Input.mousePosition);
+            var hits = Physics2D.OverlapPointAll(new Vector2(worldPoint.x, worldPoint.y));
+            foreach (var hit in hits)
+            {
+                if (hit == null)
+                    continue;
+
+                var block = hit.GetComponent<BoardBlock>() ?? hit.GetComponentInParent<BoardBlock>();
+                if (block != null)
+                    return block;
+            }
+
+            return null;
+        }
+
+        void ClearWorldBlockTooltip()
+        {
+            hoveredWorldTooltipBlock = null;
+            canvasHud?.ClearPassiveTooltip();
         }
 
         void RefreshLaunchCounter()
@@ -1497,6 +1577,8 @@ namespace POPHero
                     launcher.CancelAim();
                 else
                     ClearAimPreview();
+
+                ClearWorldBlockTooltip();
             }
 
             ballController?.SetLaunchCounterVisible(newState == RoundState.Aim);

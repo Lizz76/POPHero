@@ -5,6 +5,7 @@ namespace POPHero
     [RequireComponent(typeof(SpriteRenderer))]
     [RequireComponent(typeof(BoxCollider2D))]
     [RequireComponent(typeof(ArenaSurfaceMarker))]
+    [RequireComponent(typeof(BlockWorldView))]
     public abstract class BoardBlock : MonoBehaviour
     {
         public string blockId;
@@ -18,17 +19,12 @@ namespace POPHero
 
         protected PopHeroGame game;
 
-        SpriteRenderer spriteRenderer;
-        TextMesh label;
-        MeshRenderer labelRenderer;
-        Color baseFillColor;
-        Color baseLabelColor;
+        BlockWorldView worldView;
         float pulseScale = 1f;
         float rotationAngle;
-        bool keepLabelUpright;
-        BlockVisualState currentVisualState = BlockVisualState.Default;
+        bool keepFallbackLabelUpright;
 
-        public void Initialize(PopHeroGame owner, BlockCardState cardState, Vector2 worldPosition, Vector2 blockSize, float rotationZ, bool keepTextUpright, Color fillColor, PhysicsMaterial2D bounceMaterial)
+        public void Initialize(PopHeroGame owner, BlockCardState cardState, Vector2 worldPosition, Vector2 blockSize, float rotationZ, bool keepTextUpright, PhysicsMaterial2D bounceMaterial)
         {
             game = owner;
             CardState = cardState;
@@ -39,17 +35,11 @@ namespace POPHero
             valueA = cardState.baseValueA;
             valueB = cardState.baseValueB;
             rotationAngle = rotationZ;
-            keepLabelUpright = keepTextUpright;
-            baseFillColor = fillColor;
-            baseLabelColor = owner.config.board.labelColor;
+            keepFallbackLabelUpright = keepTextUpright;
 
             transform.position = worldPosition;
             transform.localScale = new Vector3(blockSize.x, blockSize.y, 1f);
             transform.rotation = Quaternion.Euler(0f, 0f, rotationAngle);
-
-            spriteRenderer = GetComponent<SpriteRenderer>();
-            spriteRenderer.sprite = PrototypeVisualFactory.SquareSprite;
-            spriteRenderer.sortingOrder = 20;
 
             var collider = GetComponent<BoxCollider2D>();
             collider.size = Vector2.one;
@@ -58,8 +48,9 @@ namespace POPHero
             var surfaceMarker = GetComponent<ArenaSurfaceMarker>();
             surfaceMarker.surfaceType = ArenaSurfaceType.Block;
 
-            EnsureLabel(baseLabelColor);
-            RefreshLabel();
+            worldView = GetComponent<BlockWorldView>() ?? gameObject.AddComponent<BlockWorldView>();
+            worldView.Configure(rotationAngle, keepFallbackLabelUpright);
+            RefreshVisuals();
             SetVisualState(BlockVisualState.Default);
         }
 
@@ -71,60 +62,10 @@ namespace POPHero
 
         public void SetVisualState(BlockVisualState state)
         {
-            currentVisualState = state;
-            ApplyVisualState();
+            worldView?.SetVisualState(state);
         }
 
         protected abstract void OnBallHit(BallController ball);
-        protected abstract string GetLabelText();
-
-        void EnsureLabel(Color color)
-        {
-            if (label != null)
-                return;
-
-            label = PrototypeVisualFactory.CreateTextObject("Label", transform, string.Empty, color, 30, 0.09f);
-            labelRenderer = label.GetComponent<MeshRenderer>();
-            label.transform.localPosition = new Vector3(0f, -0.02f, 0f);
-            label.transform.localRotation = keepLabelUpright
-                ? Quaternion.Euler(0f, 0f, -rotationAngle)
-                : Quaternion.identity;
-        }
-
-        void ApplyVisualState()
-        {
-            if (spriteRenderer == null)
-                return;
-
-            var fillColor = currentVisualState switch
-            {
-                BlockVisualState.Highlight => Color.Lerp(baseFillColor, Color.white, 0.35f),
-                BlockVisualState.Dim => ScaleColor(baseFillColor, 0.68f),
-                _ => baseFillColor
-            };
-            var labelColor = currentVisualState switch
-            {
-                BlockVisualState.Highlight => Color.white,
-                BlockVisualState.Dim => ScaleColor(baseLabelColor, 0.74f),
-                _ => baseLabelColor
-            };
-
-            spriteRenderer.color = fillColor;
-            spriteRenderer.sortingOrder = currentVisualState == BlockVisualState.Highlight ? 22 : 20;
-
-            if (label != null)
-                label.color = labelColor;
-            if (labelRenderer != null)
-                labelRenderer.sortingOrder = currentVisualState == BlockVisualState.Highlight ? 32 : 30;
-        }
-
-        protected void RefreshLabel()
-        {
-            if (label == null)
-                return;
-
-            label.text = GetLabelText();
-        }
 
         public void RefreshFromCard()
         {
@@ -134,12 +75,17 @@ namespace POPHero
             blockType = CardState.baseBlockType;
             valueA = CardState.baseValueA;
             valueB = CardState.baseValueB;
-            RefreshLabel();
+            RefreshVisuals();
         }
 
-        static Color ScaleColor(Color color, float factor)
+        void RefreshVisuals()
         {
-            return new Color(color.r * factor, color.g * factor, color.b * factor, color.a);
+            if (CardState == null || game == null)
+                return;
+
+            worldView ??= GetComponent<BlockWorldView>() ?? gameObject.AddComponent<BlockWorldView>();
+            worldView.Configure(rotationAngle, keepFallbackLabelUpright);
+            worldView.Apply(CardState, BlockPresentationUtility.GetBlockVisual(game.config.board, CardState));
         }
 
         void Update()

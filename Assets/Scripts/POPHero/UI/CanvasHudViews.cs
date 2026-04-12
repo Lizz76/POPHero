@@ -69,8 +69,7 @@ namespace POPHero
         readonly RectTransform root;
         readonly Image background;
         readonly TMP_Text indexText;
-        readonly Button typeButton;
-        readonly TMP_Text typeLabel;
+        readonly BlockCellView typeCell;
         readonly RectTransform stickerRoot;
         readonly RectTransform socketRoot;
         readonly List<Button> stickerButtons = new();
@@ -82,18 +81,17 @@ namespace POPHero
 
         public GameObject gameObject => root.gameObject;
 
-        CanvasBlockRowView(RectTransform root, Image background, TMP_Text indexText, Button typeButton, TMP_Text typeLabel, RectTransform stickerRoot, RectTransform socketRoot)
+        CanvasBlockRowView(RectTransform root, Image background, TMP_Text indexText, BlockCellView typeCell, RectTransform stickerRoot, RectTransform socketRoot)
         {
             this.root = root;
             this.background = background;
             this.indexText = indexText;
-            this.typeButton = typeButton;
-            this.typeLabel = typeLabel;
+            this.typeCell = typeCell;
             this.stickerRoot = stickerRoot;
             this.socketRoot = socketRoot;
         }
 
-        public static CanvasBlockRowView Create(Transform parent)
+        public static CanvasBlockRowView Create(Transform parent, BlockCellView blockCellPrefab = null)
         {
             var root = CanvasUiFactory.Node("BlockRow", parent);
             var layoutElement = root.gameObject.AddComponent<LayoutElement>();
@@ -112,11 +110,7 @@ namespace POPHero
             var index = CanvasUiFactory.Text("Index", root, 18, Color.white, TextAlignmentOptions.Center, FontStyles.Bold);
             index.rectTransform.gameObject.AddComponent<LayoutElement>().preferredWidth = 36f;
 
-            var typeButton = CanvasUiFactory.Button("TypeButton", root, "ATK", new Color(0.28f, 0.36f, 0.52f, 1f), Color.white, 18);
-            var typeLayout = typeButton.gameObject.AddComponent<LayoutElement>();
-            typeLayout.preferredWidth = 34f;
-            typeLayout.preferredHeight = 28f;
-            var typeLabel = typeButton.GetComponentInChildren<TMP_Text>();
+            var typeCell = BlockCellView.Create(root, blockCellPrefab);
 
             var stickerRoot = CanvasUiFactory.Node("StickerRoot", root);
             stickerRoot.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
@@ -133,7 +127,7 @@ namespace POPHero
             socketLayout.childForceExpandHeight = false;
             socketLayout.childForceExpandWidth = false;
 
-            return new CanvasBlockRowView(root, background, index, typeButton, typeLabel, stickerRoot, socketRoot);
+            return new CanvasBlockRowView(root, background, index, typeCell, stickerRoot, socketRoot);
         }
 
         public void SetSelection(bool selected)
@@ -147,24 +141,24 @@ namespace POPHero
 
         public void SetEmpty()
         {
-            typeButton.gameObject.SetActive(false);
+            typeCell.gameObject.SetActive(false);
             SetStickerCount(0);
             SetSocketCount(0);
         }
 
-        public void SetType(string icon, Color color, Action action)
+        internal void SetTypeVisual(BlockCardState cardState, BlockVisualPresentation visual, Action action)
         {
-            typeButton.gameObject.SetActive(true);
-            typeButton.GetComponent<Image>().color = color;
-            typeLabel.text = icon;
-            typeButton.onClick.RemoveAllListeners();
-            if (action != null)
-                typeButton.onClick.AddListener(() => action());
+            typeCell.SetVisual(cardState, visual, action);
+        }
+
+        public void SetTypePlaceholder(string label, Color color, Action action)
+        {
+            typeCell.SetPlaceholder(label, color, action);
         }
 
         public void SetTypeTooltip(string title, string body, Color color, CanvasHudController controller)
         {
-            AttachTooltip(typeButton.gameObject, title, body, color, controller);
+            AttachTooltip(typeCell.gameObject, title, body, color, controller);
         }
 
         public void SetStickerCount(int count)

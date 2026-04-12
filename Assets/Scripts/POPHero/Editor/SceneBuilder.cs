@@ -150,7 +150,7 @@ namespace POPHero.Editor
             var wallLeft = CreateChild(board, "WallLeft");
             var wallRight = CreateChild(board, "WallRight");
 
-            var enemyPanel = CreateSpriteChild(enemyLayer, "EnemyPanel", panelCenter, new Vector3(boardRect.width, config.arena.topPanelHeight, 1f), config.arena.topPanelColor, 1);
+            var enemyPanel = CreateSpriteChild(enemyLayer, "EnemyPanel", panelCenter, new Vector3(boardRect.width, config.arena.topPanelHeight, 1f), new Color(0.14f, 0.16f, 0.2f, 1f), 1);
             var hero = CreateHero(battleStage, heroPos);
             var enemy = CreateEnemy(battleStage, enemyPos);
             var ball = CreateBall(world, boardRect.center.x, launchY, config);
