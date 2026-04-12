@@ -373,8 +373,8 @@ namespace POPHero
             var mods = game?.Mods;
             return new LoadoutPanelModel
             {
-                TitleText = "整理配置",
-                SubtitleText = "从库存拿起嵌片，然后点击右侧可用槽位进行安装。",
+                TitleText = "背包",
+                SubtitleText = "从背包里拿起嵌片，然后点击右侧可用槽位进行安装。",
                 Inventory = inventory?.Stored ?? System.Array.Empty<StickerInstance>(),
                 ActiveMods = mods?.ActiveMods ?? System.Array.Empty<ModInstance>(),
                 ReserveMods = mods?.ReserveMods ?? System.Array.Empty<ModInstance>(),

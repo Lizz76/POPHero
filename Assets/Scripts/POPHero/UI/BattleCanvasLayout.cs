@@ -109,6 +109,7 @@ namespace POPHero
         RectTransform loadoutInventoryPanel;
         RectTransform loadoutInventoryTitle;
         RectTransform loadoutInventoryScrollView;
+        RectTransform loadoutInventoryContent;
         RectTransform loadoutModsPanel;
         RectTransform loadoutActiveModsTitle;
         RectTransform loadoutActiveModsContent;
@@ -194,6 +195,7 @@ namespace POPHero
             loadoutInventoryPanel ??= FindRect("ModalRoot/LoadoutModal/Window/Body/Columns/InventoryPanel");
             loadoutInventoryTitle ??= FindRect("ModalRoot/LoadoutModal/Window/Body/Columns/InventoryPanel/InventoryTitleText");
             loadoutInventoryScrollView ??= FindRect("ModalRoot/LoadoutModal/Window/Body/Columns/InventoryPanel/ScrollView");
+            loadoutInventoryContent ??= FindRect("ModalRoot/LoadoutModal/Window/Body/Columns/InventoryPanel/ScrollView/Viewport/Content");
             loadoutModsPanel ??= FindRect("ModalRoot/LoadoutModal/Window/Body/Columns/ModsPanel");
             loadoutActiveModsTitle ??= FindRect("ModalRoot/LoadoutModal/Window/Body/Columns/ModsPanel/ActiveTitleText");
             loadoutActiveModsContent ??= FindRect("ModalRoot/LoadoutModal/Window/Body/Columns/ModsPanel/ActiveContent");
@@ -619,6 +621,39 @@ namespace POPHero
 
             if (loadoutInventoryScrollView != null)
                 SetFill(loadoutInventoryScrollView, padding, padding, padding + titleHeight + gap, padding);
+
+            ApplyLoadoutInventoryGrid();
+        }
+
+        void ApplyLoadoutInventoryGrid()
+        {
+            if (loadoutInventoryContent == null)
+                return;
+
+            var vertical = loadoutInventoryContent.GetComponent<VerticalLayoutGroup>();
+            if (vertical != null)
+                DestroyImmediate(vertical);
+
+            var grid = loadoutInventoryContent.GetComponent<GridLayoutGroup>() ?? loadoutInventoryContent.gameObject.AddComponent<GridLayoutGroup>();
+            var fitter = loadoutInventoryContent.GetComponent<ContentSizeFitter>() ?? loadoutInventoryContent.gameObject.AddComponent<ContentSizeFitter>();
+            fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            var containerWidth = loadoutInventoryScrollView != null ? loadoutInventoryScrollView.rect.width : loadoutInventoryContent.rect.width;
+            var columns = containerWidth >= 420f ? 4 : 3;
+            const float spacing = 10f;
+            const float padding = 12f;
+            var availableWidth = Mathf.Max(180f, containerWidth - padding * 2f - spacing * Mathf.Max(0, columns - 1));
+            var cellSize = Mathf.Clamp(availableWidth / Mathf.Max(1, columns), 76f, 94f);
+
+            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            grid.constraintCount = columns;
+            grid.cellSize = new Vector2(cellSize, cellSize);
+            grid.spacing = new Vector2(spacing, spacing);
+            grid.padding = new RectOffset(12, 12, 12, 12);
+            grid.childAlignment = TextAnchor.UpperLeft;
+            grid.startAxis = GridLayoutGroup.Axis.Horizontal;
+            grid.startCorner = GridLayoutGroup.Corner.UpperLeft;
         }
 
         void ApplyLoadoutModsLayout()

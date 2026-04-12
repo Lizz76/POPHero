@@ -511,7 +511,7 @@ namespace POPHero
               var columnHeight = contentRect.height;
 
               GUILayout.BeginVertical(cardStyle, GUILayout.Width(columnWidth), GUILayout.Height(columnHeight));
-              GUILayout.Label("库存嵌片", titleStyle);
+              GUILayout.Label("嵌片背包", titleStyle);
               inventoryScroll = GUILayout.BeginScrollView(inventoryScroll, false, true);
               DrawInventoryGrid(model.Inventory, columnWidth - 28f, columnHeight - 70f);
               GUILayout.EndScrollView();
@@ -545,14 +545,14 @@ namespace POPHero
         {
             if (stickers.Count == 0)
             {
-                GUILayout.Label("当前没有可安装的嵌片。", textStyle);
+                GUILayout.Label("当前背包里没有可安装的嵌片。", textStyle);
                 return;
             }
 
-            var columns = availableWidth >= 360f ? 3 : 2;
+            var columns = availableWidth >= 360f ? 4 : 3;
             const float gap = 8f;
-            const float tileHeight = 84f;
-            var tileWidth = Mathf.Max(120f, (availableWidth - gap * (columns - 1)) / columns);
+            var tileWidth = Mathf.Max(72f, (availableWidth - gap * (columns - 1)) / columns);
+            var tileHeight = tileWidth;
             var rows = Mathf.CeilToInt(stickers.Count / (float)columns);
             var totalHeight = rows * tileHeight + Mathf.Max(0, rows - 1) * gap;
             var gridRect = GUILayoutUtility.GetRect(availableWidth, totalHeight, GUILayout.Width(availableWidth), GUILayout.Height(totalHeight));
@@ -569,19 +569,19 @@ namespace POPHero
         void DrawInventoryStickerTile(Rect rect, StickerInstance sticker)
         {
             GUI.Box(rect, GUIContent.none, cardStyle);
-            var titleRect = new Rect(rect.x + 8f, rect.y + 6f, rect.width - 16f, 18f);
-            var maskRect = new Rect(rect.x + 8f, rect.y + 28f, 58f, 18f);
-            var bodyRect = new Rect(rect.x + 8f, rect.y + 46f, rect.width - 72f, 18f);
-            var buttonRect = new Rect(rect.xMax - 56f, rect.yMax - 28f, 48f, 22f);
+            var iconRect = new Rect(rect.x + 10f, rect.y + 10f, rect.width - 20f, rect.height - 20f);
 
             var previousColor = GUI.contentColor;
             GUI.contentColor = GetStickerRarityColor(sticker.data.rarity);
-            GUI.Label(titleRect, sticker.data.name, badgeStyle);
-            GUI.contentColor = GetSocketMaskColor(sticker.data.targetBlockType);
-            GUI.Label(maskRect, GetSocketMaskIconText(sticker.data.targetBlockType), badgeStyle);
+            var iconStyle = new GUIStyle(badgeStyle)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = Mathf.Max(18, Mathf.RoundToInt(rect.width * 0.24f))
+            };
+            GUI.Label(iconRect, GetInventoryStickerShort(sticker), iconStyle);
             GUI.contentColor = previousColor;
-            GUI.Label(bodyRect, sticker.data.mainActionText, tinyLabelStyle);
-            if (GUI.Button(buttonRect, "拿起", iconButtonStyle))
+
+            if (GUI.Button(rect, GUIContent.none, GUIStyle.none))
                 RunCommand(new HudCommand(HudCommandType.BeginStickerDrag, 0, sticker.runtimeId));
 
             if (rect.Contains(Event.current.mousePosition))
@@ -650,6 +650,8 @@ namespace POPHero
                 builder.AppendLine($"• {line}");
             return builder.ToString().TrimEnd();
         }
+
+        static string GetInventoryStickerShort(StickerInstance sticker) => ShortStickerText(sticker);
 
         void DrawGameOverPanel()
         {
@@ -808,7 +810,7 @@ namespace POPHero
                 RoundState.BlockRewardChoose => "选方块",
                 RoundState.RewardChoose => "奖励",
                 RoundState.Shop => "商店",
-                RoundState.LoadoutManage => "整理",
+                RoundState.LoadoutManage => "背包",
                 RoundState.GameOver => "结束",
                 _ => state.ToString()
             };

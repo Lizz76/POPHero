@@ -306,6 +306,91 @@ namespace POPHero
         }
     }
 
+    public sealed class CanvasStickerCellView
+    {
+        readonly RectTransform root;
+        readonly Image background;
+        readonly Button button;
+        readonly Image icon;
+        readonly TMP_Text fallbackLabel;
+
+        public GameObject gameObject => root.gameObject;
+
+        CanvasStickerCellView(RectTransform root, Image background, Button button, Image icon, TMP_Text fallbackLabel)
+        {
+            this.root = root;
+            this.background = background;
+            this.button = button;
+            this.icon = icon;
+            this.fallbackLabel = fallbackLabel;
+        }
+
+        public static CanvasStickerCellView Create(Transform parent)
+        {
+            var root = CanvasUiFactory.Node("StickerCell", parent);
+            var layoutElement = root.gameObject.AddComponent<LayoutElement>();
+            layoutElement.minWidth = 88f;
+            layoutElement.minHeight = 88f;
+            layoutElement.preferredWidth = 88f;
+            layoutElement.preferredHeight = 88f;
+
+            var background = root.gameObject.AddComponent<Image>();
+            background.color = new Color(0.12f, 0.14f, 0.2f, 0.94f);
+
+            var button = root.gameObject.AddComponent<Button>();
+            var colors = button.colors;
+            colors.normalColor = background.color;
+            colors.highlightedColor = new Color(0.18f, 0.22f, 0.3f, 0.98f);
+            colors.pressedColor = new Color(0.1f, 0.12f, 0.16f, 0.98f);
+            colors.selectedColor = colors.highlightedColor;
+            colors.disabledColor = new Color(0.12f, 0.14f, 0.2f, 0.4f);
+            button.colors = colors;
+
+            var iconRoot = CanvasUiFactory.Node("Icon", root);
+            iconRoot.anchorMin = new Vector2(0.5f, 0.5f);
+            iconRoot.anchorMax = new Vector2(0.5f, 0.5f);
+            iconRoot.pivot = new Vector2(0.5f, 0.5f);
+            iconRoot.sizeDelta = new Vector2(44f, 44f);
+            var icon = iconRoot.gameObject.AddComponent<Image>();
+            icon.preserveAspect = true;
+            icon.enabled = false;
+
+            var label = CanvasUiFactory.Text("FallbackLabel", root, 24, Color.white, TextAlignmentOptions.Center, FontStyles.Bold);
+            label.rectTransform.anchorMin = new Vector2(0f, 0f);
+            label.rectTransform.anchorMax = new Vector2(1f, 1f);
+            label.rectTransform.offsetMin = new Vector2(10f, 10f);
+            label.rectTransform.offsetMax = new Vector2(-10f, -10f);
+            label.enableWordWrapping = false;
+            label.overflowMode = TextOverflowModes.Ellipsis;
+
+            return new CanvasStickerCellView(root, background, button, icon, label);
+        }
+
+        public void Set(string fallbackText, Sprite iconSprite, Color accent, Action action)
+        {
+            background.color = new Color(accent.r * 0.1f + 0.1f, accent.g * 0.1f + 0.11f, accent.b * 0.1f + 0.14f, 0.96f);
+            icon.sprite = iconSprite;
+            icon.enabled = iconSprite != null;
+            icon.color = Color.white;
+            fallbackLabel.text = fallbackText;
+            fallbackLabel.color = accent;
+            fallbackLabel.gameObject.SetActive(iconSprite == null);
+
+            button.onClick.RemoveAllListeners();
+            if (action != null)
+                button.onClick.AddListener(() => action());
+        }
+
+        public void SetInteractable(bool interactable) => button.interactable = interactable;
+
+        public void SetTooltip(string titleValue, string bodyValue, Color color, CanvasHudController controller)
+        {
+            var relay = root.gameObject.GetComponent<CanvasPointerRelay>() ?? root.gameObject.AddComponent<CanvasPointerRelay>();
+            relay.Entered = () => controller.SetTooltip(titleValue, bodyValue, color);
+            relay.Exited = controller.ClearTooltip;
+        }
+    }
+
     public sealed class CanvasListEntryView
     {
         readonly RectTransform root;

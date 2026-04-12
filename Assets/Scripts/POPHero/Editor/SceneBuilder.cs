@@ -551,7 +551,7 @@ namespace POPHero.Editor
         {
             var modal = Modal("LoadoutModal", modalRoot, new Vector2(1220f, 760f));
             var header = ModalHeader(modal.window);
-            Text("TitleText", header, 34, FontStyles.Bold, "整理配置", TextAlignmentOptions.Center);
+            Text("TitleText", header, 34, FontStyles.Bold, "背包", TextAlignmentOptions.Center);
             var subtitle = Text("SubtitleText", header, 18, FontStyles.Normal, string.Empty, TextAlignmentOptions.Center);
             subtitle.rectTransform.gameObject.AddComponent<LayoutElement>().preferredHeight = 52f;
 
@@ -571,8 +571,8 @@ namespace POPHero.Editor
             inventoryElement.flexibleWidth = 1.4f;
             inventoryElement.minWidth = 360f;
             AddVertical(inventoryPanel, 8, 12);
-            Text("InventoryTitleText", inventoryPanel, 22, FontStyles.Bold, "嵌片", TextAlignmentOptions.Left);
-            ScrollArea("ScrollView", inventoryPanel);
+            Text("InventoryTitleText", inventoryPanel, 22, FontStyles.Bold, "嵌片背包", TextAlignmentOptions.Left);
+            ConfigureGridContent(ScrollArea("ScrollView", inventoryPanel), 4, new Vector2(88f, 88f), new Vector2(10f, 10f));
 
             var modsPanel = Panel("ModsPanel", columns, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, 0f));
             ConfigureHorizontalChild(modsPanel, flexibleWidth: 1f, minWidth: 300f);

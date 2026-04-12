@@ -66,6 +66,7 @@ namespace POPHero
         TMP_Text shopDeleteHint;
         TMP_Text loadoutTitle;
         TMP_Text loadoutSubtitle;
+        TMP_Text inventoryTitle;
         TMP_Text activeModsTitle;
         TMP_Text reserveModsTitle;
         TMP_Text gameOverTitle;
@@ -121,7 +122,7 @@ namespace POPHero
         readonly List<CanvasCardView> shopCards = new();
         readonly List<CanvasListEntryView> deleteActiveEntries = new();
         readonly List<CanvasListEntryView> deleteReserveEntries = new();
-        readonly List<CanvasListEntryView> inventoryEntries = new();
+        readonly List<CanvasStickerCellView> inventoryStickerCells = new();
         readonly List<CanvasListEntryView> activeModEntries = new();
         readonly List<CanvasListEntryView> reserveModEntries = new();
 
@@ -322,6 +323,7 @@ namespace POPHero
             loadoutModal = G("ModalRoot/LoadoutModal");
             loadoutTitle = T("ModalRoot/LoadoutModal/Window/Header/TitleText");
             loadoutSubtitle = T("ModalRoot/LoadoutModal/Window/Header/SubtitleText");
+            inventoryTitle = T("ModalRoot/LoadoutModal/Window/Body/Columns/InventoryPanel/InventoryTitleText");
             inventoryContent = R("ModalRoot/LoadoutModal/Window/Body/Columns/InventoryPanel/ScrollView/Viewport/Content");
             activeModsTitle = T("ModalRoot/LoadoutModal/Window/Body/Columns/ModsPanel/ActiveTitleText");
             reserveModsTitle = T("ModalRoot/LoadoutModal/Window/Body/Columns/ModsPanel/ReserveTitleText");
@@ -373,7 +375,7 @@ namespace POPHero
         {
             var model = statusPresenter.Build(game);
             Set(statusTitle, "战斗状态");
-            Set(statusState, model.StateText);
+            Set(statusState, string.IsNullOrEmpty(model.StateText) ? model.StateText : model.StateText.Replace("整理", "背包"));
             Set(statusAimMode, model.AimModeText);
             Set(statusLevel, model.LevelText);
             Set(statusKills, model.KillsText);
@@ -466,7 +468,7 @@ namespace POPHero
                 RefreshLoadout();
             else
             {
-                HideExtra(inventoryEntries, 0);
+                HideExtra(inventoryStickerCells, 0);
                 HideExtra(activeModEntries, 0);
                 HideExtra(reserveModEntries, 0);
             }
@@ -609,6 +611,7 @@ namespace POPHero
             var model = intermissionPresenter.BuildLoadoutPanel(game);
             Set(loadoutTitle, model.TitleText);
             Set(loadoutSubtitle, BuildLoadoutSubtitle(model.SubtitleText));
+            Set(inventoryTitle, "嵌片背包");
             Set(activeModsTitle, "启用模组");
             Set(reserveModsTitle, "待机模组");
             SetButtonLabel(loadoutCancelButton, model.CancelDragText);
@@ -616,13 +619,13 @@ namespace POPHero
             if (loadoutCancelButton != null)
                 loadoutCancelButton.interactable = model.CanCancelDrag;
 
-            EnsureEntries(inventoryEntries, inventoryContent, model.Inventory.Count);
+            EnsureStickerCells(inventoryStickerCells, inventoryContent, model.Inventory.Count);
             for (var index = 0; index < model.Inventory.Count; index++)
             {
                 var sticker = model.Inventory[index];
-                var view = inventoryEntries[index];
+                var view = inventoryStickerCells[index];
                 view.gameObject.SetActive(true);
-                view.Set(sticker.data.name, MaskIcon(sticker.data.targetBlockType), sticker.data.mainActionText, StickerColor(sticker.data.rarity), () => Run(new HudCommand(HudCommandType.BeginStickerDrag, 0, sticker.runtimeId)));
+                view.Set(StickerShort(sticker), sticker.data.iconSprite, StickerColor(sticker.data.rarity), () => Run(new HudCommand(HudCommandType.BeginStickerDrag, 0, sticker.runtimeId)));
                 view.SetInteractable(true);
                 view.SetTooltip(sticker.data.name, InventoryStickerTooltip(sticker), StickerColor(sticker.data.rarity), this);
             }
@@ -802,7 +805,7 @@ namespace POPHero
         string BuildLoadoutSubtitle(string subtitle)
         {
             return string.IsNullOrWhiteSpace(subtitle)
-                ? "先拿起一个嵌片，再点击高亮槽位进行安装。"
+                ? "从背包里拿起嵌片，再点击右侧高亮槽位进行安装。"
                 : subtitle;
         }
 
@@ -997,6 +1000,13 @@ namespace POPHero
             HideExtra(entries, count);
         }
 
+        void EnsureStickerCells(List<CanvasStickerCellView> entries, RectTransform root, int count)
+        {
+            while (entries.Count < count)
+                entries.Add(CanvasStickerCellView.Create(root));
+            HideExtra(entries, count);
+        }
+
         static void HideExtra(List<CanvasBlockRowView> rows, int usedCount)
         {
             for (var index = 0; index < rows.Count; index++)
@@ -1010,6 +1020,12 @@ namespace POPHero
         }
 
         static void HideExtra(List<CanvasListEntryView> entries, int usedCount)
+        {
+            for (var index = 0; index < entries.Count; index++)
+                entries[index].gameObject.SetActive(index < usedCount);
+        }
+
+        static void HideExtra(List<CanvasStickerCellView> entries, int usedCount)
         {
             for (var index = 0; index < entries.Count; index++)
                 entries[index].gameObject.SetActive(index < usedCount);

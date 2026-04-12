@@ -8,6 +8,7 @@ namespace POPHero
         public string id;
         public string name;
         public string shortTitle;
+        public Sprite iconSprite;
         public string mainActionText;
         public readonly List<string> detailLines = new();
         public StickerRarity rarity;
