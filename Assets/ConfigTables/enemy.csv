@@ -1,0 +1,10 @@
+id,displayName,maxHp,attackDamage,rewardGold,rewardHeal,colorHex,spawnWeight
+int,string,int,int,int,int,string,int
+both,both,both,both,both,both,client,both
+敌人ID,显示名,基础血量,基础攻击,击杀金币,击杀回血,颜色hex,刷新权重
+,,,,,,,,
+3001,Briar Idol,80,8,20,8,F26161,100
+3002,Iron Courier,140,12,30,10,FD8540,100
+3003,Spike Totem,220,18,45,12,F2BD3D,100
+3004,War Priest,320,25,60,15,E65ECA,100
+3005,Abyss Lord,450,35,80,18,857AFF,100

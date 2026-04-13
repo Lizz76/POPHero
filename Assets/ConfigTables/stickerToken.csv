@@ -1,0 +1,13 @@
+id,tokenKey,nameCN,stackable,maxStack,decayType,effectPerStack
+int,string,string,int,int,int,float
+both,both,both,both,both,both,both
+Token ID,代码标识,中文名,是否可叠加0否1是,最大叠加层数(0=无限),衰减类型0不衰减1每回合-1层2回合结束清除,每层效果值
+,,,,,,,
+2001,echo_mark,回响,1,1,2,10
+2002,shatter,碎裂标记,1,0,2,0
+2003,mirror_charge,镜像充能,1,1,2,0
+2004,amp_charge,增幅充能,1,0,2,12
+2005,ember,余烬,1,0,2,0
+2006,thorn,棘刺,1,0,2,2
+2007,spark,火花,1,1,2,0
+2008,frost_trace,霜痕,1,1,2,1.2

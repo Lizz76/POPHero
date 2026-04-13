@@ -1,0 +1,24 @@
+id,stringId,name,des,rarity,family,triggerType,targetMask,valueA,valueB,valueC,spawnType,reactionType,detailA,detailB
+int,string,string,string,int,string,int,int,float,float,float,string,string,string,string
+both,both,both,both,both,both,both,both,both,both,both,both,both,both,both
+贴纸ID,代码标识,中文名,效果描述,品质1Common2Uncommon3Rare4Epic,系列家族,触发类型枚举,目标方块掩码(1=Attack 2=Shield 4=Multiplier 7=Any),主数值,副数值,第三数值,生成的Token类型(空=无),消耗的Token类型(空=无),设计说明A,设计说明B
+"triggerType: 1=OnBlockHit 2=OnAttackBlockHit 3=OnShieldBlockHit 4=OnMultiplierBlockHit 5=OnRoundStart 6=OnRoundEnd","targetMask: 位运算 1=Attack 2=Shield 4=Multiplier 7=Any",,,,,,,,,,,,,
+1001,impact_core,冲击核心,攻击方块命中时额外获得 +6 伤害,1,Forge,2,1,6,0,0,,,只关注当前这一次命中,适合高频命中的攻击方块
+1002,echo_mark,回响印记,第一次命中攻击方块会留下回响 下一次攻击方块命中时消耗回响并获得 +10 伤害,2,Echo,2,1,10,0,0,echo_mark,consume_echo,先存值再兑现,中长路线的收益更高
+1003,shatter_loop,碎裂回路,本回合同一张方块第二次被命中时额外获得 +8 伤害,2,Forge,2,1,8,0,0,shatter,,鼓励你再次弹到同一张方块,会留下碎裂标签供其他嵌片利用
+1004,guard_furnace,护炉,防御方块命中时额外获得 +6 护盾,1,Ward,3,2,6,0.3,0,,,回合结束时本回合30%的护盾会转化为伤害,适合更慢更稳的路线
+1005,prism_guard,棱镜守御,如果本回合命中过倍率方块 护盾转伤的比例额外 +20%,3,Prism,6,2,0.2,0,0,,,先吃倍率再拿护盾收益更高,读取的是整回合标签而不是单次命中
+1006,mirror_plating,镜面镀层,命中过防御方块后 下一次攻击方块造成等于当前护盾一半的额外伤害,3,Alloy,3,2,0,0,0,mirror_charge,,先防守再进攻,会消耗储存的镜像充能
+1007,amp_seed,增幅种子,倍率方块命中时生成1层增幅充能,1,Prism,4,4,1,0,0,amp_charge,,后续攻击方块可以消耗这些充能,和爆发类嵌片搭配很好
+1008,amp_burst,增幅爆发,攻击方块每消耗1层增幅充能就额外造成 +12 伤害,2,Prism,2,1,12,0,0,,consume_amp,先存倍率再把它花在攻击上,会消耗所有已储存的增幅充能
+1009,twin_resonance,双重共振,连续命中两个不同的倍率方块时第二个倍率方块额外获得 x1.4 加成,3,Prism,4,4,1.4,0,0,,,需要真正连起来的路线,一旦顺序被打断就会重置
+1010,chain_ledger,连锁账本,每命中一种不同家族的方块就获得1层链 重复家族会断链,3,Chain,6,7,3,0,0,,,回合结束时每层链额外+3伤害,奖励路线多样性
+1011,ember_seed,余烬种子,攻击方块命中时生成1层余烬,1,Ember,2,1,1,0,0,ember,,余烬自身不会直接产生效果,它会等待其他嵌片来接住它
+1012,ember_catcher,余烬捕手,防御方块会接住所有余烬并把每层余烬转成4护盾和2伤害,2,Ember,3,2,4,2,0,,catch_ember,把攻击状态先变成防御再把收益转回伤害,会消耗所有已储存的余烬
+1013,thorn_rack,棘刺架,防御方块会生成1根棘刺每根棘刺都会让敌人的反击伤害 -2,2,Thorn,3,2,2,0,0,thorn,,它本身并不直接提供护盾,所有棘刺会在回合结束时清空
+1014,spark_tape,火花胶带,倍率方块会生成火花 下一次防御方块把它变成护盾 下一次攻击方块把它变成伤害,2,Spark,1,7,5,7,0,spark,,同一种中间状态可以转成不同收益,火花会保留到被消耗或回合结束
+1015,same_family_latch,同系卡榫,若一张方块上至少装了两个同家族嵌片则它每回合第一次触发额外 +8,3,Alloy,1,7,8,0,0,,,鼓励把同系构筑压在一张卡上,和同系模组加成叠起来很强
+1016,breaker_note,破阵音符,如果本回合已经命中过倍率方块之后的攻击方块每次都会额外获得 +8,1,Prism,2,1,8,0,0,,,先叠倍率再拿稳定的收尾伤害,读取的是整回合状态
+1017,glass_ledger,玻璃账本,回合结束时每种不同家族都会额外增加2点伤害,2,Chain,6,7,2,0,0,,,比连锁账本更稳但上限更低,很适合混搭型牌组
+1018,frost_trace,霜痕,防御方块会留下霜痕 下一次倍率方块额外获得 x1.2 加成,3,Frost,3,2,1.2,0,0,frost_trace,,让防御路线也能反哺倍率路线,会消耗掉储存的霜痕
+1019,alloy_echo,合金回响,同一张方块第三次被命中时额外获得10伤害和4护盾,4,Alloy,1,7,10,4,0,,,奖励你记住那些高价值反弹点,只有真正再次回到同一张方块才会触发
