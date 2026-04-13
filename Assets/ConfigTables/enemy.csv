@@ -1,4 +1,4 @@
-id,displayName,maxHp,attackDamage,rewardGold,rewardHeal,colorHex,spawnWeight
+﻿id,displayName,maxHp,attackDamage,rewardGold,rewardHeal,colorHex,spawnWeight
 int,string,int,int,int,int,string,int
 both,both,both,both,both,both,client,both
 敌人ID,显示名,基础血量,基础攻击,击杀金币,击杀回血,颜色hex,刷新权重

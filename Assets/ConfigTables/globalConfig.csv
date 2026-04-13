@@ -1,4 +1,4 @@
-key,value,type,des
+﻿key,value,type,des
 string,string,string,string
 both,both,both,both
 参数键名,参数值,值类型(int/float/string),说明

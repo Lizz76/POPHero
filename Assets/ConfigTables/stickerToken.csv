@@ -1,4 +1,4 @@
-id,tokenKey,nameCN,stackable,maxStack,decayType,effectPerStack
+﻿id,tokenKey,nameCN,stackable,maxStack,decayType,effectPerStack
 int,string,string,int,int,int,float
 both,both,both,both,both,both,both
 Token ID,代码标识,中文名,是否可叠加0否1是,最大叠加层数(0=无限),衰减类型0不衰减1每回合-1层2回合结束清除,每层效果值

@@ -1,8 +1,8 @@
-id,stringId,name,des,rarity,family,triggerType,targetMask,valueA,valueB,valueC,spawnType,reactionType,detailA,detailB
+﻿id,stringId,name,des,rarity,family,triggerType,targetMask,valueA,valueB,valueC,spawnType,reactionType,detailA,detailB
 int,string,string,string,int,string,int,int,float,float,float,string,string,string,string
 both,both,both,both,both,both,both,both,both,both,both,both,both,both,both
 贴纸ID,代码标识,中文名,效果描述,品质1Common2Uncommon3Rare4Epic,系列家族,触发类型枚举,目标方块掩码(1=Attack 2=Shield 4=Multiplier 7=Any),主数值,副数值,第三数值,生成的Token类型(空=无),消耗的Token类型(空=无),设计说明A,设计说明B
-"triggerType: 1=OnBlockHit 2=OnAttackBlockHit 3=OnShieldBlockHit 4=OnMultiplierBlockHit 5=OnRoundStart 6=OnRoundEnd","targetMask: 位运算 1=Attack 2=Shield 4=Multiplier 7=Any",,,,,,,,,,,,,
+见第4行注释,,,,,,,,,,,,,,,
 1001,impact_core,冲击核心,攻击方块命中时额外获得 +6 伤害,1,Forge,2,1,6,0,0,,,只关注当前这一次命中,适合高频命中的攻击方块
 1002,echo_mark,回响印记,第一次命中攻击方块会留下回响 下一次攻击方块命中时消耗回响并获得 +10 伤害,2,Echo,2,1,10,0,0,echo_mark,consume_echo,先存值再兑现,中长路线的收益更高
 1003,shatter_loop,碎裂回路,本回合同一张方块第二次被命中时额外获得 +8 伤害,2,Forge,2,1,8,0,0,shatter,,鼓励你再次弹到同一张方块,会留下碎裂标签供其他嵌片利用

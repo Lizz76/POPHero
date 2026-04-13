@@ -1,8 +1,8 @@
-id,slotType,goldCost,rarityWeight
+﻿id,slotType,goldCost,rarityWeight
 int,int,int,int[]
 both,both,both,both
 商品槽位ID,类型1方块2贴纸3Mod4移除方块5刷新,金币消耗,品质权重[白蓝紫金]
-"slotType: 1=Block 2=Sticker 3=Mod 4=RemoveBlock 5=Reroll",,,
+见第4行注释,,,
 5001,2,0,
 5002,2,0,
 5003,2,0,

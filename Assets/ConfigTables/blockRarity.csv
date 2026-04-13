@@ -1,4 +1,4 @@
-id,blockTypeId,rarity,rarityName,baseValueA,baseValueB
+﻿id,blockTypeId,rarity,rarityName,baseValueA,baseValueB
 int,int,int,string,float,float
 both,both,both,both,both,both
 复合ID=类型*100+品质,引用blockType.id,品质枚举1白2蓝3紫4金,品质名,主数值(攻击=伤害/倍率=倍率/盾=盾值),副数值(预留)

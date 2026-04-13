@@ -1,4 +1,4 @@
-id,name,nameCN,blockClass,des
+﻿id,name,nameCN,blockClass,des
 int,string,string,string,string
 both,both,both,both,both
 方块类型ID,英文标识,中文名,对应C#类名,功能描述
