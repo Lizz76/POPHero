@@ -14,6 +14,7 @@ namespace POPHero
         string IntermissionMessage { get; }
         bool CanManageBlockAssignments { get; }
         bool IsInitialBlockDraftPending { get; }
+        bool IsSettingsOpen { get; }
         string AimModeDisplayText { get; }
         int PreviewHitCount { get; }
         int PreviewAttackBlockCount { get; }
@@ -118,7 +119,11 @@ namespace POPHero
         TryRemoveBlockInShop,
         TrySwapActiveReserve,
         TryInstallDraggedSticker,
-        RemoveStickerFromCard
+        RemoveStickerFromCard,
+        OpenSettings,
+        CloseSettings,
+        BackToMenu,
+        QuitGame
     }
 
     public readonly struct HudCommand

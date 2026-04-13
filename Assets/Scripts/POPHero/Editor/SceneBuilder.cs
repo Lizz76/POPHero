@@ -12,9 +12,61 @@ namespace POPHero.Editor
     {
         // Editor-only scaffold entry points for Boot / MainMenu / Battle scene generation.
         const string AutoBuildFlagPath = "Temp/POPHero.BuildScenes.flag";
+        const string InstallSettingsUiFlagPath = "Temp/POPHero.InstallSettingsUi.flag";
         const string BootScenePath = "Assets/Scenes/Boot.unity";
         const string MainMenuScenePath = "Assets/Scenes/MainMenu.unity";
         const string BattleScenePath = "Assets/Scenes/Battle.unity";
+        const string SettingsButtonPrefabPath = "Assets/Prefabs/UI/SettingsButton.prefab";
+        const string SettingsModalPrefabPath = "Assets/Prefabs/UI/SettingsModal.prefab";
+
+        [MenuItem("POPHero/Build Settings UI Prefabs")]
+        public static void BuildSettingsUiPrefabs()
+        {
+            EnsureAssetFolder("Assets/Prefabs");
+            EnsureAssetFolder("Assets/Prefabs/UI");
+
+            var settingsButton = CreateSettingsButtonRoot();
+            PrefabUtility.SaveAsPrefabAsset(settingsButton, SettingsButtonPrefabPath);
+            Object.DestroyImmediate(settingsButton);
+
+            var settingsModal = CreateSettingsModalRoot();
+            PrefabUtility.SaveAsPrefabAsset(settingsModal, SettingsModalPrefabPath);
+            Object.DestroyImmediate(settingsModal);
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log("[POPHero] Settings UI prefabs generated.");
+        }
+
+        [MenuItem("POPHero/Install Settings UI Into Battle Scene")]
+        public static void InstallSettingsUiIntoBattleScene()
+        {
+            BuildSettingsUiPrefabs();
+
+            var scene = EditorSceneManager.OpenScene(BattleScenePath, OpenSceneMode.Single);
+            var canvas = Object.FindObjectOfType<CanvasHudController>(true);
+            if (canvas == null)
+            {
+                Debug.LogError("[POPHero] Cannot install Settings UI: CanvasHudController not found in Battle scene.");
+                return;
+            }
+
+            var hudRoot = canvas.transform.Find("HudRoot") as RectTransform;
+            var modalRoot = canvas.transform.Find("ModalRoot") as RectTransform;
+            if (hudRoot == null || modalRoot == null)
+            {
+                Debug.LogError("[POPHero] Cannot install Settings UI: HudRoot or ModalRoot is missing.");
+                return;
+            }
+
+            ReplaceChild(hudRoot, "TopRightControls");
+            ReplaceChild(modalRoot, "SettingsModal");
+            BuildSettingsButton(hudRoot);
+            BuildSettingsModal(modalRoot);
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            Debug.Log("[POPHero] Settings UI installed into Battle scene.");
+        }
 
         [MenuItem("POPHero/Build Boot Scene")]
         public static void BuildBootScene()
@@ -108,6 +160,7 @@ namespace POPHero.Editor
         [MenuItem("POPHero/Build Battle Scene")]
         public static void BuildBattleScene()
         {
+            BuildSettingsUiPrefabs();
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             scene.name = SceneNames.Battle;
 
@@ -185,6 +238,14 @@ namespace POPHero.Editor
         static void AutoBuildOnReload()
         {
             var fullPath = Path.Combine(Directory.GetCurrentDirectory(), AutoBuildFlagPath);
+            var installSettingsPath = Path.Combine(Directory.GetCurrentDirectory(), InstallSettingsUiFlagPath);
+            if (File.Exists(installSettingsPath))
+            {
+                File.Delete(installSettingsPath);
+                EditorApplication.delayCall += InstallSettingsUiIntoBattleScene;
+                return;
+            }
+
             if (!File.Exists(fullPath))
                 return;
 
@@ -305,6 +366,7 @@ namespace POPHero.Editor
             StretchPanel("RightRailZone", hudRoot);
             StretchPanel("CenterModalZone", modalRoot);
 
+            BuildSettingsButton(hudRoot);
             BuildStatusPanel(hudRoot);
             BuildCombatPanel(hudRoot);
             BuildBlockManagementPanel(hudRoot);
@@ -315,7 +377,20 @@ namespace POPHero.Editor
             BuildShopModal(modalRoot);
             BuildLoadoutModal(modalRoot);
             BuildGameOverModal(modalRoot);
+            BuildSettingsModal(modalRoot);
             return canvasRoot;
+        }
+
+        static void BuildSettingsButton(RectTransform hudRoot)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(SettingsButtonPrefabPath);
+            var instance = prefab != null
+                ? (GameObject)PrefabUtility.InstantiatePrefab(prefab, hudRoot)
+                : CreateSettingsButtonRoot();
+            instance.name = "TopRightControls";
+            var controls = instance.GetComponent<RectTransform>();
+            controls.SetParent(hudRoot, false);
+            ConfigureSettingsButtonRect(controls);
         }
 
         static void BuildStatusPanel(RectTransform hudRoot)
@@ -447,12 +522,26 @@ namespace POPHero.Editor
             Text("BodyText", tooltipPanel, 16, FontStyles.Normal, string.Empty, TextAlignmentOptions.TopLeft).rectTransform.sizeDelta = new Vector2(0f, 120f);
             tooltipPanel.gameObject.SetActive(false);
 
-            var dragPanel = Panel("DragStickerPanel", tooltipRoot, new Vector2(0f, 1f), new Vector2(0f, 1f), Vector2.zero, new Vector2(260f, 120f));
-            dragPanel.gameObject.AddComponent<Image>().color = new Color(0.08f, 0.1f, 0.14f, 0.96f);
-            AddVertical(dragPanel, 6, 12);
-            Text("NameText", dragPanel, 22, FontStyles.Bold, string.Empty, TextAlignmentOptions.MidlineLeft);
-            Text("MaskText", dragPanel, 18, FontStyles.Normal, string.Empty, TextAlignmentOptions.MidlineLeft);
-            Text("HintText", dragPanel, 16, FontStyles.Normal, string.Empty, TextAlignmentOptions.TopLeft);
+            var dragPanel = Panel("DragStickerPanel", tooltipRoot, new Vector2(0f, 1f), new Vector2(0f, 1f), Vector2.zero, new Vector2(28f, 28f));
+            dragPanel.gameObject.AddComponent<Image>().color = new Color(0.18f, 0.22f, 0.3f, 0.96f);
+            var dragCanvas = dragPanel.gameObject.AddComponent<Canvas>();
+            dragCanvas.overrideSorting = true;
+            dragCanvas.sortingOrder = 1200;
+            var dragGroup = dragPanel.gameObject.AddComponent<CanvasGroup>();
+            dragGroup.blocksRaycasts = false;
+            dragGroup.interactable = false;
+
+            var dragIcon = Panel("Icon", dragPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(22f, 22f));
+            var dragIconImage = dragIcon.gameObject.AddComponent<Image>();
+            dragIconImage.preserveAspect = true;
+            dragIconImage.raycastTarget = false;
+
+            var dragFallback = Text("FallbackLabel", dragPanel, 12, FontStyles.Bold, string.Empty, TextAlignmentOptions.Center);
+            dragFallback.rectTransform.offsetMin = Vector2.zero;
+            dragFallback.rectTransform.offsetMax = Vector2.zero;
+            dragFallback.enableWordWrapping = false;
+            dragFallback.overflowMode = TextOverflowModes.Ellipsis;
+            dragFallback.raycastTarget = false;
             dragPanel.gameObject.SetActive(false);
         }
 
@@ -606,6 +695,91 @@ namespace POPHero.Editor
             message.rectTransform.gameObject.AddComponent<LayoutElement>().preferredHeight = 110f;
             Footer(modal.window, ("RetryButton", "再来一局"), ("MenuButton", "主菜单"));
             modal.overlay.gameObject.SetActive(false);
+        }
+
+        static void BuildSettingsModal(RectTransform modalRoot)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(SettingsModalPrefabPath);
+            var instance = prefab != null
+                ? (GameObject)PrefabUtility.InstantiatePrefab(prefab, modalRoot)
+                : CreateSettingsModalRoot();
+            instance.name = "SettingsModal";
+            var modal = instance.GetComponent<RectTransform>();
+            modal.SetParent(modalRoot, false);
+            Stretch(modal);
+            modal.gameObject.SetActive(false);
+        }
+
+        static GameObject CreateSettingsButtonRoot()
+        {
+            var controls = RootPanel("TopRightControls");
+            ConfigureSettingsButtonRect(controls);
+            var button = Button("SettingsButton", controls, "设置");
+            Stretch(button.transform as RectTransform);
+            return controls.gameObject;
+        }
+
+        static GameObject CreateSettingsModalRoot()
+        {
+            var modal = RootPanel("SettingsModal");
+            Stretch(modal);
+            var overlay = modal.gameObject.AddComponent<Image>();
+            overlay.color = new Color(0f, 0f, 0f, 0.52f);
+            overlay.raycastTarget = true;
+
+            var window = Panel("Window", modal, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(560f, 340f));
+            window.gameObject.AddComponent<Image>().color = new Color(0.1f, 0.12f, 0.18f, 0.98f);
+            var layout = AddVertical(window, 12, 18);
+            layout.childControlHeight = true;
+            layout.childControlWidth = true;
+            layout.childForceExpandHeight = false;
+            layout.childForceExpandWidth = true;
+
+            var header = ModalHeader(window);
+            Text("TitleText", header, 38, FontStyles.Bold, "设置", TextAlignmentOptions.Center);
+            var body = ModalBody(window);
+            var hint = Text("HintText", body, 20, FontStyles.Normal, "游戏已暂停。继续游戏会回到当前战斗或中场界面。", TextAlignmentOptions.Center);
+            hint.rectTransform.gameObject.AddComponent<LayoutElement>().preferredHeight = 120f;
+            Footer(window, ("ResumeButton", "继续游戏"), ("MenuButton", "返回菜单"), ("QuitButton", "退出游戏"));
+            modal.gameObject.SetActive(false);
+            return modal.gameObject;
+        }
+
+        static RectTransform RootPanel(string name)
+        {
+            var go = new GameObject(name, typeof(RectTransform));
+            var rect = go.GetComponent<RectTransform>();
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = Vector2.zero;
+            rect.sizeDelta = Vector2.zero;
+            return rect;
+        }
+
+        static void ConfigureSettingsButtonRect(RectTransform controls)
+        {
+            if (controls == null)
+                return;
+
+            controls.anchorMin = new Vector2(1f, 1f);
+            controls.anchorMax = new Vector2(1f, 1f);
+            controls.pivot = new Vector2(1f, 1f);
+            controls.anchoredPosition = new Vector2(-24f, -18f);
+            controls.sizeDelta = new Vector2(112f, 44f);
+        }
+
+        static void Stretch(RectTransform rect)
+        {
+            if (rect == null)
+                return;
+
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = Vector2.zero;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
         }
 
         static (RectTransform overlay, RectTransform window) Modal(string name, Transform parent, Vector2 size)
@@ -817,6 +991,31 @@ namespace POPHero.Editor
             var fitter = rect.gameObject.AddComponent<ContentSizeFitter>();
             fitter.horizontalFit = horizontalPreferred ? ContentSizeFitter.FitMode.PreferredSize : ContentSizeFitter.FitMode.Unconstrained;
             fitter.verticalFit = verticalPreferred ? ContentSizeFitter.FitMode.PreferredSize : ContentSizeFitter.FitMode.Unconstrained;
+        }
+
+        static void ReplaceChild(Transform parent, string childName)
+        {
+            if (parent == null)
+                return;
+
+            var child = parent.Find(childName);
+            if (child != null)
+                Object.DestroyImmediate(child.gameObject);
+        }
+
+        static void EnsureAssetFolder(string path)
+        {
+            if (AssetDatabase.IsValidFolder(path))
+                return;
+
+            var parent = Path.GetDirectoryName(path)?.Replace('\\', '/');
+            var folder = Path.GetFileName(path);
+            if (string.IsNullOrEmpty(parent) || string.IsNullOrEmpty(folder))
+                return;
+
+            EnsureAssetFolder(parent);
+            if (!AssetDatabase.IsValidFolder(path))
+                AssetDatabase.CreateFolder(parent, folder);
         }
 
         static GameObject CreateChild(GameObject parent, string name)

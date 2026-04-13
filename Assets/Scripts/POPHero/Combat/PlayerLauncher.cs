@@ -85,10 +85,17 @@ namespace POPHero
             if (mainCamera == null || Input.touchCount > 0)
                 return;
 
-            var worldPoint = GetWorldPoint(Input.mousePosition);
+            var screenPosition = Input.mousePosition;
+            if (!game.IsLaunchPointerAllowed(screenPosition))
+            {
+                CancelAim();
+                return;
+            }
+
+            var worldPoint = GetWorldPoint(screenPosition);
             UpdateAimPreview(worldPoint, false);
 
-            if (Input.GetMouseButtonDown(0) && AimContext != null && AimContext.throwReady)
+            if (Input.GetMouseButtonDown(0) && game.IsLaunchPointerAllowed(screenPosition) && AimContext != null && AimContext.throwReady)
                 LaunchCurrentAim();
         }
 
@@ -113,6 +120,13 @@ namespace POPHero
             switch (touch.phase)
             {
                 case TouchPhase.Began:
+                    if (!game.IsLaunchPointerAllowed(touch.position, touch.fingerId))
+                    {
+                        if (!isDragging)
+                            CancelAim();
+                        return;
+                    }
+
                     if (ShouldStartDrag(worldPoint))
                         BeginDrag(worldPoint);
                     else if (CanConfirmAim())
@@ -133,12 +147,20 @@ namespace POPHero
 
         void HandleMobileMouseInput()
         {
-            var worldPoint = GetWorldPoint(Input.mousePosition);
+            var screenPosition = Input.mousePosition;
+            var pointerAllowed = game.IsLaunchPointerAllowed(screenPosition);
+            if (!isDragging && !pointerAllowed)
+            {
+                CancelAim();
+                return;
+            }
+
+            var worldPoint = GetWorldPoint(screenPosition);
             if (Input.GetMouseButtonDown(0))
             {
-                if (ShouldStartDrag(worldPoint))
+                if (pointerAllowed && ShouldStartDrag(worldPoint))
                     BeginDrag(worldPoint);
-                else if (CanConfirmAim())
+                else if (pointerAllowed && CanConfirmAim())
                     LaunchCurrentAim();
             }
 

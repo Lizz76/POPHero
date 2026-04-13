@@ -105,7 +105,8 @@ namespace POPHero
         public int MaxLaunchesPerEnemy => Mathf.Max(1, config.enemies.maxLaunchesPerEnemy + (Player?.BonusLaunchesPerEnemy ?? 0));
         public InputAimMode CurrentAimMode => config.aim.currentAimMode;
         public bool IsInitialBlockDraftPending => initialBlockDraftPending;
-        public bool CanManageBlockAssignments => State == RoundState.Shop || State == RoundState.LoadoutManage;
+        public bool IsSettingsOpen { get; private set; }
+        public bool CanManageBlockAssignments => !IsSettingsOpen && (State == RoundState.Shop || State == RoundState.LoadoutManage);
         public string AimModeDisplayText => CurrentAimMode == InputAimMode.PCMouseAimClick ? "移动鼠标瞄准，左键发射" : "拖动瞄准，再点一次发射";
         public string CurrentAimModeLabel => CurrentAimMode == InputAimMode.PCMouseAimClick ? "移动鼠标瞄准，左键发射" : "拖动瞄准，再点一次发射";
         public Vector2 CurrentLaunchPoint => roundController != null ? roundController.LaunchPosition : new Vector2(BoardRect.center.x, LaunchY);
@@ -143,6 +144,7 @@ namespace POPHero
         BattleFlowController battleFlowController;
         IntermissionFlowController intermissionFlowController;
         readonly List<WallAimPoint> wallAimPoints = new();
+        readonly List<RaycastResult> uiRaycastResults = new();
         int enemyEncounterIndex;
         bool initialBlockDraftPending;
         IntermissionActionKind pendingIntermissionAction;
@@ -152,6 +154,9 @@ namespace POPHero
         Vector3 playerIdlePosition;
         Vector3 enemyIdlePosition;
         BoardBlock hoveredWorldTooltipBlock;
+        float timeScaleBeforeSettings = 1f;
+        bool suppressAimInputAfterUi;
+        int suppressAimInputReleaseFrame = int.MaxValue;
 
         void Awake()
         {
@@ -165,7 +170,42 @@ namespace POPHero
 
         public bool CanSimulate()
         {
-            return State != RoundState.GameOver && !isBattlePresentationPlaying;
+            return !IsSettingsOpen && !suppressAimInputAfterUi && State != RoundState.GameOver && !isBattlePresentationPlaying;
+        }
+
+        public bool IsLaunchPointerAllowed(Vector2 screenPosition, int pointerId = -1)
+        {
+            if (!CanSimulate() || State != RoundState.Aim)
+                return false;
+
+            var eventSystem = EventSystem.current;
+            if (eventSystem != null && IsScreenPositionOverUi(eventSystem, screenPosition, pointerId))
+                return false;
+
+            var camera = Camera.main;
+            if (camera == null)
+                return false;
+
+            var worldPoint = camera.ScreenToWorldPoint(screenPosition);
+            const float padding = 0.15f;
+            var launchRect = new Rect(
+                BoardRect.xMin - padding,
+                BoardRect.yMin - padding,
+                BoardRect.width + padding * 2f,
+                BoardRect.height + padding * 2f);
+            return launchRect.Contains(new Vector2(worldPoint.x, worldPoint.y));
+        }
+
+        bool IsScreenPositionOverUi(EventSystem eventSystem, Vector2 screenPosition, int pointerId)
+        {
+            uiRaycastResults.Clear();
+            var eventData = new PointerEventData(eventSystem)
+            {
+                position = screenPosition,
+                pointerId = pointerId
+            };
+            eventSystem.RaycastAll(eventData, uiRaycastResults);
+            return uiRaycastResults.Count > 0;
         }
 
         public void ApplyPreviewResult(TrajectoryPreviewResult preview)
@@ -365,8 +405,20 @@ namespace POPHero
 
         void Update()
         {
-            intermissionFlowController?.ProcessPendingAction();
+            UpdateUiInputSuppression();
+            if (!IsSettingsOpen)
+                intermissionFlowController?.ProcessPendingAction();
             RefreshWorldBlockTooltip();
+        }
+
+        void OnDisable()
+        {
+            RestoreTimeScaleAfterSettings();
+        }
+
+        void OnDestroy()
+        {
+            RestoreTimeScaleAfterSettings();
         }
 
         void StartPrototype()
@@ -762,7 +814,7 @@ namespace POPHero
 
         internal void TryLaunchBallCore(Vector2 direction, TrajectoryPreviewResult preview = null)
         {
-            if (State != RoundState.Aim || direction.sqrMagnitude <= 0.001f || RemainingLaunchesForEnemy <= 0)
+            if (IsSettingsOpen || suppressAimInputAfterUi || State != RoundState.Aim || direction.sqrMagnitude <= 0.001f || RemainingLaunchesForEnemy <= 0)
                 return;
 
             preview ??= trajectoryPredictor?.BuildPreview(CurrentLaunchPoint, direction, config.ball.previewSegments, config.ball.previewDistance);
@@ -1166,10 +1218,101 @@ namespace POPHero
                 launcher?.CancelAim();
         }
 
+        public void OpenSettings()
+        {
+            if (IsSettingsOpen)
+                return;
+
+            IsSettingsOpen = true;
+            timeScaleBeforeSettings = Mathf.Approximately(Time.timeScale, 0f) ? 1f : Time.timeScale;
+            Time.timeScale = 0f;
+            launcher?.CancelAim();
+            ClearAimPreview();
+            canvasHud?.ClearTooltip();
+            canvasHud?.ClearPassiveTooltip();
+            canvasHud?.RefreshNow();
+        }
+
+        public void CloseSettings()
+        {
+            if (!IsSettingsOpen)
+                return;
+
+            RestoreTimeScaleAfterSettings();
+            launcher?.CancelAim();
+            ClearAimPreview();
+            BeginUiInputSuppression();
+            canvasHud?.RefreshNow();
+        }
+
+        public void BackToMenu()
+        {
+            CloseSettings();
+            SceneFlowService.Instance.LoadMainMenu();
+        }
+
+        public void QuitGame()
+        {
+            CloseSettings();
+            SceneFlowService.Instance.QuitGame();
+        }
+
+        void RestoreTimeScaleAfterSettings()
+        {
+            if (!IsSettingsOpen)
+                return;
+
+            Time.timeScale = Mathf.Approximately(timeScaleBeforeSettings, 0f) ? 1f : timeScaleBeforeSettings;
+            IsSettingsOpen = false;
+        }
+
+        void BeginUiInputSuppression()
+        {
+            suppressAimInputAfterUi = true;
+            suppressAimInputReleaseFrame = int.MaxValue;
+        }
+
+        void UpdateUiInputSuppression()
+        {
+            if (!suppressAimInputAfterUi)
+                return;
+
+            var pointerActive = Input.GetMouseButton(0) || Input.GetMouseButtonUp(0) || Input.touchCount > 0;
+            if (pointerActive)
+            {
+                suppressAimInputReleaseFrame = int.MaxValue;
+                return;
+            }
+
+            if (suppressAimInputReleaseFrame == int.MaxValue)
+            {
+                suppressAimInputReleaseFrame = Time.frameCount + 1;
+                return;
+            }
+
+            if (Time.frameCount < suppressAimInputReleaseFrame)
+                return;
+
+            suppressAimInputAfterUi = false;
+            suppressAimInputReleaseFrame = int.MaxValue;
+        }
+
         public void ExecuteHudCommand(HudCommand command)
         {
             switch (command.Type)
             {
+                case HudCommandType.OpenSettings:
+                    OpenSettings();
+                    break;
+                case HudCommandType.CloseSettings:
+                    CloseSettings();
+                    break;
+                case HudCommandType.BackToMenu:
+                    BackToMenu();
+                    break;
+                case HudCommandType.QuitGame:
+                    QuitGame();
+                    break;
                 case HudCommandType.ToggleAimMode:
                     ToggleAimMode();
                     break;
@@ -1429,7 +1572,7 @@ namespace POPHero
             if (canvasHud == null)
                 return;
 
-            if (State != RoundState.Aim || Input.GetMouseButton(0) || Input.touchCount > 0)
+            if (IsSettingsOpen || State != RoundState.Aim || Input.GetMouseButton(0) || Input.touchCount > 0)
             {
                 ClearWorldBlockTooltip();
                 return;
@@ -1705,5 +1848,3 @@ namespace POPHero
         }
     }
 }
-
-

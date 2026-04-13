@@ -102,6 +102,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   backgroundRenderer: {fileID: 5500245668921033669}
   iconRenderer: {fileID: 220510772724581164}
+  iconAnimator: {fileID: 6671226051331226611}
   rarityBadgeRenderer: {fileID: 7674412481185577064}
   fallbackIconLabel: {fileID: 244908417115371633}
 --- !u!1 &945915952580188540
@@ -198,6 +199,7 @@ GameObject:
   m_Component:
   - component: {fileID: 933515297544075870}
   - component: {fileID: 220510772724581164}
+  - component: {fileID: 6671226051331226611}
   m_Layer: 0
   m_Name: Icon
   m_TagString: Untagged
@@ -272,6 +274,25 @@ SpriteRenderer:
   m_WasSpriteAssigned: 0
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
+--- !u!95 &6671226051331226611
+Animator:
+  serializedVersion: 3
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6091173977734919754}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: b64d0d5db3cf4fae8ba7b8f5d6b6e4a0, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorControllerStateOnDisable: 0
 --- !u!1 &8293724386688630392
 GameObject:
   m_ObjectHideFlags: 0

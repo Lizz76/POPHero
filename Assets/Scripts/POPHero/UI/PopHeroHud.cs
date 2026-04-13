@@ -677,7 +677,7 @@ namespace POPHero
             GUI.contentColor = GetSocketMaskColor(dragging.data.targetBlockType);
             GUI.Label(new Rect(mouse.x + 146f, mouse.y + 18f, 64f, 22f), GetSocketMaskIconText(dragging.data.targetBlockType), badgeStyle);
             GUI.contentColor = previousColor;
-            GUI.Label(new Rect(mouse.x + 22f, mouse.y + 40f, 150f, 20f), "点击右侧空槽位安装", textStyle);
+            GUI.Label(new Rect(mouse.x + 22f, mouse.y + 40f, 150f, 20f), "拖到右侧空槽位松手安装", textStyle);
         }
 
         void DrawShopRemovalSection(string title, System.Collections.Generic.IReadOnlyList<BlockCardState> cards)
@@ -791,7 +791,7 @@ namespace POPHero
             else
             {
                 builder.AppendLine("空槽");
-                builder.AppendLine("点击这里可以安装当前拿起的嵌片。");
+                builder.AppendLine("拖拽嵌片到这里并松手即可安装。");
             }
 
             builder.Append($"槽位限制：{GetSocketMaskText(socket.targetMask)}");
@@ -1112,4 +1112,3 @@ namespace POPHero
         }
     }
 }
-

@@ -374,7 +374,7 @@ namespace POPHero
             return new LoadoutPanelModel
             {
                 TitleText = "背包",
-                SubtitleText = "从背包里拿起嵌片，然后点击右侧可用槽位进行安装。",
+                SubtitleText = "从背包里拖拽嵌片，放到右侧高亮槽位松手安装。",
                 Inventory = inventory?.Stored ?? System.Array.Empty<StickerInstance>(),
                 ActiveMods = mods?.ActiveMods ?? System.Array.Empty<ModInstance>(),
                 ReserveMods = mods?.ReserveMods ?? System.Array.Empty<ModInstance>(),

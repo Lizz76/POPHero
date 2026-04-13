@@ -19,7 +19,7 @@ namespace POPHero
             if (titleLabel != null)
                 titleLabel.text = "POPHero";
             if (subtitleLabel != null)
-                subtitleLabel.text = "弹珠构筑战斗原型";
+                subtitleLabel.text = "弹球构筑战斗原型";
 
             SetButtonLabel(startButton, "开始游戏", font);
             SetButtonLabel(quitButton, "退出游戏", font);
@@ -33,17 +33,8 @@ namespace POPHero
             if (quitButton != null)
             {
                 quitButton.onClick.RemoveAllListeners();
-                quitButton.onClick.AddListener(QuitGame);
+                quitButton.onClick.AddListener(() => SceneFlowService.Instance.QuitGame());
             }
-        }
-
-        static void QuitGame()
-        {
-#if UNITY_EDITOR
-            UnityEditor.EditorApplication.isPlaying = false;
-#else
-            Application.Quit();
-#endif
         }
 
         static void ApplyFont(TMP_Text label, TMP_FontAsset font)

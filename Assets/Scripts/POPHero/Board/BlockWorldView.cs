@@ -9,6 +9,7 @@ namespace POPHero
 
         [SerializeField] SpriteRenderer backgroundRenderer;
         [SerializeField] SpriteRenderer iconRenderer;
+        [SerializeField] Animator iconAnimator;
         [SerializeField] TextMesh fallbackIconLabel;
 
         MeshRenderer fallbackIconRenderer;
@@ -91,6 +92,15 @@ namespace POPHero
             ApplyVisualState();
         }
 
+        public void PlayIconHitAnimation()
+        {
+            if (iconAnimator == null)
+                return;
+
+            iconAnimator.ResetTrigger("Hit");
+            iconAnimator.SetTrigger("Hit");
+        }
+
         void EnsureReferences(bool createIfMissing)
         {
             backgroundRenderer ??= GetComponent<SpriteRenderer>();
@@ -98,6 +108,8 @@ namespace POPHero
                 backgroundRenderer = gameObject.AddComponent<SpriteRenderer>();
 
             iconRenderer = FindOrCreateSpriteRenderer(iconRenderer, "Icon", createIfMissing, new Vector3(0f, 0f, 0f), new Vector3(0.56f, 0.56f, 1f), IconSortingOrder);
+            if (iconAnimator == null && iconRenderer != null)
+                iconAnimator = iconRenderer.GetComponent<Animator>();
             DisableLegacyBadgeChild();
 
             if (fallbackIconLabel == null)

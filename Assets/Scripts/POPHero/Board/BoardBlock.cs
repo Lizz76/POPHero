@@ -57,6 +57,7 @@ namespace POPHero
         public void HandleBallHit(BallController ball)
         {
             OnBallHit(ball);
+            worldView?.PlayIconHitAnimation();
             pulseScale = 1.12f;
         }
 

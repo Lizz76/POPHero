@@ -64,6 +64,55 @@ namespace POPHero
         public void OnPointerExit(PointerEventData eventData) => Exited?.Invoke();
     }
 
+    public sealed class CanvasStickerDragRelay : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
+    {
+        public Func<bool> BeginDrag;
+        public Action Drag;
+        public Action EndDrag;
+
+        bool dragging;
+
+        public void OnBeginDrag(PointerEventData eventData)
+        {
+            dragging = BeginDrag?.Invoke() == true;
+            if (!dragging)
+                return;
+
+            Drag?.Invoke();
+            eventData.Use();
+        }
+
+        public void OnDrag(PointerEventData eventData)
+        {
+            if (!dragging)
+                return;
+
+            Drag?.Invoke();
+            eventData.Use();
+        }
+
+        public void OnEndDrag(PointerEventData eventData)
+        {
+            if (!dragging)
+                return;
+
+            dragging = false;
+            EndDrag?.Invoke();
+            eventData.Use();
+        }
+    }
+
+    public sealed class CanvasSocketDropRelay : MonoBehaviour, IDropHandler
+    {
+        public Action Dropped;
+
+        public void OnDrop(PointerEventData eventData)
+        {
+            Dropped?.Invoke();
+            eventData.Use();
+        }
+    }
+
     public sealed class CanvasBlockRowView
     {
         readonly RectTransform root;
@@ -207,13 +256,17 @@ namespace POPHero
                 socketButtons[i].gameObject.SetActive(i < count);
         }
 
-        public void SetSocket(int index, string text, Color color, Action action)
+        public void SetSocket(int index, string text, Color color, Action action, Action dropAction = null)
         {
             socketImages[index].color = color;
             socketLabels[index].text = text;
             socketButtons[index].onClick.RemoveAllListeners();
             if (action != null)
                 socketButtons[index].onClick.AddListener(() => action());
+
+            var dropRelay = socketButtons[index].gameObject.GetComponent<CanvasSocketDropRelay>() ??
+                socketButtons[index].gameObject.AddComponent<CanvasSocketDropRelay>();
+            dropRelay.Dropped = dropAction;
         }
 
         public void SetSocketTooltip(int index, string title, string body, Color color, CanvasHudController controller)
@@ -313,16 +366,18 @@ namespace POPHero
         readonly Button button;
         readonly Image icon;
         readonly TMP_Text fallbackLabel;
+        readonly CanvasGroup canvasGroup;
 
         public GameObject gameObject => root.gameObject;
 
-        CanvasStickerCellView(RectTransform root, Image background, Button button, Image icon, TMP_Text fallbackLabel)
+        CanvasStickerCellView(RectTransform root, Image background, Button button, Image icon, TMP_Text fallbackLabel, CanvasGroup canvasGroup)
         {
             this.root = root;
             this.background = background;
             this.button = button;
             this.icon = icon;
             this.fallbackLabel = fallbackLabel;
+            this.canvasGroup = canvasGroup;
         }
 
         public static CanvasStickerCellView Create(Transform parent)
@@ -336,6 +391,7 @@ namespace POPHero
 
             var background = root.gameObject.AddComponent<Image>();
             background.color = new Color(0.12f, 0.14f, 0.2f, 0.94f);
+            var canvasGroup = root.gameObject.AddComponent<CanvasGroup>();
 
             var button = root.gameObject.AddComponent<Button>();
             var colors = button.colors;
@@ -363,7 +419,7 @@ namespace POPHero
             label.enableWordWrapping = false;
             label.overflowMode = TextOverflowModes.Ellipsis;
 
-            return new CanvasStickerCellView(root, background, button, icon, label);
+            return new CanvasStickerCellView(root, background, button, icon, label, canvasGroup);
         }
 
         public void Set(string fallbackText, Sprite iconSprite, Color accent, Action action)
@@ -382,6 +438,20 @@ namespace POPHero
         }
 
         public void SetInteractable(bool interactable) => button.interactable = interactable;
+
+        public void SetDraggingVisual(bool dragging)
+        {
+            if (canvasGroup != null)
+                canvasGroup.alpha = dragging ? 0.45f : 1f;
+        }
+
+        public void SetDragHandlers(Func<bool> beginDrag, Action drag, Action endDrag)
+        {
+            var relay = root.gameObject.GetComponent<CanvasStickerDragRelay>() ?? root.gameObject.AddComponent<CanvasStickerDragRelay>();
+            relay.BeginDrag = beginDrag;
+            relay.Drag = drag;
+            relay.EndDrag = endDrag;
+        }
 
         public void SetTooltip(string titleValue, string bodyValue, Color color, CanvasHudController controller)
         {

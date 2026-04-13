@@ -1,128 +1,96 @@
 # POPHero
 
-这是 `POPHero` 当前版本的仓库首页接手说明。
+`POPHero` 是一个 Unity 2022.3 弹球轨迹 Roguelike 战斗原型。当前版本已经从早期“弹球 + Buff 三选一”演进为带有方块构筑、中场奖励、商店、Sticker 镶嵌、Mod 全局规则和 Canvas 前端的可迭代原型。
 
-目标读者优先是下一位接手项目的 AI 或开发者。这里不再描述最早那版“弹珠 + Buff 三选一”原型，而是只保留当前代码里已经成立、能直接验证的事实。更详细的系统说明请继续看 [docs/AI_HANDOFF.md](D:\Unity%202022.3.0f1c1\POPhero\POPHero\docs\AI_HANDOFF.md)。
+本文档用于给后续接手的开发者或 AI 工具快速建立上下文。更细的系统说明请继续阅读 [docs/AI_HANDOFF.md](docs/AI_HANDOFF.md)。
 
-## 项目现状
+## 当前项目状态
 
-`POPHero` 目前已经从早期的弹珠战斗验证原型，演进为一套带中场构筑流程的 Unity 2022.3 战斗原型：
-
-- 战斗载体是 `Block`
-- 可安装到方块上的局部强化是 `Sticker`
-- 全局规则层是 `Mod`
-- 中场流程包含 `方块奖励 / 奖励三选一 / 商店 / 整理配置`
-- 玩家拥有 `上阵区 + 仓库区`，当前战斗只读取上阵区
-
-核心组合根在 [PopHeroGame.cs](D:\Unity%202022.3.0f1c1\POPhero\POPHero\Assets\Scripts\POPHero\Core\PopHeroGame.cs)，全局原型配置在 [PopHeroPrototypeConfig.cs](D:\Unity%202022.3.0f1c1\POPhero\POPHero\Assets\Scripts\POPHero\Core\PopHeroPrototypeConfig.cs)。
+- 战斗载体是 `Block`，玩家通过弹球命中方块获得伤害、护盾、倍率等回合收益。
+- 局部强化叫 `Sticker`，通过 socket 镶嵌到具体方块实例上。
+- 全局规则层叫 `Mod`，用于影响经济、信息展示、操作手感和成长上限。
+- 玩家方块组拆成 `Active Blocks` 与 `Reserve Blocks`，战斗只读取上阵区。
+- 中场流程包含 `BlockRewardChoose -> RewardChoose -> Shop -> LoadoutManage`。
+- 正式前端使用 `Canvas + TMP + Presenter/Command`，旧 `PopHeroHud` 只保留为调试 fallback。
 
 ## 启动入口
 
-当前正式场景链路是：
+正式场景链路为：
 
-- `Boot`
-- `MainMenu`
-- `Battle`
+1. `Boot`
+2. `MainMenu`
+3. `Battle`
 
-相关入口：
+相关脚本入口：
 
-- 场景名定义和跳转： [SceneFlow.cs](D:\Unity%202022.3.0f1c1\POPhero\POPHero\Assets\Scripts\POPHero\Core\SceneFlow.cs)
-- Boot 自动跳主菜单： [ProjectBootstrap.cs](D:\Unity%202022.3.0f1c1\POPhero\POPHero\Assets\Scripts\POPHero\Core\ProjectBootstrap.cs)
-- 主菜单开始游戏： [MainMenuController.cs](D:\Unity%202022.3.0f1c1\POPhero\POPHero\Assets\Scripts\POPHero\Core\MainMenuController.cs)
-- Battle 缺少 `PopHeroGame` 时的兜底提示： [PopHeroBootstrap.cs](D:\Unity%202022.3.0f1c1\POPhero\POPHero\Assets\Scripts\POPHero\Core\PopHeroBootstrap.cs)
+- 场景跳转：[Assets/Scripts/POPHero/Core/SceneFlow.cs](Assets/Scripts/POPHero/Core/SceneFlow.cs)
+- Boot 初始化：[Assets/Scripts/POPHero/Core/ProjectBootstrap.cs](Assets/Scripts/POPHero/Core/ProjectBootstrap.cs)
+- 主菜单：[Assets/Scripts/POPHero/Core/MainMenuController.cs](Assets/Scripts/POPHero/Core/MainMenuController.cs)
+- 战斗组合根：[Assets/Scripts/POPHero/Core/PopHeroGame.cs](Assets/Scripts/POPHero/Core/PopHeroGame.cs)
 
-说明：
+`SampleScene.unity` 只应视作历史/调试遗留，正式运行请以 `Battle.unity` 为准。
 
-- [SampleScene.unity](D:\Unity%202022.3.0f1c1\POPhero\POPHero\Assets\Scenes\SampleScene.unity) 现在应视为历史场景 / 调试遗留，不应继续作为 README 里的主入口。
-- 若需要重建正式场景，使用 [SceneBuilder.cs](D:\Unity%202022.3.0f1c1\POPhero\POPHero\Assets\Scripts\POPHero\Editor\SceneBuilder.cs) 里的编辑器菜单入口。
+## 核心系统入口
 
-## 当前核心循环
+- 战斗流程与全局状态：[Assets/Scripts/POPHero/Core/PopHeroGame.cs](Assets/Scripts/POPHero/Core/PopHeroGame.cs)
+- 弹球发射与输入区域限制：[Assets/Scripts/POPHero/Combat/PlayerLauncher.cs](Assets/Scripts/POPHero/Combat/PlayerLauncher.cs)
+- 轨迹/碰撞共享求解：[Assets/Scripts/POPHero/Combat/BounceStepSolver.cs](Assets/Scripts/POPHero/Combat/BounceStepSolver.cs)
+- 方块实例、奖励、运行时板面：[Assets/Scripts/POPHero/Board/BoardServices.cs](Assets/Scripts/POPHero/Board/BoardServices.cs)
+- 方块世界表现：[Assets/Scripts/POPHero/Board/BlockWorldView.cs](Assets/Scripts/POPHero/Board/BlockWorldView.cs)
+- Canvas HUD 与中场 UI：[Assets/Scripts/POPHero/UI/CanvasHudController.cs](Assets/Scripts/POPHero/UI/CanvasHudController.cs)
+- Canvas UI 小组件：[Assets/Scripts/POPHero/UI/CanvasHudViews.cs](Assets/Scripts/POPHero/UI/CanvasHudViews.cs)
+- 场景脚手架：[Assets/Scripts/POPHero/Editor/SceneBuilder.cs](Assets/Scripts/POPHero/Editor/SceneBuilder.cs)
 
-战斗阶段：
+## 当前交互规则
 
-- `Aim`
-- `BallFlying`
-- `RoundResolve`
+- 发射输入只允许在中间棋盘战斗区域内生效，点击左侧状态栏、右侧方块栏、商店、设置面板等 UI 不会发射。
+- 设置按钮位于 Battle 右上角，打开后暂停游戏，并提供“继续游戏 / 返回菜单 / 退出游戏”。
+- Sticker 背包现在是真拖拽交互：按住嵌片拖到右侧高亮 socket，松手安装；松在空白处或非法槽位会取消并归位。
+- 拖拽嵌片时鼠标旁会显示一个与 socket 尺寸接近的小 ghost，位于最高 UI 排序层，不会被面板挡住，也不会阻挡 drop。
+- 拖拽过程中普通 tooltip 会隐藏；停止拖拽后，背包、socket、方块图标 tooltip 恢复显示。
+- 已安装的 socket 在未拖拽时仍可点击卸下。
 
-中场阶段：
+## 最近开发记录
 
-- `BlockRewardChoose`
-- `RewardChoose`
-- `Shop`
-- `LoadoutManage`
+### 2026-04-13
 
-这些状态都由 [PopHeroGame.cs](D:\Unity%202022.3.0f1c1\POPhero\POPHero\Assets\Scripts\POPHero\Core\PopHeroGame.cs) 驱动。当前战斗不是飞行中实时扣敌人真血，而是先累计结果，再在结算演出中刷新主角 / 敌人的生命表现。
+- 接入真实 `uGUI` 嵌片拖拽：新增背包嵌片 `BeginDrag/Drag/EndDrag` 与 socket `Drop` 事件链。
+- 拖拽视觉从“大文本浮窗”改成 `28x28` 小嵌片 ghost，并提升到独立高排序 Canvas，避免被右侧栏或中场面板遮挡。
+- 拖拽过程中隐藏普通 tooltip，避免悬停窗口与拖拽 ghost 同时出现。
+- 增加发射输入区域限制：只有鼠标在棋盘区域内才允许瞄准和发射，UI 区点击不会误发射。
+- 设置入口改为真实场景对象/Prefab，并补充继续游戏、返回菜单、退出游戏三按钮。
+- 给方块 Icon 受击动画准备 Animator 资源骨架，命中时只触发 `Hit` Trigger，动画曲线可在 Unity Animator 中继续调整。
+- Canvas 前端、右侧方块管理栏、中场整理界面继续保留现有 `Presenter -> View -> HudCommand` 低耦合链路。
 
-## 当前关键系统
+## 验证方式
 
-### 方块与卡组
+常用命令：
 
-- 方块真实实例数据是 `BlockCardState`
-- 玩家卡组由 `activeBlocks + reserveBlocks` 组成
-- 当前战斗板面只从上阵区生成
-- 上阵/仓库交换的是完整实例，不是模板引用
+```powershell
+dotnet build E:\UnityProject\POPHero-main\POPHero-main.sln
+```
 
-主要入口在 [BoardServices.cs](D:\Unity%202022.3.0f1c1\POPhero\POPHero\Assets\Scripts\POPHero\Board\BoardServices.cs) 和 [BoardManager.cs](D:\Unity%202022.3.0f1c1\POPhero\POPHero\Assets\Scripts\POPHero\Board\BoardManager.cs)。
+当前已知构建结果：
 
-### Sticker 安装与整理
+- `0 errors`
+- 可能出现 Unity/MCP 相关程序集版本 warning，例如 `System.Net.Http` 或 `System.IO.Compression` 冲突；这些 warning 当前不阻塞运行。
 
-- `Sticker` 是当前主强化层
-- 整理阶段仍然通过右侧 `BlockManagementPanel` 槽位安装
-- 操作路径是“拿起 sticker -> 点击高亮槽位 -> 安装 / 卸下”
+建议 Unity 内回归：
 
-相关 UI 和交互汇总在 [CanvasHudController.cs](D:\Unity%202022.3.0f1c1\POPhero\POPHero\Assets\Scripts\POPHero\UI\CanvasHudController.cs)。
-
-### Mod / Growth / Shop
-
-- `Mod` 是全局规则层，不装在方块上
-- 商店支持 sticker、mod、growth，以及删除一张方块
-- 方块奖励和成长奖励与商店之间已经形成完整中场流程
-
-### Canvas HUD 与 Tooltip
-
-- 当前主 HUD 已经是 Canvas 驱动
-- 方块 tooltip、socket tooltip、drag sticker 面板、loadout modal 都走同一套 HUD 控制器
-- 世界方块与右侧栏位都能把详细信息接到 tooltip，而不是把数值常驻写在方块本体上
-
-主入口仍是 [CanvasHudController.cs](D:\Unity%202022.3.0f1c1\POPhero\POPHero\Assets\Scripts\POPHero\UI\CanvasHudController.cs)。
-
-## 最近已落地的重要改动
-
-以下内容都是当前代码里已经能确认的改动：
-
-- 开局不再弹“初始选块”，而是直接发 1 张白稀有攻击方块进入首战准备
-- 击败敌人后的普通方块奖励仍保留 `BlockRewardChoose`
-- 攻击演出排层已经改成“攻击者在前”
-- 方块本体改成图标化展示，详细数值与说明通过 tooltip 展示
-- 方块视觉已经转成 `prefab + config` 驱动
-- 当前 block 美术配置模型是：
-  - `4` 个稀有度背景
-  - `12` 个类型 x 稀有度 icon
-- 方块不再依赖程序稀有度颜色来表达最终美术效果
-
-其中方块视觉配置和资源入口在 [PopHeroPrototypeConfig.cs](D:\Unity%202022.3.0f1c1\POPhero\POPHero\Assets\Scripts\POPHero\Core\PopHeroPrototypeConfig.cs)，世界/右栏 block 视图在：
-
-- [BlockWorldView.cs](D:\Unity%202022.3.0f1c1\POPhero\POPHero\Assets\Scripts\POPHero\Board\BlockWorldView.cs)
-- [BlockCellView.cs](D:\Unity%202022.3.0f1c1\POPhero\POPHero\Assets\Scripts\POPHero\UI\BlockCellView.cs)
-
-## 后续修改优先入口
-
-如果后续 AI 要继续维护，优先从这些入口建立上下文：
-
-- 组合根与战斗流程： [PopHeroGame.cs](D:\Unity%202022.3.0f1c1\POPhero\POPHero\Assets\Scripts\POPHero\Core\PopHeroGame.cs)
-- 方块实例、奖励、运行时展示： [BoardServices.cs](D:\Unity%202022.3.0f1c1\POPhero\POPHero\Assets\Scripts\POPHero\Board\BoardServices.cs)
-- HUD、tooltip、loadout、右侧栏位交互： [CanvasHudController.cs](D:\Unity%202022.3.0f1c1\POPhero\POPHero\Assets\Scripts\POPHero\UI\CanvasHudController.cs)
-- 原型配置和 block 视觉资源入口： [PopHeroPrototypeConfig.cs](D:\Unity%202022.3.0f1c1\POPhero\POPHero\Assets\Scripts\POPHero\Core\PopHeroPrototypeConfig.cs)
-- 深入接手说明： [AI_HANDOFF.md](D:\Unity%202022.3.0f1c1\POPhero\POPHero\docs\AI_HANDOFF.md)
+- `Boot -> MainMenu -> Battle` 能正常进入。
+- Battle 中设置面板打开后，点击战场不会发射；继续游戏后需要重新点击棋盘才可发射。
+- 进入背包/整理界面，从嵌片背包拖拽到合法 socket 能安装；松到空白处会取消并归位。
+- 拖拽 ghost 始终显示在 UI 最上层，不被面板遮挡。
+- 商店、右侧栏、上阵/仓库交换、socket 卸下保持可用。
 
 ## 文档索引
 
-- 详细 AI 接手说明： [docs/AI_HANDOFF.md](D:\Unity%202022.3.0f1c1\POPhero\POPHero\docs\AI_HANDOFF.md)
-- 开发日志： [docs/DEVLOG_2026-03-31.md](D:\Unity%202022.3.0f1c1\POPhero\POPHero\docs\DEVLOG_2026-03-31.md)
-- 场景迁移计划： [docs/scene_migration_plan.md](D:\Unity%202022.3.0f1c1\POPhero\POPHero\docs\scene_migration_plan.md)
+- AI 接手说明：[docs/AI_HANDOFF.md](docs/AI_HANDOFF.md)
+- 开发日志：[docs/DEVLOG_2026-03-31.md](docs/DEVLOG_2026-03-31.md)
+- 场景迁移计划：[docs/scene_migration_plan.md](docs/scene_migration_plan.md)
 
 ## 维护提示
 
-- 根 README 现在应作为“仓库首页总览”
-- 深层系统规则、维护约束、接手 checklist 继续放在 [AI_HANDOFF.md](D:\Unity%202022.3.0f1c1\POPhero\POPHero\docs\AI_HANDOFF.md)
-- 如果后续系统再发生结构级变化，优先同步 README 的“项目现状 / 启动入口 / 最近改动 / 修改入口”四段
+- README 用于记录项目当前事实与近期开发记录，不要写过期假设。
+- 深层系统规则、接手 checklist 和详细约束优先维护在 [docs/AI_HANDOFF.md](docs/AI_HANDOFF.md)。
+- 若后续继续重构 UI 或战斗流程，请同步更新“当前交互规则”和“最近开发记录”。

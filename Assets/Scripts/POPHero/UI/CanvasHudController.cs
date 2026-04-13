@@ -49,6 +49,9 @@ namespace POPHero
 
         TMP_Text tooltipTitle;
         TMP_Text tooltipBody;
+        Image dragBackground;
+        Image dragIcon;
+        TMP_Text dragFallbackLabel;
         TMP_Text dragName;
         TMP_Text dragMask;
         TMP_Text dragHint;
@@ -71,8 +74,11 @@ namespace POPHero
         TMP_Text reserveModsTitle;
         TMP_Text gameOverTitle;
         TMP_Text gameOverMessage;
+        TMP_Text settingsTitle;
+        TMP_Text settingsHint;
 
         Button toggleAimButton;
+        Button settingsButton;
         Button shuffleButton;
         Button addGoldButton;
         Button killEnemyButton;
@@ -86,6 +92,9 @@ namespace POPHero
         Button loadoutContinueButton;
         Button gameOverRetryButton;
         Button gameOverMenuButton;
+        Button settingsResumeButton;
+        Button settingsMenuButton;
+        Button settingsQuitButton;
 
         RectTransform activeRowsRoot;
         RectTransform reserveRowsRoot;
@@ -107,6 +116,7 @@ namespace POPHero
         GameObject shopModal;
         GameObject loadoutModal;
         GameObject gameOverModal;
+        GameObject settingsModal;
 
         Canvas blockManagementCanvas;
         GraphicRaycaster blockManagementRaycaster;
@@ -167,6 +177,11 @@ namespace POPHero
             SafeRefresh("tooltip", RefreshTooltip);
         }
 
+        public void RefreshNow()
+        {
+            ForceRefresh();
+        }
+
         void ApplyRuntimeFont()
         {
             var font = PrototypeVisualFactory.GetCjkTmpFontAsset();
@@ -215,6 +230,9 @@ namespace POPHero
 
         public void SetTooltip(string title, string body, Color color)
         {
+            if (game?.StickerInventory?.DraggingSticker != null)
+                return;
+
             tooltipTitleValue = title ?? string.Empty;
             tooltipBodyValue = body ?? string.Empty;
             tooltipColor = color;
@@ -255,6 +273,7 @@ namespace POPHero
             statusEnemy = T("HudRoot/StatusPanel/EnemyText");
             statusEnemyHp = T("HudRoot/StatusPanel/EnemyHpText");
             statusEnemyAtk = T("HudRoot/StatusPanel/EnemyAttackText");
+            settingsButton = B("HudRoot/TopRightControls/SettingsButton");
 
             combatTitle = T("HudRoot/CombatPanel/TitleText");
             combatAttack = T("HudRoot/CombatPanel/RoundAttackText");
@@ -285,9 +304,14 @@ namespace POPHero
             tooltipTitle = T("TooltipRoot/TooltipPanel/TitleText");
             tooltipBody = T("TooltipRoot/TooltipPanel/BodyText");
             dragPanel = R("TooltipRoot/DragStickerPanel");
-            dragName = T("TooltipRoot/DragStickerPanel/NameText");
-            dragMask = T("TooltipRoot/DragStickerPanel/MaskText");
-            dragHint = T("TooltipRoot/DragStickerPanel/HintText");
+            dragBackground = dragPanel != null ? dragPanel.GetComponent<Image>() : null;
+            dragIcon = ImageOptional("TooltipRoot/DragStickerPanel/Icon");
+            dragFallbackLabel = TOptional("TooltipRoot/DragStickerPanel/FallbackLabel");
+            dragName = TOptional("TooltipRoot/DragStickerPanel/NameText");
+            dragMask = TOptional("TooltipRoot/DragStickerPanel/MaskText");
+            dragHint = TOptional("TooltipRoot/DragStickerPanel/HintText");
+            EnsureDragGhostVisuals();
+            EnsureFloatingPanelIgnoresRaycasts(dragPanel);
 
             blockRewardModal = G("ModalRoot/BlockRewardModal");
             blockRewardTitle = T("ModalRoot/BlockRewardModal/Window/Header/TitleText");
@@ -337,6 +361,13 @@ namespace POPHero
             gameOverMessage = T("ModalRoot/GameOverModal/Window/Body/MessageText");
             gameOverRetryButton = B("ModalRoot/GameOverModal/Window/Footer/RetryButton");
             gameOverMenuButton = B("ModalRoot/GameOverModal/Window/Footer/MenuButton");
+
+            settingsModal = G("ModalRoot/SettingsModal");
+            settingsTitle = T("ModalRoot/SettingsModal/Window/Header/TitleText");
+            settingsHint = T("ModalRoot/SettingsModal/Window/Body/HintText");
+            settingsResumeButton = B("ModalRoot/SettingsModal/Window/Footer/ResumeButton");
+            settingsMenuButton = B("ModalRoot/SettingsModal/Window/Footer/MenuButton");
+            settingsQuitButton = B("ModalRoot/SettingsModal/Window/Footer/QuitButton");
         }
 
         void ValidateBindings()
@@ -351,10 +382,13 @@ namespace POPHero
             Validate(shopModal, "ModalRoot/ShopModal");
             Validate(loadoutModal, "ModalRoot/LoadoutModal");
             Validate(gameOverModal, "ModalRoot/GameOverModal");
+            Validate(settingsButton, "HudRoot/TopRightControls/SettingsButton");
+            Validate(settingsModal, "ModalRoot/SettingsModal");
         }
 
         void BindButtons()
         {
+            Bind(settingsButton, () => Run(new HudCommand(HudCommandType.OpenSettings)));
             Bind(toggleAimButton, () => Run(new HudCommand(HudCommandType.ToggleAimMode)));
             Bind(shuffleButton, () => Run(new HudCommand(HudCommandType.DebugShuffleBoard)));
             Bind(addGoldButton, () => Run(new HudCommand(HudCommandType.DebugAddGold)));
@@ -369,6 +403,9 @@ namespace POPHero
             Bind(loadoutContinueButton, () => Run(new HudCommand(HudCommandType.FinishLoadout)));
             Bind(gameOverRetryButton, () => SceneFlowService.Instance.ReloadBattle());
             Bind(gameOverMenuButton, () => SceneFlowService.Instance.LoadMainMenu());
+            Bind(settingsResumeButton, () => Run(new HudCommand(HudCommandType.CloseSettings)));
+            Bind(settingsMenuButton, () => Run(new HudCommand(HudCommandType.BackToMenu)));
+            Bind(settingsQuitButton, () => Run(new HudCommand(HudCommandType.QuitGame)));
         }
 
         void RefreshStatus()
@@ -388,6 +425,7 @@ namespace POPHero
             Set(statusEnemy, model.EnemyText);
             Set(statusEnemyHp, model.EnemyHpText);
             Set(statusEnemyAtk, model.EnemyAttackText);
+            SetButtonLabel(settingsButton, "设置");
         }
 
         void RefreshCombat()
@@ -444,6 +482,7 @@ namespace POPHero
             SetActive(shopModal, state == RoundState.Shop);
             SetActive(loadoutModal, state == RoundState.LoadoutManage);
             SetActive(gameOverModal, state == RoundState.GameOver);
+            SetActive(settingsModal, game != null && game.IsSettingsOpen);
 
             if (state == RoundState.BlockRewardChoose)
                 RefreshBlockReward();
@@ -475,6 +514,9 @@ namespace POPHero
 
             if (state == RoundState.GameOver)
                 RefreshGameOver();
+
+            if (game != null && game.IsSettingsOpen)
+                RefreshSettings();
         }
 
         void RefreshInteractionLayers()
@@ -485,6 +527,20 @@ namespace POPHero
             EnsureBlockManagementCanvas();
             if (blockManagementCanvas == null)
                 return;
+
+            if (game.IsSettingsOpen)
+            {
+                if (blockManagementCanvasSettingsCaptured)
+                {
+                    blockManagementCanvas.overrideSorting = blockManagementDefaultOverrideSorting;
+                    blockManagementCanvas.sortingLayerID = blockManagementDefaultSortingLayerId;
+                    blockManagementCanvas.sortingOrder = blockManagementDefaultSortingOrder;
+                }
+
+                if (blockManagementRaycaster != null)
+                    blockManagementRaycaster.enabled = false;
+                return;
+            }
 
             if (game.State == RoundState.LoadoutManage)
             {
@@ -508,14 +564,14 @@ namespace POPHero
         {
             var dragging = game?.StickerInventory?.DraggingSticker;
             var visible = dragging != null && game != null && game.CanManageBlockAssignments;
+            if (game != null && game.IsSettingsOpen)
+                visible = false;
             SetActive(dragPanel, visible);
             if (!visible)
                 return;
 
-            Set(dragName, dragging.data.name);
-            Set(dragMask, $"适用：{MaskIcon(dragging.data.targetBlockType)}  {MaskText(dragging.data.targetBlockType)}");
-            Set(dragHint, "点击高亮槽位安装；点击已装槽位可卸下。");
-            Position(dragPanel, Input.mousePosition, 18f, 18f);
+            ConfigureDragGhost(dragging);
+            PositionFloatingPanel(dragPanel, Input.mousePosition);
         }
 
         void RefreshTooltip()
@@ -524,6 +580,10 @@ namespace POPHero
             var body = !string.IsNullOrWhiteSpace(tooltipTitleValue) ? tooltipBodyValue : passiveTooltipBodyValue;
             var color = !string.IsNullOrWhiteSpace(tooltipTitleValue) ? tooltipColor : passiveTooltipColor;
             var visible = !string.IsNullOrWhiteSpace(title);
+            if (game?.StickerInventory?.DraggingSticker != null)
+                visible = false;
+            if (game != null && game.IsSettingsOpen)
+                visible = false;
             SetActive(tooltipPanel, visible);
             if (!visible)
                 return;
@@ -532,7 +592,7 @@ namespace POPHero
             Set(tooltipBody, body);
             if (tooltipTitle != null)
                 tooltipTitle.color = color;
-            Position(tooltipPanel, Input.mousePosition, 18f, 18f);
+            PositionFloatingPanel(tooltipPanel, Input.mousePosition);
         }
 
         void RefreshBlockReward()
@@ -620,13 +680,20 @@ namespace POPHero
                 loadoutCancelButton.interactable = model.CanCancelDrag;
 
             EnsureStickerCells(inventoryStickerCells, inventoryContent, model.Inventory.Count);
+            var draggingId = game?.StickerInventory?.DraggingSticker?.runtimeId;
             for (var index = 0; index < model.Inventory.Count; index++)
             {
                 var sticker = model.Inventory[index];
                 var view = inventoryStickerCells[index];
                 view.gameObject.SetActive(true);
-                view.Set(StickerShort(sticker), sticker.data.iconSprite, StickerColor(sticker.data.rarity), () => Run(new HudCommand(HudCommandType.BeginStickerDrag, 0, sticker.runtimeId)));
+                var runtimeId = sticker.runtimeId;
+                view.Set(StickerShort(sticker), sticker.data.iconSprite, StickerColor(sticker.data.rarity), null);
                 view.SetInteractable(true);
+                view.SetDraggingVisual(runtimeId == draggingId);
+                view.SetDragHandlers(
+                    () => BeginStickerDragFromInventory(runtimeId),
+                    ContinueStickerDragFromInventory,
+                    EndStickerDragFromInventory);
                 view.SetTooltip(sticker.data.name, InventoryStickerTooltip(sticker), StickerColor(sticker.data.rarity), this);
             }
 
@@ -640,6 +707,15 @@ namespace POPHero
             Set(gameOverMessage, game?.GameOverMessage ?? "本局结束。");
             SetButtonLabel(gameOverRetryButton, "再来一局");
             SetButtonLabel(gameOverMenuButton, "返回主菜单");
+        }
+
+        void RefreshSettings()
+        {
+            Set(settingsTitle, "设置");
+            Set(settingsHint, "游戏已暂停。继续游戏会回到当前战斗或中场界面。");
+            SetButtonLabel(settingsResumeButton, "继续游戏");
+            SetButtonLabel(settingsMenuButton, "返回菜单");
+            SetButtonLabel(settingsQuitButton, "退出游戏");
         }
 
         void RefreshRemoval(List<CanvasListEntryView> views, RectTransform root, IReadOnlyList<BlockCardState> cards, bool disabled)
@@ -719,7 +795,12 @@ namespace POPHero
                         : (CanInstall(model.Card, socket) ? new Color(0.42f, 0.86f, 0.54f, 1f) : new Color(0.32f, 0.36f, 0.44f, 1f))
                     : new Color(0.22f, 0.24f, 0.28f, 1f);
                 var capturedIndex = index;
-                view.SetSocket(index, icon, color, () => ClickSocket(model.Card, capturedIndex));
+                view.SetSocket(
+                    index,
+                    icon,
+                    color,
+                    () => ClickSocket(model.Card, capturedIndex),
+                    () => DropStickerOnSocket(model.Card, capturedIndex));
                 view.SetSocketTooltip(index, socket.installedSticker != null ? socket.installedSticker.data.name : "槽位", SocketTooltip(model.Card, socket), color, this);
             }
         }
@@ -753,6 +834,47 @@ namespace POPHero
 
             if (socket.installedSticker != null)
                 Run(new HudCommand(HudCommandType.RemoveStickerFromCard, socketIndex, card.id));
+        }
+
+        bool BeginStickerDragFromInventory(string runtimeId)
+        {
+            if (game == null || !game.CanManageBlockAssignments || game.IsSettingsOpen || string.IsNullOrWhiteSpace(runtimeId))
+                return false;
+
+            Run(new HudCommand(HudCommandType.BeginStickerDrag, 0, runtimeId));
+            var started = game.StickerInventory?.DraggingSticker?.runtimeId == runtimeId;
+            if (!started)
+                return false;
+
+            ClearTooltip();
+            ClearPassiveTooltip();
+            ForceRefresh();
+            return true;
+        }
+
+        void ContinueStickerDragFromInventory()
+        {
+            RefreshDragPanel();
+        }
+
+        void EndStickerDragFromInventory()
+        {
+            if (game?.StickerInventory?.DraggingSticker != null)
+                Run(new HudCommand(HudCommandType.CancelStickerDrag));
+
+            ForceRefresh();
+        }
+
+        void DropStickerOnSocket(BlockCardState card, int socketIndex)
+        {
+            if (game == null || card == null || !game.CanManageBlockAssignments)
+                return;
+
+            if (game.StickerInventory?.DraggingSticker == null)
+                return;
+
+            Run(new HudCommand(HudCommandType.TryInstallDraggedSticker, socketIndex, card.id));
+            ForceRefresh();
         }
 
         void ClickBlock(BlockCardState card, bool activeSection)
@@ -805,7 +927,7 @@ namespace POPHero
         string BuildLoadoutSubtitle(string subtitle)
         {
             return string.IsNullOrWhiteSpace(subtitle)
-                ? "从背包里拿起嵌片，再点击右侧高亮槽位进行安装。"
+                ? "从背包里拖拽嵌片，放到右侧高亮槽位进行安装。松在空白处会取消并归位。"
                 : subtitle;
         }
 
@@ -858,6 +980,18 @@ namespace POPHero
             if (text == null)
                 Debug.LogError($"[POPHero] CanvasHudController node has no TMP_Text: {path}");
             return text;
+        }
+
+        TMP_Text TOptional(string path)
+        {
+            var node = transform.Find(path);
+            return node == null ? null : node.GetComponent<TMP_Text>();
+        }
+
+        Image ImageOptional(string path)
+        {
+            var node = transform.Find(path);
+            return node == null ? null : node.GetComponent<Image>();
         }
 
         RectTransform R(string path)
@@ -979,6 +1113,98 @@ namespace POPHero
                 button.onClick.AddListener(() => action());
         }
 
+        void EnsureDragGhostVisuals()
+        {
+            if (dragPanel == null)
+                return;
+
+            dragPanel.SetAsLastSibling();
+            dragPanel.sizeDelta = new Vector2(28f, 28f);
+            var layout = dragPanel.GetComponent<VerticalLayoutGroup>();
+            if (layout != null)
+                layout.enabled = false;
+
+            var dragCanvas = dragPanel.GetComponent<Canvas>();
+            if (dragCanvas == null)
+                dragCanvas = dragPanel.gameObject.AddComponent<Canvas>();
+            dragCanvas.overrideSorting = true;
+            if (canvas != null)
+                dragCanvas.sortingLayerID = canvas.sortingLayerID;
+            dragCanvas.sortingOrder = (canvas != null ? canvas.sortingOrder : 0) + 200;
+
+            dragBackground ??= dragPanel.GetComponent<Image>();
+            if (dragBackground == null)
+                dragBackground = dragPanel.gameObject.AddComponent<Image>();
+            dragBackground.raycastTarget = false;
+
+            if (dragIcon == null)
+            {
+                var iconRoot = CanvasUiFactory.Node("Icon", dragPanel);
+                iconRoot.anchorMin = new Vector2(0.5f, 0.5f);
+                iconRoot.anchorMax = new Vector2(0.5f, 0.5f);
+                iconRoot.pivot = new Vector2(0.5f, 0.5f);
+                iconRoot.sizeDelta = new Vector2(22f, 22f);
+                dragIcon = iconRoot.gameObject.AddComponent<Image>();
+                dragIcon.preserveAspect = true;
+            }
+            dragIcon.raycastTarget = false;
+
+            if (dragFallbackLabel == null)
+            {
+                dragFallbackLabel = CanvasUiFactory.Text("FallbackLabel", dragPanel, 12, Color.white, TextAlignmentOptions.Center, FontStyles.Bold);
+                dragFallbackLabel.rectTransform.anchorMin = Vector2.zero;
+                dragFallbackLabel.rectTransform.anchorMax = Vector2.one;
+                dragFallbackLabel.rectTransform.offsetMin = Vector2.zero;
+                dragFallbackLabel.rectTransform.offsetMax = Vector2.zero;
+            }
+            dragFallbackLabel.raycastTarget = false;
+            dragFallbackLabel.enableWordWrapping = false;
+            dragFallbackLabel.overflowMode = TextOverflowModes.Ellipsis;
+
+            SetActive(dragName, false);
+            SetActive(dragMask, false);
+            SetActive(dragHint, false);
+        }
+
+        void ConfigureDragGhost(StickerInstance sticker)
+        {
+            EnsureDragGhostVisuals();
+            if (sticker?.data == null)
+                return;
+
+            var accent = StickerColor(sticker.data.rarity);
+            if (dragBackground != null)
+                dragBackground.color = new Color(accent.r * 0.5f + 0.08f, accent.g * 0.5f + 0.08f, accent.b * 0.5f + 0.1f, 0.96f);
+
+            var hasIcon = sticker.data.iconSprite != null;
+            if (dragIcon != null)
+            {
+                dragIcon.sprite = sticker.data.iconSprite;
+                dragIcon.color = Color.white;
+                dragIcon.gameObject.SetActive(hasIcon);
+            }
+
+            if (dragFallbackLabel != null)
+            {
+                dragFallbackLabel.text = StickerShort(sticker);
+                dragFallbackLabel.color = Color.white;
+                dragFallbackLabel.gameObject.SetActive(!hasIcon);
+            }
+        }
+
+        static void EnsureFloatingPanelIgnoresRaycasts(RectTransform panel)
+        {
+            if (panel == null)
+                return;
+
+            var group = panel.GetComponent<CanvasGroup>();
+            if (group == null)
+                group = panel.gameObject.AddComponent<CanvasGroup>();
+
+            group.blocksRaycasts = false;
+            group.interactable = false;
+        }
+
         void EnsureRows(List<CanvasBlockRowView> rows, RectTransform root, int count, BlockCellView blockCellPrefab)
         {
             while (rows.Count < count)
@@ -1031,17 +1257,42 @@ namespace POPHero
                 entries[index].gameObject.SetActive(index < usedCount);
         }
 
-        void Position(RectTransform rect, Vector3 screenPosition, float offsetX, float offsetY)
+        void PositionFloatingPanel(RectTransform rect, Vector3 screenPosition)
         {
-            if (rect == null || canvas == null)
+            if (rect == null || canvas == null || rect.parent is not RectTransform parent)
                 return;
 
             RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                canvas.transform as RectTransform,
+                parent,
                 screenPosition,
                 canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera,
                 out var localPoint);
-            rect.anchoredPosition = localPoint + new Vector2(offsetX, offsetY);
+
+            var parentRect = parent.rect;
+            var size = rect.rect.size;
+            if (size.x <= 1f)
+                size.x = Mathf.Max(rect.sizeDelta.x, 260f);
+            if (size.y <= 1f)
+                size.y = Mathf.Max(rect.sizeDelta.y, 120f);
+
+            const float gap = 8f;
+            const float margin = 10f;
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(0f, 1f);
+            rect.pivot = new Vector2(0f, 1f);
+
+            var mouseFromTopLeft = new Vector2(localPoint.x - parentRect.xMin, localPoint.y - parentRect.yMax);
+            var x = mouseFromTopLeft.x + gap;
+            if (x + size.x > parentRect.width - margin)
+                x = mouseFromTopLeft.x - size.x - gap;
+
+            var y = mouseFromTopLeft.y - gap;
+            if (y - size.y < -parentRect.height + margin)
+                y = mouseFromTopLeft.y + size.y + gap;
+
+            x = Mathf.Clamp(x, margin, Mathf.Max(margin, parentRect.width - size.x - margin));
+            y = Mathf.Clamp(y, -parentRect.height + size.y + margin, -margin);
+            rect.anchoredPosition = new Vector2(x, y);
         }
 
         static string BlockType(BoardBlockType type)
