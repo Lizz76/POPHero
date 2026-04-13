@@ -1,8 +1,17 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
 namespace POPHero
 {
+    public sealed class TopStatusBarModel
+    {
+        public string HpText;
+        public string GoldText;
+        public string ProgressCountText;
+        public string RunTimerText;
+    }
+
     public sealed class StatusPanelModel
     {
         public string StateText;
@@ -120,6 +129,30 @@ namespace POPHero
         public bool CanCancelDrag;
         public string CancelDragText;
         public string ContinueButtonText;
+    }
+
+    public sealed class TopStatusBarPresenter
+    {
+        public TopStatusBarModel Build(IGameReadModel game)
+        {
+            var player = game?.Player;
+            return new TopStatusBarModel
+            {
+                HpText = player != null ? $"{player.CurrentHp}/{player.MaxHp}" : "--/--",
+                GoldText = player != null ? player.Gold.ToString() : "0",
+                ProgressCountText = player != null ? player.TotalKills.ToString() : "0",
+                RunTimerText = FormatRunTime(game?.RunElapsedSeconds ?? 0f)
+            };
+        }
+
+        static string FormatRunTime(float elapsedSeconds)
+        {
+            var clampedSeconds = Mathf.Max(0, Mathf.FloorToInt(elapsedSeconds));
+            var time = TimeSpan.FromSeconds(clampedSeconds);
+            return time.TotalHours >= 1d
+                ? $"{time.Hours:00}:{time.Minutes:00}:{time.Seconds:00}"
+                : $"{time.Minutes:00}:{time.Seconds:00}";
+        }
     }
 
     public sealed class StatusPanelPresenter

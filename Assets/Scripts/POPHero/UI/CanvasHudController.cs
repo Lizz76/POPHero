@@ -13,10 +13,30 @@ namespace POPHero
         IHudCommandSink sink;
         Canvas canvas;
 
+        readonly TopStatusBarPresenter topStatusPresenter = new();
         readonly StatusPanelPresenter statusPresenter = new();
         readonly CombatPanelPresenter combatPresenter = new();
         readonly BlockManagementPresenter blockPresenter = new();
         readonly IntermissionPanelPresenter intermissionPresenter = new();
+
+        GameObject statusPanelObject;
+        RectTransform topStatusBar;
+        Image topAvatarIcon;
+        TMP_Text topAvatarFallback;
+        Image topHpIcon;
+        TMP_Text topHpIconFallback;
+        TMP_Text topHpValue;
+        Image topGoldIcon;
+        TMP_Text topGoldIconFallback;
+        TMP_Text topGoldValue;
+        Image topProgressIcon;
+        TMP_Text topProgressIconFallback;
+        TMP_Text topProgressValue;
+        Image topTimerIcon;
+        TMP_Text topTimerIconFallback;
+        TMP_Text topTimerValue;
+        Image topSettingsIcon;
+        TMP_Text topSettingsFallback;
 
         TMP_Text statusTitle;
         TMP_Text statusState;
@@ -168,6 +188,7 @@ namespace POPHero
                 return;
 
             SafeRefresh("status", RefreshStatus);
+            SafeRefresh("topbar", RefreshTopStatusBar);
             SafeRefresh("combat", RefreshCombat);
             SafeRefresh("blocks", RefreshBlocks);
             SafeRefresh("damage", RefreshDamage);
@@ -207,6 +228,7 @@ namespace POPHero
             }
 
             SafeRefresh("status", RefreshStatus);
+            SafeRefresh("topbar", RefreshTopStatusBar);
             SafeRefresh("combat", RefreshCombat);
             SafeRefresh("blocks", RefreshBlocks);
             SafeRefresh("damage", RefreshDamage);
@@ -259,6 +281,25 @@ namespace POPHero
 
         void BindScene()
         {
+            statusPanelObject = GOptional("HudRoot/StatusPanel");
+            topStatusBar = ROptional("HudRoot/TopStatusBar");
+            topAvatarIcon = ImageOptional("HudRoot/TopStatusBar/AvatarSlot/Icon");
+            topAvatarFallback = TOptional("HudRoot/TopStatusBar/AvatarSlot/Icon/FallbackLabel");
+            topHpIcon = ImageOptional("HudRoot/TopStatusBar/HpSlot/Icon");
+            topHpIconFallback = TOptional("HudRoot/TopStatusBar/HpSlot/Icon/FallbackLabel");
+            topHpValue = TOptional("HudRoot/TopStatusBar/HpSlot/ValueText");
+            topGoldIcon = ImageOptional("HudRoot/TopStatusBar/GoldSlot/Icon");
+            topGoldIconFallback = TOptional("HudRoot/TopStatusBar/GoldSlot/Icon/FallbackLabel");
+            topGoldValue = TOptional("HudRoot/TopStatusBar/GoldSlot/ValueText");
+            topProgressIcon = ImageOptional("HudRoot/TopStatusBar/ProgressSlot/Icon");
+            topProgressIconFallback = TOptional("HudRoot/TopStatusBar/ProgressSlot/Icon/FallbackLabel");
+            topProgressValue = TOptional("HudRoot/TopStatusBar/ProgressSlot/ValueText");
+            topTimerIcon = ImageOptional("HudRoot/TopStatusBar/TimerSlot/Icon");
+            topTimerIconFallback = TOptional("HudRoot/TopStatusBar/TimerSlot/Icon/FallbackLabel");
+            topTimerValue = TOptional("HudRoot/TopStatusBar/TimerSlot/ValueText");
+            topSettingsIcon = ImageOptional("HudRoot/TopStatusBar/SettingsButton/Icon");
+            topSettingsFallback = TOptional("HudRoot/TopStatusBar/SettingsButton/Icon/FallbackLabel");
+
             statusTitle = T("HudRoot/StatusPanel/TitleText");
             statusState = T("HudRoot/StatusPanel/StateText");
             statusAimMode = T("HudRoot/StatusPanel/AimModeText");
@@ -273,7 +314,7 @@ namespace POPHero
             statusEnemy = T("HudRoot/StatusPanel/EnemyText");
             statusEnemyHp = T("HudRoot/StatusPanel/EnemyHpText");
             statusEnemyAtk = T("HudRoot/StatusPanel/EnemyAttackText");
-            settingsButton = B("HudRoot/TopRightControls/SettingsButton");
+            settingsButton = BOptional("HudRoot/TopStatusBar/SettingsButton") ?? B("HudRoot/TopRightControls/SettingsButton");
 
             combatTitle = T("HudRoot/CombatPanel/TitleText");
             combatAttack = T("HudRoot/CombatPanel/RoundAttackText");
@@ -373,6 +414,11 @@ namespace POPHero
         void ValidateBindings()
         {
             Validate(statusTitle, "HudRoot/StatusPanel/TitleText");
+            Validate(topStatusBar, "HudRoot/TopStatusBar");
+            Validate(topHpValue, "HudRoot/TopStatusBar/HpSlot/ValueText");
+            Validate(topGoldValue, "HudRoot/TopStatusBar/GoldSlot/ValueText");
+            Validate(topProgressValue, "HudRoot/TopStatusBar/ProgressSlot/ValueText");
+            Validate(topTimerValue, "HudRoot/TopStatusBar/TimerSlot/ValueText");
             Validate(combatTitle, "HudRoot/CombatPanel/TitleText");
             Validate(blockManagementPanel, "HudRoot/BlockManagementPanel");
             Validate(activeRowsRoot, "HudRoot/BlockManagementPanel/ActiveSection/Rows");
@@ -382,7 +428,7 @@ namespace POPHero
             Validate(shopModal, "ModalRoot/ShopModal");
             Validate(loadoutModal, "ModalRoot/LoadoutModal");
             Validate(gameOverModal, "ModalRoot/GameOverModal");
-            Validate(settingsButton, "HudRoot/TopRightControls/SettingsButton");
+            Validate(settingsButton, "HudRoot/TopStatusBar/SettingsButton");
             Validate(settingsModal, "ModalRoot/SettingsModal");
         }
 
@@ -410,6 +456,7 @@ namespace POPHero
 
         void RefreshStatus()
         {
+            SetActive(statusPanelObject, false);
             var model = statusPresenter.Build(game);
             Set(statusTitle, "战斗状态");
             Set(statusState, string.IsNullOrEmpty(model.StateText) ? model.StateText : model.StateText.Replace("整理", "背包"));
@@ -425,7 +472,31 @@ namespace POPHero
             Set(statusEnemy, model.EnemyText);
             Set(statusEnemyHp, model.EnemyHpText);
             Set(statusEnemyAtk, model.EnemyAttackText);
-            SetButtonLabel(settingsButton, "设置");
+        }
+
+        void RefreshTopStatusBar()
+        {
+            if (topStatusBar == null)
+                return;
+
+            SetActive(topStatusBar, true);
+            var model = topStatusPresenter.Build(game);
+            var visuals = game?.Config?.hud?.topStatusBar;
+
+            ApplyTopStatusIcon(topAvatarIcon, topAvatarFallback, visuals?.playerAvatarSprite, "角", new Color(0.92f, 0.96f, 1f, 1f));
+            ApplyTopStatusIcon(topHpIcon, topHpIconFallback, visuals?.heartIconSprite, "心", new Color(1f, 0.45f, 0.45f, 1f));
+            ApplyTopStatusIcon(topGoldIcon, topGoldIconFallback, visuals?.goldIconSprite, "金", new Color(1f, 0.82f, 0.32f, 1f));
+            ApplyTopStatusIcon(topProgressIcon, topProgressIconFallback, visuals?.progressIconSprite, "层", new Color(0.78f, 0.88f, 1f, 1f));
+            ApplyTopStatusIcon(topTimerIcon, topTimerIconFallback, visuals?.timerIconSprite, "时", new Color(0.96f, 0.9f, 0.66f, 1f));
+            ApplyTopStatusIcon(topSettingsIcon, topSettingsFallback, visuals?.settingsIconSprite, "设", new Color(0.9f, 0.95f, 1f, 1f));
+
+            Set(topHpValue, model.HpText);
+            Set(topGoldValue, model.GoldText);
+            Set(topProgressValue, model.ProgressCountText);
+            Set(topTimerValue, model.RunTimerText);
+
+            if (topSettingsIcon == null && topSettingsFallback == null)
+                SetButtonLabel(settingsButton, "设置");
         }
 
         void RefreshCombat()
@@ -1037,6 +1108,35 @@ namespace POPHero
             }
 
             return node.gameObject;
+        }
+
+        GameObject GOptional(string path)
+        {
+            var node = transform.Find(path);
+            return node == null ? null : node.gameObject;
+        }
+
+        Button BOptional(string path)
+        {
+            var node = transform.Find(path);
+            return node == null ? null : node.GetComponent<Button>();
+        }
+
+        static void ApplyTopStatusIcon(Image icon, TMP_Text fallbackLabel, Sprite sprite, string fallbackText, Color fallbackColor)
+        {
+            if (icon != null)
+            {
+                icon.sprite = sprite;
+                icon.color = Color.white;
+                icon.enabled = sprite != null;
+            }
+
+            if (fallbackLabel != null)
+            {
+                fallbackLabel.text = fallbackText;
+                fallbackLabel.color = fallbackColor;
+                fallbackLabel.gameObject.SetActive(sprite == null);
+            }
         }
 
         static void Validate(UnityEngine.Object value, string path)

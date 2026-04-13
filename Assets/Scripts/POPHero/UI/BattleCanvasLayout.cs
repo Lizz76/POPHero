@@ -9,6 +9,7 @@ namespace POPHero
         {
             public LayoutPreset(
                 float margin,
+                float topBarHeight,
                 float statusWidth,
                 float combatWidth,
                 float combatHeight,
@@ -24,6 +25,7 @@ namespace POPHero
                 Vector2 gameOverSize)
             {
                 Margin = margin;
+                TopBarHeight = topBarHeight;
                 StatusWidth = statusWidth;
                 CombatWidth = combatWidth;
                 CombatHeight = combatHeight;
@@ -40,6 +42,7 @@ namespace POPHero
             }
 
             public float Margin { get; }
+            public float TopBarHeight { get; }
             public float StatusWidth { get; }
             public float CombatWidth { get; }
             public float CombatHeight { get; }
@@ -61,6 +64,7 @@ namespace POPHero
         RectTransform rightRailZone;
         RectTransform centerModalZone;
 
+        RectTransform topStatusBar;
         RectTransform statusPanel;
         RectTransform combatPanel;
         RectTransform combatButtons;
@@ -143,6 +147,7 @@ namespace POPHero
             rightRailZone ??= FindRect("HudRoot/RightRailZone");
             centerModalZone ??= FindRect("ModalRoot/CenterModalZone");
 
+            topStatusBar ??= FindRect("HudRoot/TopStatusBar");
             statusPanel ??= FindRect("HudRoot/StatusPanel");
             combatPanel ??= FindRect("HudRoot/CombatPanel");
             combatButtons ??= FindRect("HudRoot/CombatPanel/Buttons");
@@ -218,6 +223,7 @@ namespace POPHero
             var preset = ChoosePreset(canvasRoot.rect.width);
 
             ApplyZones(preset);
+            ApplyTopStatusBar(preset);
             ApplyStatusPanel(preset);
             ApplyCombatPanel(preset);
             ApplyDamagePanel(preset);
@@ -234,9 +240,11 @@ namespace POPHero
 
         void ApplyZones(LayoutPreset preset)
         {
+            var reservedTop = preset.Margin + preset.TopBarHeight + 12f;
+
             if (topLeftZone != null)
             {
-                SetTopLeft(topLeftZone, preset.Margin, preset.Margin, preset.StatusWidth);
+                SetTopLeft(topLeftZone, preset.Margin, reservedTop, preset.StatusWidth);
                 topLeftZone.sizeDelta = new Vector2(preset.StatusWidth, canvasRoot.rect.height * 0.42f);
             }
 
@@ -248,7 +256,7 @@ namespace POPHero
             }
 
             if (rightRailZone != null)
-                StretchRight(rightRailZone, preset.Margin, preset.Margin, preset.Margin, preset.RailWidth);
+                StretchRight(rightRailZone, reservedTop, preset.Margin, preset.Margin, preset.RailWidth);
 
             if (centerModalZone != null)
             {
@@ -256,8 +264,16 @@ namespace POPHero
                 centerModalZone.anchorMax = new Vector2(1f, 1f);
                 centerModalZone.pivot = new Vector2(0.5f, 0.5f);
                 centerModalZone.offsetMin = new Vector2(preset.Margin * 2f, preset.Margin);
-                centerModalZone.offsetMax = new Vector2(-(preset.RailWidth + preset.Margin * 2f), -preset.Margin);
+                centerModalZone.offsetMax = new Vector2(-(preset.RailWidth + preset.Margin * 2f), -reservedTop);
             }
+        }
+
+        void ApplyTopStatusBar(LayoutPreset preset)
+        {
+            if (topStatusBar == null)
+                return;
+
+            SetTopStretch(topStatusBar, preset.Margin, preset.Margin, preset.Margin, preset.TopBarHeight);
         }
 
         void ApplyStatusPanel(LayoutPreset preset)
@@ -708,6 +724,7 @@ namespace POPHero
             {
                 return new LayoutPreset(
                     24f,
+                    72f,
                     360f,
                     560f,
                     236f,
@@ -727,6 +744,7 @@ namespace POPHero
             {
                 return new LayoutPreset(
                     16f,
+                    68f,
                     320f,
                     460f,
                     214f,
@@ -744,6 +762,7 @@ namespace POPHero
 
             return new LayoutPreset(
                 12f,
+                64f,
                 280f,
                 420f,
                 198f,

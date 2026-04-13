@@ -11,6 +11,7 @@ namespace POPHero
         public BallSettings ball = new();
         public AimSettings aim = new();
         public PlayerSettings player = new();
+        public HudSettings hud = new();
         public BoardSettings board = new();
         public BlockRewardSettings blockRewards = new();
         public StickerSettings stickers = new();
@@ -108,6 +109,23 @@ namespace POPHero
         public int currentHp = 100;
         public int startShield = 0;
         public int startGold = 0;
+    }
+
+    [Serializable]
+    public class HudSettings
+    {
+        public TopStatusBarVisualSettings topStatusBar = new();
+    }
+
+    [Serializable]
+    public class TopStatusBarVisualSettings
+    {
+        public Sprite playerAvatarSprite;
+        public Sprite heartIconSprite;
+        public Sprite goldIconSprite;
+        public Sprite progressIconSprite;
+        public Sprite timerIconSprite;
+        public Sprite settingsIconSprite;
     }
 
     [Serializable]

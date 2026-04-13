@@ -68,6 +68,37 @@ namespace POPHero.Editor
             Debug.Log("[POPHero] Settings UI installed into Battle scene.");
         }
 
+        [MenuItem("POPHero/Install Top Status Bar Into Battle Scene")]
+        public static void InstallTopStatusBarIntoBattleScene()
+        {
+            var scene = EditorSceneManager.OpenScene(BattleScenePath, OpenSceneMode.Single);
+            var canvas = Object.FindObjectOfType<CanvasHudController>(true);
+            if (canvas == null)
+            {
+                Debug.LogError("[POPHero] Cannot install top status bar: CanvasHudController not found in Battle scene.");
+                return;
+            }
+
+            var hudRoot = canvas.transform.Find("HudRoot") as RectTransform;
+            if (hudRoot == null)
+            {
+                Debug.LogError("[POPHero] Cannot install top status bar: HudRoot is missing.");
+                return;
+            }
+
+            ReplaceChild(hudRoot, "TopStatusBar");
+            ReplaceChild(hudRoot, "TopRightControls");
+            BuildTopStatusBar(hudRoot);
+
+            var statusPanel = hudRoot.Find("StatusPanel");
+            if (statusPanel != null)
+                statusPanel.gameObject.SetActive(false);
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            Debug.Log("[POPHero] Top status bar installed into Battle scene.");
+        }
+
         [MenuItem("POPHero/Build Boot Scene")]
         public static void BuildBootScene()
         {
@@ -366,8 +397,8 @@ namespace POPHero.Editor
             StretchPanel("RightRailZone", hudRoot);
             StretchPanel("CenterModalZone", modalRoot);
 
-            BuildSettingsButton(hudRoot);
             BuildStatusPanel(hudRoot);
+            BuildTopStatusBar(hudRoot);
             BuildCombatPanel(hudRoot);
             BuildBlockManagementPanel(hudRoot);
             BuildDamagePanel(hudRoot);
@@ -381,6 +412,32 @@ namespace POPHero.Editor
             return canvasRoot;
         }
 
+        static void BuildTopStatusBar(RectTransform hudRoot)
+        {
+            var bar = Panel("TopStatusBar", hudRoot, new Vector2(0f, 1f), new Vector2(1f, 1f), Vector2.zero, new Vector2(0f, 68f));
+            bar.pivot = new Vector2(0.5f, 1f);
+            bar.offsetMin = new Vector2(18f, -86f);
+            bar.offsetMax = new Vector2(-18f, -18f);
+            bar.gameObject.AddComponent<Image>().color = new Color(0.08f, 0.1f, 0.14f, 0.96f);
+
+            var layout = AddHorizontal(bar, 12, 12);
+            layout.childAlignment = TextAnchor.MiddleLeft;
+            layout.childControlWidth = false;
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = false;
+
+            BuildTopStatusAvatar(bar);
+            BuildTopStatusMetric(bar, "HpSlot", "74/80");
+            BuildTopStatusMetric(bar, "GoldSlot", "0");
+            BuildTopStatusMetric(bar, "ProgressSlot", "0");
+            BuildTopStatusMetric(bar, "TimerSlot", "00:00");
+
+            var spacer = Panel("Spacer", bar, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, 0f));
+            spacer.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
+
+            BuildTopStatusSettingsButton(bar);
+        }
+
         static void BuildSettingsButton(RectTransform hudRoot)
         {
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(SettingsButtonPrefabPath);
@@ -391,6 +448,101 @@ namespace POPHero.Editor
             var controls = instance.GetComponent<RectTransform>();
             controls.SetParent(hudRoot, false);
             ConfigureSettingsButtonRect(controls);
+        }
+
+        static void BuildTopStatusAvatar(RectTransform parent)
+        {
+            var slot = Panel("AvatarSlot", parent, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(56f, 56f));
+            var layout = slot.gameObject.AddComponent<LayoutElement>();
+            layout.minWidth = 56f;
+            layout.preferredWidth = 56f;
+            layout.minHeight = 56f;
+            layout.preferredHeight = 56f;
+            slot.gameObject.AddComponent<Image>().color = new Color(0.14f, 0.18f, 0.24f, 0.96f);
+            BuildTopStatusIcon(slot, "角");
+        }
+
+        static void BuildTopStatusMetric(RectTransform parent, string name, string placeholderValue)
+        {
+            var slot = Panel(name, parent, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, 56f));
+            var layoutElement = slot.gameObject.AddComponent<LayoutElement>();
+            layoutElement.minHeight = 56f;
+            layoutElement.preferredHeight = 56f;
+            layoutElement.minWidth = name switch
+            {
+                "HpSlot" => 154f,
+                "GoldSlot" => 112f,
+                "ProgressSlot" => 112f,
+                "TimerSlot" => 146f,
+                _ => 120f
+            };
+            layoutElement.preferredWidth = layoutElement.minWidth;
+
+            slot.gameObject.AddComponent<Image>().color = new Color(0.12f, 0.15f, 0.22f, 0.96f);
+            var layout = AddHorizontal(slot, 10, 12);
+            layout.childAlignment = TextAnchor.MiddleLeft;
+            layout.childControlWidth = false;
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = false;
+
+            BuildTopStatusIcon(slot, name switch
+            {
+                "HpSlot" => "心",
+                "GoldSlot" => "金",
+                "ProgressSlot" => "层",
+                "TimerSlot" => "时",
+                _ => "?"
+            });
+
+            var value = Text("ValueText", slot, 22, FontStyles.Bold, placeholderValue, TextAlignmentOptions.Left);
+            value.color = Color.white;
+            value.rectTransform.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
+        }
+
+        static void BuildTopStatusSettingsButton(RectTransform parent)
+        {
+            var buttonRect = Panel("SettingsButton", parent, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(52f, 52f));
+            var layoutElement = buttonRect.gameObject.AddComponent<LayoutElement>();
+            layoutElement.minWidth = 52f;
+            layoutElement.preferredWidth = 52f;
+            layoutElement.minHeight = 52f;
+            layoutElement.preferredHeight = 52f;
+
+            var image = buttonRect.gameObject.AddComponent<Image>();
+            image.color = new Color(0.18f, 0.24f, 0.34f, 0.98f);
+            var button = buttonRect.gameObject.AddComponent<Button>();
+            var colors = button.colors;
+            colors.normalColor = image.color;
+            colors.highlightedColor = image.color * 1.08f;
+            colors.pressedColor = image.color * 0.92f;
+            colors.selectedColor = colors.highlightedColor;
+            colors.disabledColor = new Color(0.2f, 0.24f, 0.3f, 0.6f);
+            button.colors = colors;
+
+            BuildTopStatusIcon(buttonRect, "设");
+        }
+
+        static void BuildTopStatusIcon(RectTransform parent, string fallbackText)
+        {
+            var frame = Panel("Icon", parent, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(28f, 28f));
+            var layout = frame.gameObject.AddComponent<LayoutElement>();
+            layout.minWidth = 28f;
+            layout.preferredWidth = 28f;
+            layout.minHeight = 28f;
+            layout.preferredHeight = 28f;
+
+            var iconImage = frame.gameObject.AddComponent<Image>();
+            iconImage.preserveAspect = true;
+            iconImage.raycastTarget = false;
+
+            var fallback = Text("FallbackLabel", frame, 18, FontStyles.Bold, fallbackText, TextAlignmentOptions.Center);
+            fallback.color = Color.white;
+            fallback.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+            fallback.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            fallback.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            fallback.rectTransform.anchoredPosition = Vector2.zero;
+            fallback.rectTransform.sizeDelta = new Vector2(28f, 28f);
+            fallback.raycastTarget = false;
         }
 
         static void BuildStatusPanel(RectTransform hudRoot)
@@ -416,6 +568,7 @@ namespace POPHero.Editor
             Text("EnemyText", panel, 18, FontStyles.Normal, string.Empty, TextAlignmentOptions.MidlineLeft);
             Text("EnemyHpText", panel, 18, FontStyles.Normal, string.Empty, TextAlignmentOptions.MidlineLeft);
             Text("EnemyAttackText", panel, 18, FontStyles.Normal, string.Empty, TextAlignmentOptions.MidlineLeft);
+            panel.gameObject.SetActive(false);
         }
 
         static void BuildCombatPanel(RectTransform hudRoot)

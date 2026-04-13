@@ -15,6 +15,7 @@ namespace POPHero
         bool CanManageBlockAssignments { get; }
         bool IsInitialBlockDraftPending { get; }
         bool IsSettingsOpen { get; }
+        float RunElapsedSeconds { get; }
         string AimModeDisplayText { get; }
         int PreviewHitCount { get; }
         int PreviewAttackBlockCount { get; }

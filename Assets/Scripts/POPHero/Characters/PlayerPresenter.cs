@@ -82,6 +82,8 @@ namespace POPHero
 
             ApplyRuntimeFont(nameLabel);
             ApplyRuntimeFont(hpLabel);
+            if (nameLabel != null)
+                nameLabel.gameObject.SetActive(false);
             CacheSortingRenderers();
         }
 

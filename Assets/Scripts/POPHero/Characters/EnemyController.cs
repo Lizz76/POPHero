@@ -24,6 +24,7 @@ namespace POPHero
         float flashDuration;
         int snapshotHp = -1;
         int snapshotMaxHp = -1;
+        bool intentSuppressed;
         Renderer[] sortingRenderers;
         int[] baseSortingOrders;
 
@@ -114,6 +115,9 @@ namespace POPHero
             ApplyRuntimeFont(nameLabel);
             ApplyRuntimeFont(intentLabel);
             ApplyRuntimeFont(hpLabel);
+            if (nameLabel != null)
+                nameLabel.gameObject.SetActive(false);
+            RefreshIntentDisplay();
             CaptureBaseColors();
             CacheSortingRenderers();
         }
@@ -123,8 +127,10 @@ namespace POPHero
             currentEnemy = enemyData;
             snapshotHp = -1;
             snapshotMaxHp = -1;
+            intentSuppressed = false;
             CaptureBaseColors();
             Refresh();
+            RefreshIntentDisplay();
         }
 
         public void SetPreviewDamage(int pendingDamage)
@@ -139,6 +145,7 @@ namespace POPHero
         {
             snapshotHp = Mathf.Max(0, hp);
             snapshotMaxHp = Mathf.Max(1, maxHp);
+            RefreshIntentDisplay();
             RefreshHpBar();
         }
 
@@ -160,6 +167,15 @@ namespace POPHero
             flashDuration = wasKillingBlow ? 0.32f : 0.14f;
             flashTimer = flashDuration;
             ApplyActorColors(1f);
+        }
+
+        public void SetIntentSuppressed(bool suppressed)
+        {
+            if (intentSuppressed == suppressed)
+                return;
+
+            intentSuppressed = suppressed;
+            RefreshIntentDisplay();
         }
 
         public void SetSortingOffset(int sortingOffset)
@@ -205,6 +221,16 @@ namespace POPHero
             var width = HpBarWidth * ratio;
             renderer.transform.localScale = new Vector3(width, HpBarHeight, 1f);
             renderer.transform.localPosition = new Vector3(-HpBarWidth * 0.5f + HpBarWidth * startRatio + width * 0.5f, -1.8f, renderer.transform.localPosition.z);
+        }
+
+        void RefreshIntentDisplay()
+        {
+            if (intentLabel == null)
+                return;
+
+            var showIntent = currentEnemy != null && currentEnemy.CurrentHp > 0 && !intentSuppressed;
+            intentLabel.gameObject.SetActive(showIntent);
+            intentLabel.text = showIntent ? $"攻击 {currentEnemy.AttackDamage}" : string.Empty;
         }
 
         void Update()

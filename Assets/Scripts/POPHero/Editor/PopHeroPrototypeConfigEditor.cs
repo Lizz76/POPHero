@@ -10,6 +10,7 @@ namespace POPHero.Editor
         bool showBall = true;
         bool showAim = true;
         bool showPlayer = true;
+        bool showHud = true;
         bool showBoard = true;
         bool showBlockRewards = true;
         bool showStickers = true;
@@ -36,6 +37,7 @@ namespace POPHero.Editor
             DrawDefaultSection("Ball", serializedObject.FindProperty("ball"), ref showBall);
             DrawDefaultSection("Aim", serializedObject.FindProperty("aim"), ref showAim);
             DrawDefaultSection("Player", serializedObject.FindProperty("player"), ref showPlayer);
+            DrawHudSection(serializedObject.FindProperty("hud"));
             DrawBoardSection(serializedObject.FindProperty("board"));
             DrawDefaultSection("Block Rewards", serializedObject.FindProperty("blockRewards"), ref showBlockRewards);
             DrawDefaultSection("Stickers", serializedObject.FindProperty("stickers"), ref showStickers);
@@ -117,6 +119,31 @@ namespace POPHero.Editor
                 EditorGUILayout.Space(4f);
                 EditorGUILayout.LabelField("Block Art Sprites", EditorStyles.boldLabel);
                 DrawBoardVisuals(board.FindPropertyRelative("visuals"));
+            }
+
+            EditorGUILayout.EndFoldoutHeaderGroup();
+            EditorGUILayout.Space(4f);
+        }
+
+        void DrawHudSection(SerializedProperty hud)
+        {
+            showHud = EditorGUILayout.BeginFoldoutHeaderGroup(showHud, "HUD");
+            if (showHud)
+            {
+                var topStatusBar = hud?.FindPropertyRelative("topStatusBar");
+                if (topStatusBar != null)
+                {
+                    EditorGUILayout.HelpBox("Top status bar icons are optional. If a sprite slot is empty, the battle HUD falls back to a readable placeholder icon/text so layout and interaction still work.", MessageType.Info);
+                    EditorGUILayout.LabelField("Top Status Bar Icons", EditorStyles.boldLabel);
+                    EditorGUI.indentLevel++;
+                    EditorGUILayout.PropertyField(topStatusBar.FindPropertyRelative("playerAvatarSprite"), new GUIContent("Player Avatar Sprite"));
+                    EditorGUILayout.PropertyField(topStatusBar.FindPropertyRelative("heartIconSprite"), new GUIContent("Heart Icon Sprite"));
+                    EditorGUILayout.PropertyField(topStatusBar.FindPropertyRelative("goldIconSprite"), new GUIContent("Gold Icon Sprite"));
+                    EditorGUILayout.PropertyField(topStatusBar.FindPropertyRelative("progressIconSprite"), new GUIContent("Progress Icon Sprite"));
+                    EditorGUILayout.PropertyField(topStatusBar.FindPropertyRelative("timerIconSprite"), new GUIContent("Timer Icon Sprite"));
+                    EditorGUILayout.PropertyField(topStatusBar.FindPropertyRelative("settingsIconSprite"), new GUIContent("Settings Icon Sprite"));
+                    EditorGUI.indentLevel--;
+                }
             }
 
             EditorGUILayout.EndFoldoutHeaderGroup();

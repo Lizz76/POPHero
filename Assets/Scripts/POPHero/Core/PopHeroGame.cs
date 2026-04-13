@@ -106,6 +106,7 @@ namespace POPHero
         public InputAimMode CurrentAimMode => config.aim.currentAimMode;
         public bool IsInitialBlockDraftPending => initialBlockDraftPending;
         public bool IsSettingsOpen { get; private set; }
+        public float RunElapsedSeconds => runElapsedSeconds;
         public bool CanManageBlockAssignments => !IsSettingsOpen && (State == RoundState.Shop || State == RoundState.LoadoutManage);
         public string AimModeDisplayText => CurrentAimMode == InputAimMode.PCMouseAimClick ? "移动鼠标瞄准，左键发射" : "拖动瞄准，再点一次发射";
         public string CurrentAimModeLabel => CurrentAimMode == InputAimMode.PCMouseAimClick ? "移动鼠标瞄准，左键发射" : "拖动瞄准，再点一次发射";
@@ -154,6 +155,7 @@ namespace POPHero
         Vector3 playerIdlePosition;
         Vector3 enemyIdlePosition;
         BoardBlock hoveredWorldTooltipBlock;
+        float runElapsedSeconds;
         float timeScaleBeforeSettings = 1f;
         bool suppressAimInputAfterUi;
         int suppressAimInputReleaseFrame = int.MaxValue;
@@ -405,6 +407,7 @@ namespace POPHero
 
         void Update()
         {
+            UpdateRunTimer();
             UpdateUiInputSuppression();
             if (!IsSettingsOpen)
                 intermissionFlowController?.ProcessPendingAction();
@@ -438,6 +441,7 @@ namespace POPHero
             initialBlockDraftPending = false;
             GameOverMessage = "本局结束。";
             IntermissionMessage = string.Empty;
+            runElapsedSeconds = 0f;
             ClearPendingIntermissionAction();
             damageCounterView?.ResetCounter();
             isBattlePresentationPlaying = false;
@@ -913,6 +917,7 @@ namespace POPHero
             ballController.PlaceAt(CurrentLaunchPoint);
             ResetBattleActorPositions();
             playerPresenter?.Refresh(Player);
+            enemyController?.SetIntentSuppressed(false);
             enemyController?.Refresh();
             RefreshLaunchCounter();
             UpdateLaunchMarker();
@@ -935,6 +940,7 @@ namespace POPHero
             enemyController.gameObject.SetActive(true);
             ResetBattleActorPositions();
             enemyController.SetEnemy(CurrentEnemy);
+            enemyController.SetIntentSuppressed(false);
         }
 
         EnemyData BuildEnemyForIndex(int index)
@@ -1233,6 +1239,14 @@ namespace POPHero
             canvasHud?.RefreshNow();
         }
 
+        void UpdateRunTimer()
+        {
+            if (IsSettingsOpen || State == RoundState.GameOver)
+                return;
+
+            runElapsedSeconds += Time.unscaledDeltaTime;
+        }
+
         public void CloseSettings()
         {
             if (!IsSettingsOpen)
@@ -1441,6 +1455,7 @@ namespace POPHero
             if (!result.enemyDefeated && CurrentEnemy != null && result.enemyCounterDamage > 0)
             {
                 yield return new WaitForSeconds(0.06f);
+                enemyController?.SetIntentSuppressed(true);
                 enemyController?.SetSortingOffset(AttackForegroundSortingOffset);
                 yield return PlayAttackLeap(enemyController != null ? enemyController.transform : null, enemyIdlePosition, playerPresenter != null ? playerPresenter.transform.position + new Vector3(0f, 1.04f, 0f) : playerIdlePosition, NeutralEnemyImpactColor, () =>
                 {
@@ -1448,6 +1463,7 @@ namespace POPHero
                     playerPresenter?.PlayHitFeedback(result.playerDefeated || result.enemyCounterDamage >= 18);
                 });
                 enemyController?.SetSortingOffset(0);
+                enemyController?.SetIntentSuppressed(false);
             }
             else if (result.enemyCounterDamage <= 0)
             {
@@ -1565,6 +1581,7 @@ namespace POPHero
         {
             playerPresenter?.SetSortingOffset(0);
             enemyController?.SetSortingOffset(0);
+            enemyController?.SetIntentSuppressed(false);
         }
 
         void RefreshWorldBlockTooltip()
