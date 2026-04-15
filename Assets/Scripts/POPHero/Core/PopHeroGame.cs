@@ -28,6 +28,8 @@ namespace POPHero
 
         public PopHeroPrototypeConfig config;
         public PopHeroPrototypeConfig Config => config;
+        [SerializeField] PopHeroTableConfig tableConfig;
+        public ConfigTableService Tables { get; private set; }
 
         // Scene references assigned from the Battle scene.
         [Header("Scene References")]
@@ -163,6 +165,13 @@ namespace POPHero
         void Awake()
         {
             config = Resources.Load<PopHeroPrototypeConfig>("PopHeroPrototypeConfig") ?? PopHeroPrototypeConfig.CreateRuntimeDefault();
+            tableConfig = Resources.Load<PopHeroTableConfig>("POPHeroTableConfig");
+            Tables = new ConfigTableService(tableConfig, config);
+            if (tableConfig == null || !tableConfig.HasGameplayTables)
+                Debug.LogError("[POPHero] POPHeroTableConfig is missing or empty. Run POPHero/Config/Rebuild Tables to generate runtime table data.");
+            else
+                Tables.ApplyToPrototypeConfig(config);
+
             config.aim ??= new AimSettings();
             CacheArenaRect();
             SetupCamera();
@@ -348,7 +357,7 @@ namespace POPHero
             ballController.SetTrajectoryPredictor(trajectoryPredictor);
             bounceStepSolver = new BounceStepSolver(this, ballController);
 
-            stickerCatalog = new StickerCatalog();
+            stickerCatalog = new StickerCatalog(tableConfig);
             stickerInventory = new StickerInventory();
             stickerEffectRunner = new StickerEffectRunner();
             rewardChoiceController = new RewardChoiceController();
@@ -953,22 +962,9 @@ namespace POPHero
             var rewardGold = template.rewardGold + overflow * config.enemies.endlessGoldGrowth;
             var rewardHeal = template.rewardHeal + overflow * config.enemies.endlessHealGrowth;
             var attackDamage = template.attackDamage + overflow * config.enemies.endlessAttackGrowth;
-            var baseName = GetCleanEnemyName(clampedIndex, template.displayName);
+            var baseName = string.IsNullOrWhiteSpace(template.displayName) ? "敌人" : template.displayName;
             var name = overflow > 0 ? $"{baseName}+{overflow}" : baseName;
             return new EnemyData(name, hp, rewardGold, rewardHeal, attackDamage, template.color);
-        }
-
-                static string GetCleanEnemyName(int index, string fallbackName)
-        {
-            return index switch
-            {
-                0 => "荆棘神像",
-                1 => "铁信使",
-                2 => "尖刺图腾",
-                3 => "战祭司",
-                4 => "深渊领主",
-                _ => string.IsNullOrWhiteSpace(fallbackName) ? "敌人" : fallbackName
-            };
         }
 
         void UpdateLaunchMarker()

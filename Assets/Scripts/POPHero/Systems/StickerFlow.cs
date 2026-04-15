@@ -177,7 +177,7 @@ namespace POPHero
             if (growthPool.Count == 0)
                 return null;
 
-            var data = growthPool[Random.Range(0, growthPool.Count)];
+            var data = GetRandomGrowthReward();
             return new RewardChoiceEntry
             {
                 id = $"reward_growth_{data.id}",
@@ -186,6 +186,26 @@ namespace POPHero
                 kind = ShopItemKind.Growth,
                 growthData = data
             };
+        }
+
+        GrowthRewardData GetRandomGrowthReward()
+        {
+            var totalWeight = 0;
+            foreach (var growth in growthPool)
+                totalWeight += Mathf.Max(0, growth.weight);
+
+            if (totalWeight <= 0)
+                return growthPool[Random.Range(0, growthPool.Count)];
+
+            var roll = Random.Range(0, totalWeight);
+            foreach (var growth in growthPool)
+            {
+                roll -= Mathf.Max(0, growth.weight);
+                if (roll < 0)
+                    return growth;
+            }
+
+            return growthPool[growthPool.Count - 1];
         }
 
         void ApplyChoice(RewardChoiceEntry entry)
@@ -211,6 +231,25 @@ namespace POPHero
 
         void BuildGrowthPool()
         {
+            if (game?.Tables?.Raw != null && game.Tables.Raw.growthRewards.Count > 0)
+            {
+                foreach (var row in game.Tables.Raw.growthRewards)
+                {
+                    growthPool.Add(new GrowthRewardData
+                    {
+                        id = row.id,
+                        name = row.name,
+                        description = row.description,
+                        rewardType = row.rewardType,
+                        value = row.value,
+                        shopPrice = row.shopPrice,
+                        weight = row.weight
+                    });
+                }
+
+                return;
+            }
+
             growthPool.Add(new GrowthRewardData { id = "growth_socket", name = "Extra Socket", description = "Unlock 1 extra socket on a random carrier card.", rewardType = GrowthRewardType.UnlockSocket, value = 1 });
             growthPool.Add(new GrowthRewardData { id = "growth_inventory", name = "Inventory Up", description = "Sticker inventory capacity +1.", rewardType = GrowthRewardType.IncreaseInventoryCapacity, value = 1 });
             growthPool.Add(new GrowthRewardData { id = "growth_launch", name = "Spare Ball", description = "Launch count per enemy +1.", rewardType = GrowthRewardType.IncreaseLaunchCapacity, value = 1 });

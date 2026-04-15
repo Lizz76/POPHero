@@ -74,6 +74,7 @@ namespace POPHero
         public float interiorPushOutPadding = 0.03f;
         public int interiorRepeatLimit = 2;
         public float sameColliderMinTravel = 0.025f;
+        public int maxCollisionStepsPerFixedUpdate = 64;
         public float previewLineStartWidth = 0.08f;
         public float previewLineEndWidth = 0.05f;
         public float hitCooldown = 0.05f;

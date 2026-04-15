@@ -1,8 +1,8 @@
-﻿id,killThreshold,whiteWeight,blueWeight,purpleWeight,goldWeight
-int,int,int,int,int,int
+id,killThreshold,whiteWeight,blueWeight,purpleWeight,goldWeight
+int,int,float,float,float,float
 both,both,both,both,both,both
 阶段ID,进入该阶段所需击杀数,白色权重,蓝色权重,紫色权重,金色权重
-,,,,,,
+,,,,,
 1,0,75,20,5,0
 2,3,55,30,12,3
 3,6,40,35,18,7

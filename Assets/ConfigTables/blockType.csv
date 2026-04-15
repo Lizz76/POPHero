@@ -1,8 +1,8 @@
-﻿id,name,nameCN,blockClass,des
-int,string,string,string,string
+id,blockTypeKey,nameCN,familyKey,des
+string,string,string,string,string
 both,both,both,both,both
-方块类型ID,英文标识,中文名,对应C#类名,功能描述
-,,,,
-1,AttackAdd,攻击方块,AttackAddBlock,命中时增加固定伤害值
-2,AttackMultiply,倍率方块,AttackMultiplyBlock,命中时按百分比放大本回合伤害
-3,Shield,防御方块,ShieldBlock,命中时获得护盾值
+方块类型ID,对应C# BoardBlockType,中文名,方块家族,功能描述
+,,,, 
+block_attack,AttackAdd,攻击,Strike,命中时增加固定伤害值
+block_multiplier,AttackMultiply,倍率,Prism,命中时按倍率放大本回合伤害
+block_shield,Shield,防御,Guard,命中时获得护盾值

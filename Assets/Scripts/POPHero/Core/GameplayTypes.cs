@@ -184,6 +184,15 @@ namespace POPHero
         Growth
     }
 
+    public enum ShopSlotKind
+    {
+        Sticker,
+        Mod,
+        Growth,
+        RemoveBlock,
+        Reroll
+    }
+
     public enum GrowthRewardType
     {
         UnlockSocket,
@@ -399,6 +408,8 @@ namespace POPHero
         public string description;
         public GrowthRewardType rewardType;
         public int value;
+        public int shopPrice;
+        public int weight = 100;
     }
 
     [Serializable]

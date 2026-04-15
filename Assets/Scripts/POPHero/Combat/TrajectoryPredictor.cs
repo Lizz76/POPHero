@@ -7,11 +7,13 @@ namespace POPHero
     {
         PopHeroGame game;
         BallController ball;
+        BallFlightSimulator flightSimulator;
 
         public void Initialize(PopHeroGame owner, BallController ballController)
         {
             game = owner;
             ball = ballController;
+            flightSimulator = new BallFlightSimulator(owner, ballController);
         }
 
         public bool TryCastStep(Vector2 origin, Vector2 direction, float maxDistance, out TrajectoryCastStep step)
@@ -41,121 +43,31 @@ namespace POPHero
         public TrajectoryPreviewResult BuildPreview(Vector2 origin, Vector2 direction, int maxBounces, float maxDistance)
         {
             var result = new TrajectoryPreviewResult();
-            var highlightedBlocks = new HashSet<BoardBlock>();
-            var currentOrigin = origin;
-            var currentDirection = direction.sqrMagnitude <= 0.0001f ? Vector2.up : direction.normalized;
-            var remainingDistance = Mathf.Max(1f, maxDistance);
-            var epsilon = Mathf.Max(0.001f, game.config.ball.previewHitEpsilon);
-            var minHitGap = Mathf.Max(epsilon, game.config.ball.previewMinHitGap);
-            var previousHitPoint = Vector2.zero;
-            var hasPreviousHitPoint = false;
-            Collider2D previousCollider = null;
-            Collider2D ignoredCollider = null;
-            Collider2D secondaryIgnoredCollider = null;
-            WallHitMemory previousWallHit = default;
             var predictedAttack = 0;
             var predictedShield = 0;
-            Collider2D recoveryCollider = null;
-            var recoveryCount = 0;
-
-            result.pathPoints.Add(ToPoint(origin));
-            result.finalDirection = currentDirection;
-
-            for (var bounceIndex = 0; bounceIndex < Mathf.Max(1, maxBounces) && remainingDistance > epsilon; bounceIndex++)
+            var simulationState = BallFlightState.Create(origin, direction, game.config.ball.speed);
+            var simulationResult = flightSimulator.Simulate(simulationState, new BallFlightRunOptions
             {
-                if (!TryCastStep(currentOrigin, currentDirection, remainingDistance, ignoredCollider, secondaryIgnoredCollider, out var step))
-                {
-                    result.pathPoints.Add(ToPoint(currentOrigin + currentDirection * remainingDistance));
-                    result.finalDirection = currentDirection;
-                    break;
-                }
+                distanceBudget = Mathf.Max(1f, maxDistance),
+                maxTotalDistance = Mathf.Max(1f, maxDistance),
+                maxDuration = Mathf.Max(0.1f, game.config.ball.maxFlightDuration),
+                maxBounces = Mathf.Max(1, maxBounces),
+                maxSteps = Mathf.Max(64, Mathf.Max(1, maxBounces) * 6),
+                includeStartPoint = true
+            });
 
-                var cornerResolved = TryResolveCornerBounce(previousWallHit, step, out var cornerBounce);
-                if (cornerResolved)
-                {
-                    step.hitPoint = cornerBounce.safePoint;
-                    step.hitNormal = cornerBounce.combinedNormal;
-                    step.travelDistance = Mathf.Max(step.travelDistance, Vector2.Distance(currentOrigin, step.hitPoint));
-                }
+            result.pathPoints.AddRange(simulationResult.pathPoints);
+            result.hitBottom = simulationResult.hitBottom;
+            result.finalDirection = simulationResult.finalDirection;
+            result.bounceCount = simulationResult.bounceCount;
 
-                var hitPoint = step.hitPoint;
-                if (hasPreviousHitPoint &&
-                    previousCollider == step.collider &&
-                    Vector2.Distance(previousHitPoint, hitPoint) < minHitGap)
-                    break;
+            foreach (var flightEvent in simulationResult.events)
+            {
+                if (flightEvent.eventType != BallFlightEventType.BlockHit || flightEvent.block == null)
+                    continue;
 
-                result.pathPoints.Add(ToPoint(hitPoint));
-                previousHitPoint = hitPoint;
-                hasPreviousHitPoint = true;
-                if (step.isRecoveryStep)
-                {
-                    recoveryCount = recoveryCollider == step.collider ? recoveryCount + 1 : 1;
-                    recoveryCollider = step.collider;
-                }
-                else
-                {
-                    recoveryCount = 0;
-                    recoveryCollider = null;
-                }
-
-                var travelCost = step.isRecoveryStep
-                    ? Mathf.Max(epsilon, game.config.ball.sameColliderMinTravel)
-                    : Mathf.Max(epsilon, step.travelDistance);
-                remainingDistance -= travelCost;
-
-                var block = step.block;
-                if (!step.isRecoveryStep && block != null)
-                {
-                    ApplyPredictedBlockEffect(block, ref predictedAttack, ref predictedShield);
-                    if (highlightedBlocks.Add(block))
-                        result.hitBlocks.Add(block);
-                }
-
-                if (step.marker != null && step.marker.surfaceType == ArenaSurfaceType.Bottom)
-                {
-                    result.hitBottom = true;
-                    result.finalDirection = currentDirection;
-                    break;
-                }
-
-                var reflectDirection = Vector2.Reflect(currentDirection, step.hitNormal).normalized;
-                if (reflectDirection.sqrMagnitude <= 0.0001f)
-                    break;
-
-                if (!step.isRecoveryStep)
-                    result.bounceCount += 1;
-                currentOrigin = hitPoint + reflectDirection * epsilon;
-                currentDirection = reflectDirection;
-                result.finalDirection = reflectDirection;
-                if (cornerResolved)
-                {
-                    ignoredCollider = cornerBounce.ignoredColliderA;
-                    secondaryIgnoredCollider = cornerBounce.ignoredColliderB;
-                    previousWallHit.Clear();
-                }
-                else if (step.isRecoveryStep)
-                {
-                    ignoredCollider = step.collider;
-                    secondaryIgnoredCollider = null;
-                    previousWallHit.Clear();
-                    if (recoveryCount >= Mathf.Max(1, game.config.ball.interiorRepeatLimit))
-                    {
-                        currentOrigin = hitPoint + reflectDirection * Mathf.Max(epsilon * 2f, GetBallRadius() * 0.18f);
-                        recoveryCount = 0;
-                        recoveryCollider = null;
-                    }
-                }
-                else
-                {
-                    ignoredCollider = step.collider;
-                    secondaryIgnoredCollider = null;
-                    if (step.marker != null && IsReflectiveWall(step.marker.surfaceType))
-                        previousWallHit.Set(step.marker.surfaceType, hitPoint, step.hitNormal, step.collider);
-                    else
-                        previousWallHit.Clear();
-                }
-
-                previousCollider = step.collider;
+                ApplyPredictedBlockEffect(flightEvent.block, ref predictedAttack, ref predictedShield);
+                result.hitBlocks.Add(flightEvent.block);
             }
 
             result.predictedAttackScore = predictedAttack;
@@ -180,27 +92,6 @@ namespace POPHero
             }
         }
 
-        static Vector3 ToPoint(Vector2 point)
-        {
-            return new Vector3(point.x, point.y, 0f);
-        }
-
-        float GetBallRadius()
-        {
-            if (ball != null)
-                return Mathf.Max(0.01f, ball.BallRadiusWorld);
-
-            return game != null
-                ? Mathf.Max(0.01f, game.config.ball.radius)
-                : 0.01f;
-        }
-
-        static bool IsReflectiveWall(ArenaSurfaceType surfaceType)
-        {
-            return surfaceType == ArenaSurfaceType.Left ||
-                   surfaceType == ArenaSurfaceType.Right ||
-                   surfaceType == ArenaSurfaceType.Top;
-        }
     }
 
     public struct TrajectoryCastStep

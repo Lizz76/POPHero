@@ -5,6 +5,7 @@ namespace POPHero
 {
     public class StickerData
     {
+        public int configId;
         public string id;
         public string name;
         public string shortTitle;

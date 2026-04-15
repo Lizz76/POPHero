@@ -6,10 +6,13 @@ namespace POPHero
     public class ModData
     {
         public string id;
+        public string effectKey;
         public string name;
         public string description;
         public ModCategory category;
         public float valueA;
+        public float valueB;
+        public float valueC;
     }
 
     public class ModInstance
@@ -94,18 +97,26 @@ namespace POPHero
             activeMods.Add(reserve);
         }
 
-        public bool HasActive(string modId) => activeMods.Exists(mod => mod.data.id == modId);
-        public float GetAimAssistBonus() => HasActive("aim_assist") ? 1f : 0f;
-        public float GetStableAimBonus() => HasActive("stable_aim") ? 0.25f : 0f;
-        public float GetFastFingerMultiplier() => HasActive("fast_fingers") ? 0.8f : 1f;
-        public float GetSlowFingerMultiplier() => HasActive("slow_fingers") ? 1.2f : 1f;
+        public bool HasActive(string modId) => FindActive(modId) != null;
+        public float GetAimAssistBonus() => GetActiveValue("aim_assist", 1f, 0f);
+        public float GetStableAimBonus() => GetActiveValue("stable_aim", 0.25f, 0f);
+        public float GetFastFingerMultiplier() => GetActiveValue("fast_fingers", 0.8f, 1f);
+        public float GetSlowFingerMultiplier() => GetActiveValue("slow_fingers", 1.2f, 1f);
         public bool ShowHitCounter() => HasActive("hit_counter");
         public bool ShowTrajectoryMemory() => HasActive("trajectory_memory");
-        public int GetInventoryCapacityBonus() => HasActive("hold_more") ? 2 : 0;
-        public int GetRewardChoiceCount() => HasActive("rich_choice") ? 4 : 3;
-        public int GetShopRerollDiscount() => HasActive("cheap_reroll") ? 1 : 0;
-        public float GetRewardGoldMultiplier() => HasActive("more_money") ? 1.25f : 1f;
-        public int GetInterestIncome(int currentGold) => HasActive("interest") ? Mathf.FloorToInt(currentGold / 25f) : 0;
+        public int GetInventoryCapacityBonus() => Mathf.RoundToInt(GetActiveValue("hold_more", 2f, 0f));
+        public int GetRewardChoiceCount() => Mathf.RoundToInt(GetActiveValue("rich_choice", 4f, 3f));
+        public int GetShopRerollDiscount() => Mathf.RoundToInt(GetActiveValue("cheap_reroll", 1f, 0f));
+        public float GetRewardGoldMultiplier() => GetActiveValue("more_money", 1.25f, 1f);
+        public int GetInterestIncome(int currentGold)
+        {
+            var interest = FindActive("interest");
+            if (interest == null)
+                return 0;
+
+            var divisor = Mathf.Max(1f, Mathf.Approximately(interest.data.valueA, 0f) ? 25f : interest.data.valueA);
+            return Mathf.FloorToInt(currentGold / divisor);
+        }
 
         public float GetStickerPowerMultiplier(BlockCardState card, StickerInstance instance)
         {
@@ -119,15 +130,34 @@ namespace POPHero
                     familyMatches += 1;
             }
 
-            return familyMatches >= 2 ? 1.25f : 1f;
+            return familyMatches >= 2 ? GetActiveValue("same_sticker_bonus", 1.25f, 1f) : 1f;
+        }
+
+        ModInstance FindActive(string effectKey)
+        {
+            return activeMods.Find(mod =>
+                mod?.data != null &&
+                (string.Equals(mod.data.effectKey, effectKey, System.StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(mod.data.id, effectKey, System.StringComparison.OrdinalIgnoreCase)));
+        }
+
+        float GetActiveValue(string effectKey, float activeFallback, float inactiveFallback)
+        {
+            var active = FindActive(effectKey);
+            if (active == null)
+                return inactiveFallback;
+
+            return Mathf.Approximately(active.data.valueA, 0f) ? activeFallback : active.data.valueA;
         }
 
         void ApplyImmediateModEffect(ModInstance instance)
         {
-            switch (instance.data.id)
+            switch (string.IsNullOrWhiteSpace(instance.data.effectKey) ? instance.data.id : instance.data.effectKey)
             {
                 case "socket_plus":
-                    game.BoardManager.UnlockRandomSocket();
+                    var count = Mathf.Max(1, Mathf.RoundToInt(Mathf.Approximately(instance.data.valueA, 0f) ? 1f : instance.data.valueA));
+                    for (var index = 0; index < count; index++)
+                        game.BoardManager.UnlockRandomSocket();
                     break;
             }
         }
@@ -135,6 +165,28 @@ namespace POPHero
         void BuildCatalog()
         {
             catalog.Clear();
+            if (game?.Tables?.Raw != null && game.Tables.Raw.mods.Count > 0)
+            {
+                foreach (var row in game.Tables.Raw.mods)
+                {
+                    if (string.IsNullOrWhiteSpace(row.id))
+                        continue;
+
+                    catalog.Add(new ModData
+                    {
+                        id = row.id,
+                        effectKey = string.IsNullOrWhiteSpace(row.effectKey) ? row.id : row.effectKey,
+                        name = row.name,
+                        description = row.description,
+                        category = row.category,
+                        valueA = row.valueA,
+                        valueB = row.valueB,
+                        valueC = row.valueC
+                    });
+                }
+
+                return;
+            }
             catalog.Add(Make("aim_assist", "瞄准辅助", "扩大锁定瞄准的吸附和保持范围。", ModCategory.Information));
             catalog.Add(Make("hit_counter", "命中统计", "瞄准时显示更详细的命中统计。", ModCategory.Information));
             catalog.Add(Make("trajectory_memory", "轨迹记忆", "保留上一条锁定路线的短暂残影。", ModCategory.Information));
@@ -155,6 +207,7 @@ namespace POPHero
             return new ModData
             {
                 id = id,
+                effectKey = id,
                 name = name,
                 description = description,
                 category = category
@@ -179,6 +232,25 @@ namespace POPHero
             game = owner;
             items.Clear();
             growthPool.Clear();
+            if (game?.Tables?.Raw != null && game.Tables.Raw.growthRewards.Count > 0)
+            {
+                foreach (var row in game.Tables.Raw.growthRewards)
+                {
+                    growthPool.Add(new GrowthRewardData
+                    {
+                        id = row.id,
+                        name = row.name,
+                        description = row.description,
+                        rewardType = row.rewardType,
+                        value = row.value,
+                        shopPrice = row.shopPrice,
+                        weight = row.weight
+                    });
+                }
+
+                return;
+            }
+
             growthPool.Add(new GrowthRewardData
             {
                 id = "shop_socket",
@@ -227,6 +299,12 @@ namespace POPHero
             EventState = ShopEventState.ShopItemsGenerated;
             LastFeedback = string.Empty;
 
+            if (game?.Tables?.Raw != null && game.Tables.Raw.shopSlots.Count > 0)
+            {
+                GenerateItemsFromTables();
+                return;
+            }
+
             for (var i = 0; i < 3; i++)
             {
                 var sticker = game.StickerCatalog.GetRandomSticker();
@@ -268,6 +346,122 @@ namespace POPHero
                 growthData = growth,
                 price = 11
             });
+        }
+
+        void GenerateItemsFromTables()
+        {
+            foreach (var slot in game.Tables.Raw.shopSlots)
+            {
+                var count = Mathf.Max(0, slot.count);
+                switch (slot.slotKind)
+                {
+                    case ShopSlotKind.Sticker:
+                        for (var i = 0; i < count; i++)
+                        {
+                            var sticker = GetRandomStickerForShop(slot);
+                            if (sticker == null)
+                                continue;
+
+                            items.Add(new ShopItemEntry
+                            {
+                                id = $"shop_sticker_{slot.slotId}_{i}_{sticker.id}",
+                                kind = ShopItemKind.Sticker,
+                                title = sticker.name,
+                                description = sticker.mainActionText,
+                                stickerData = sticker,
+                                price = Mathf.Max(0, slot.price)
+                            });
+                        }
+                        break;
+                    case ShopSlotKind.Mod:
+                        for (var i = 0; i < count; i++)
+                        {
+                            var mod = game.ModManager.GetRandomUnownedMod();
+                            if (mod == null)
+                                continue;
+
+                            items.Add(new ShopItemEntry
+                            {
+                                id = $"shop_mod_{slot.slotId}_{i}_{mod.id}",
+                                kind = ShopItemKind.Mod,
+                                title = mod.name,
+                                description = mod.description,
+                                modData = mod,
+                                price = Mathf.Max(0, slot.price)
+                            });
+                        }
+                        break;
+                    case ShopSlotKind.Growth:
+                        for (var i = 0; i < count; i++)
+                        {
+                            var growth = GetRandomGrowthReward();
+                            if (growth == null)
+                                continue;
+
+                            items.Add(new ShopItemEntry
+                            {
+                                id = $"shop_growth_{slot.slotId}_{i}_{growth.id}",
+                                kind = ShopItemKind.Growth,
+                                title = growth.name,
+                                description = growth.description,
+                                growthData = growth,
+                                price = slot.price > 0 ? slot.price : Mathf.Max(0, growth.shopPrice)
+                            });
+                        }
+                        break;
+                }
+            }
+        }
+
+        StickerData GetRandomStickerForShop(ShopSlotDef slot)
+        {
+            if (slot.rarityWeights != null && slot.rarityWeights.HasAnyWeight)
+            {
+                for (var attempt = 0; attempt < 8; attempt++)
+                {
+                    var rarity = ConvertBlockRarityToStickerRarity(slot.rarityWeights.Roll());
+                    var sticker = game.StickerCatalog.GetRandomSticker(data => data.rarity == rarity);
+                    if (sticker != null)
+                        return sticker;
+                }
+            }
+
+            return game.StickerCatalog.GetRandomSticker();
+        }
+
+        GrowthRewardData GetRandomGrowthReward()
+        {
+            if (growthPool.Count == 0)
+                return null;
+
+            var totalWeight = 0;
+            foreach (var growth in growthPool)
+                totalWeight += Mathf.Max(0, growth.weight);
+
+            if (totalWeight <= 0)
+                return growthPool[Random.Range(0, growthPool.Count)];
+
+            var roll = Random.Range(0, totalWeight);
+            foreach (var growth in growthPool)
+            {
+                roll -= Mathf.Max(0, growth.weight);
+                if (roll < 0)
+                    return growth;
+            }
+
+            return growthPool[growthPool.Count - 1];
+        }
+
+        static StickerRarity ConvertBlockRarityToStickerRarity(BlockRarity rarity)
+        {
+            return rarity switch
+            {
+                BlockRarity.White => StickerRarity.Common,
+                BlockRarity.Blue => StickerRarity.Uncommon,
+                BlockRarity.Purple => StickerRarity.Rare,
+                BlockRarity.Gold => StickerRarity.Epic,
+                _ => StickerRarity.Common
+            };
         }
 
         public bool TryBuy(int index)

@@ -405,13 +405,15 @@ internal sealed class BlockRewardService
             var blockType = RollBlockType();
             var rarity = RollRarity(defeatedEnemies);
             var value = GetRarityValue(blockType, rarity);
+            var typeName = GetConfiguredBlockTypeName(blockType);
+            var rarityName = GetConfiguredRarityName(blockType, rarity);
             return new BlockRewardOption
             {
                 id = $"block_reward_{defeatedEnemies:00}_{optionIndex:00}",
                 blockType = blockType,
                 rarity = rarity,
                 baseValue = value,
-                displayName = $"{BlockPresentationUtility.GetRarityName(rarity)}{BlockPresentationUtility.GetBlockTypeName(blockType)}方块",
+                displayName = $"{rarityName}{typeName}方块",
                 desc = BlockPresentationUtility.GetRewardDescription(blockType, rarity, value),
                 color = GetRewardColor(blockType, rarity),
                 family = BlockPresentationUtility.GetFamilyForType(blockType)
@@ -452,6 +454,9 @@ internal sealed class BlockRewardService
 
         BoardBlockType RollBlockType()
         {
+            if (context.Game.Tables != null && context.Game.Tables.HasTables)
+                return context.Game.Tables.RollBlockType();
+
             return Random.Range(0, 3) switch
             {
                 0 => BoardBlockType.AttackAdd,
@@ -462,6 +467,9 @@ internal sealed class BlockRewardService
 
         BlockRarity RollRarity(int defeatedEnemies)
         {
+            if (context.Game.Tables != null && context.Game.Tables.HasTables)
+                return context.Game.Tables.RollRarity(defeatedEnemies);
+
             var stages = context.Game.config.blockRewards.rarityOdds;
             var selectedStage = stages[0];
             foreach (var stage in stages)
@@ -484,12 +492,29 @@ internal sealed class BlockRewardService
 
         float GetRarityValue(BoardBlockType blockType, BlockRarity rarity)
         {
+            if (context.Game.Tables != null && context.Game.Tables.TryGetBlockRarity(blockType, rarity, out var tableValue))
+                return tableValue.baseValueA;
+
             return blockType switch
             {
                 BoardBlockType.AttackAdd => context.Game.config.blockRewards.attackValues.Get(rarity),
                 BoardBlockType.Shield => context.Game.config.blockRewards.shieldValues.Get(rarity),
                 _ => context.Game.config.blockRewards.multiplierValues.Get(rarity)
             };
+        }
+
+        string GetConfiguredBlockTypeName(BoardBlockType blockType)
+        {
+            return context.Game.Tables != null && context.Game.Tables.TryGetBlockType(blockType, out var definition) && !string.IsNullOrWhiteSpace(definition.nameCN)
+                ? definition.nameCN
+                : BlockPresentationUtility.GetBlockTypeName(blockType);
+        }
+
+        string GetConfiguredRarityName(BoardBlockType blockType, BlockRarity rarity)
+        {
+            return context.Game.Tables != null && context.Game.Tables.TryGetBlockRarity(blockType, rarity, out var definition) && !string.IsNullOrWhiteSpace(definition.rarityName)
+                ? definition.rarityName
+                : BlockPresentationUtility.GetRarityName(rarity);
         }
 
         Color GetRewardColor(BoardBlockType blockType, BlockRarity rarity)

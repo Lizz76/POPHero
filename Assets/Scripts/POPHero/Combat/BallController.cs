@@ -7,7 +7,6 @@ namespace POPHero
     [RequireComponent(typeof(CircleCollider2D))]
     public class BallController : MonoBehaviour
     {
-        readonly Dictionary<int, float> recentHits = new();
         readonly List<Vector3> actualPathPoints = new();
         readonly List<SpriteRenderer> hitMarkers = new();
 
@@ -16,6 +15,8 @@ namespace POPHero
         CircleCollider2D circleCollider;
         TrailRenderer trailRenderer;
         TrajectoryPredictor trajectoryPredictor;
+        BallFlightSimulator flightSimulator;
+        BallFlightState flightState;
         TextMesh launchCounterLabel;
         LineRenderer debugPreviewLine;
         LineRenderer debugActualLine;
@@ -42,6 +43,7 @@ namespace POPHero
             ConfigureTrail(0f, 0f, false);
             BuildLaunchCounter();
             BuildDebugVisualization();
+            flightSimulator = new BallFlightSimulator(game, this);
         }
 
         public void SetTrajectoryPredictor(TrajectoryPredictor predictor)
@@ -56,7 +58,7 @@ namespace POPHero
             flightTimer = 0f;
             trailBoostTimer = 0f;
             lastMoveDirection = Vector2.up;
-            recentHits.Clear();
+            flightState = null;
             body.velocity = Vector2.zero;
             body.angularVelocity = 0f;
             body.isKinematic = true;
@@ -69,11 +71,11 @@ namespace POPHero
 
         public void Launch(Vector2 direction, float speed, TrajectoryPreviewResult preview = null)
         {
-            recentHits.Clear();
             isFlying = true;
             currentSpeed = Mathf.Clamp(speed, 0.1f, game.config.ball.maxSpeed);
             flightTimer = 0f;
             lastMoveDirection = direction.sqrMagnitude <= 0.001f ? Vector2.up : direction.normalized;
+            flightState = BallFlightState.Create(Position, lastMoveDirection, currentSpeed);
             body.velocity = Vector2.zero;
             body.angularVelocity = 0f;
             body.isKinematic = true;
@@ -89,6 +91,7 @@ namespace POPHero
             currentSpeed = 0f;
             flightTimer = 0f;
             trailBoostTimer = 0f;
+            flightState = null;
             if (body == null)
                 return;
 
@@ -138,9 +141,6 @@ namespace POPHero
                 return;
 
             if (game == null || game.State != RoundState.BallFlying || !isFlying)
-                return;
-
-            if (!CanTrigger(collision.collider))
                 return;
 
             var block = collision.collider.GetComponent<BoardBlock>();
@@ -205,18 +205,6 @@ namespace POPHero
                 return;
             }
 
-            var recoveryPadding = Mathf.Max(0.2f, game.config.ball.outOfBoundsRecoveryPadding);
-            var hardBottomY = game.BoardRect.yMin - recoveryPadding;
-            var hardTopY = game.BoardRect.yMax + recoveryPadding * 2f;
-            var hardLeftX = game.BoardRect.xMin - recoveryPadding * 2f;
-            var hardRightX = game.BoardRect.xMax + recoveryPadding * 2f;
-
-            if (position.y <= hardBottomY || position.y >= hardTopY || position.x <= hardLeftX || position.x >= hardRightX)
-            {
-                ReturnToBottom(position);
-                return;
-            }
-
             if (flightTimer >= Mathf.Max(3f, game.config.ball.maxFlightDuration))
                 ReturnToBottom(position);
         }
@@ -235,137 +223,49 @@ namespace POPHero
 
         void AdvanceFlight(float deltaTime)
         {
-            var epsilon = Mathf.Max(0.001f, game.config.ball.previewHitEpsilon);
-            var remainingDistance = Mathf.Max(0f, currentSpeed * deltaTime);
-            var currentPosition = body.position;
-            var currentDirection = lastMoveDirection.sqrMagnitude > 0.001f ? lastMoveDirection.normalized : Vector2.up;
-            var loopGuard = 0;
-            Collider2D ignoredCollider = null;
-            Collider2D secondaryIgnoredCollider = null;
-            WallHitMemory previousWallHit = default;
-            var repeatedCornerCount = 0;
-            Collider2D recoveryCollider = null;
-            var recoveryCount = 0;
+            flightSimulator ??= new BallFlightSimulator(game, this);
+            flightState ??= BallFlightState.Create(Position, lastMoveDirection, currentSpeed);
 
-            while (remainingDistance > epsilon && loopGuard < 16 && isFlying)
+            var result = flightSimulator.Simulate(flightState, new BallFlightRunOptions
             {
-                loopGuard += 1;
-                var segmentStart = currentPosition;
+                distanceBudget = Mathf.Max(0f, currentSpeed * deltaTime),
+                maxTotalDistance = Mathf.Max(1f, game.config.ball.previewDistance),
+                maxDuration = Mathf.Max(0.1f, game.config.ball.maxFlightDuration),
+                maxBounces = Mathf.Max(1, game.config.ball.previewSegments),
+                maxSteps = Mathf.Max(1, game.config.ball.maxCollisionStepsPerFixedUpdate)
+            });
 
-                if (game.BounceStepSolver == null || !game.BounceStepSolver.TryCastStep(currentPosition, currentDirection, remainingDistance, ignoredCollider, secondaryIgnoredCollider, out var step))
+            foreach (var flightEvent in result.events)
+            {
+                if (flightEvent.eventType == BallFlightEventType.BlockHit && flightEvent.block != null)
                 {
-                    currentPosition += currentDirection * remainingDistance;
-                    remainingDistance = 0f;
-                    break;
-                }
-
-                var cornerResolved = game.BounceStepSolver.TryResolveCornerBounce(previousWallHit, step, out var cornerBounce);
-                if (cornerResolved)
-                {
-                    step.hitPoint = cornerBounce.safePoint;
-                    step.hitNormal = cornerBounce.combinedNormal;
-                    step.travelDistance = Mathf.Max(step.travelDistance, Vector2.Distance(segmentStart, step.hitPoint));
-                    repeatedCornerCount += 1;
-                }
-                else
-                {
-                    repeatedCornerCount = 0;
-                }
-
-                currentPosition = step.hitPoint;
-                RecordActualPoint(currentPosition, true);
-
-                if (!step.isRecoveryStep && step.block != null && CanTrigger(step.collider))
-                    step.block.HandleBallHit(this);
-
-                if (step.marker != null && step.marker.surfaceType == ArenaSurfaceType.Bottom)
-                {
-                    body.position = currentPosition;
-                    transform.position = currentPosition;
-                    ReturnToBottom(currentPosition);
-                    return;
-                }
-
-                if (step.isRecoveryStep)
-                {
-                    recoveryCount = recoveryCollider == step.collider ? recoveryCount + 1 : 1;
-                    recoveryCollider = step.collider;
-                }
-                else
-                {
-                    recoveryCount = 0;
-                    recoveryCollider = null;
-                }
-
-                if (!step.isRecoveryStep)
-                    currentSpeed = Mathf.Min(game.config.ball.maxSpeed, currentSpeed + game.config.ball.accelerationPerBounce);
-                currentDirection = Vector2.Reflect(currentDirection, step.hitNormal).normalized;
-                if (currentDirection.sqrMagnitude <= 0.0001f)
-                    currentDirection = lastMoveDirection.sqrMagnitude > 0.001f ? -lastMoveDirection.normalized : Vector2.down;
-
-                lastMoveDirection = currentDirection;
-                if (!step.isRecoveryStep)
+                    flightEvent.block.ApplyGameplayHit(this);
+                    flightEvent.block.PlayHitFeedback();
                     BoostTrail();
-                var travelCost = step.isRecoveryStep
-                    ? Mathf.Max(epsilon, game.config.ball.sameColliderMinTravel)
-                    : Mathf.Max(step.travelDistance, epsilon);
-                remainingDistance = Mathf.Max(0f, remainingDistance - travelCost);
-                var pushDistance = repeatedCornerCount >= 2
-                    ? Mathf.Max(epsilon * 2f, BallRadiusWorld * 0.16f)
-                    : cornerResolved
-                        ? Mathf.Max(epsilon * 1.5f, BallRadiusWorld * 0.1f)
-                        : step.isRecoveryStep
-                            ? Mathf.Max(epsilon * 1.5f, BallRadiusWorld * 0.12f)
-                            : epsilon;
-                currentPosition += currentDirection * pushDistance;
-                if (cornerResolved)
-                {
-                    ignoredCollider = cornerBounce.ignoredColliderA;
-                    secondaryIgnoredCollider = cornerBounce.ignoredColliderB;
-                    previousWallHit.Clear();
                 }
-                else if (step.isRecoveryStep)
+                else if (flightEvent.eventType == BallFlightEventType.WallBounce)
                 {
-                    ignoredCollider = step.collider;
-                    secondaryIgnoredCollider = null;
-                    previousWallHit.Clear();
-                    if (recoveryCount >= Mathf.Max(1, game.config.ball.interiorRepeatLimit))
-                    {
-                        currentPosition += currentDirection * Mathf.Max(epsilon * 2f, BallRadiusWorld * 0.18f);
-                        recoveryCount = 0;
-                        recoveryCollider = null;
-                    }
+                    BoostTrail();
                 }
-                else
-                {
-                    ignoredCollider = step.collider;
-                    secondaryIgnoredCollider = null;
-                    if (step.marker != null &&
-                        (step.marker.surfaceType == ArenaSurfaceType.Top || step.marker.surfaceType == ArenaSurfaceType.Left || step.marker.surfaceType == ArenaSurfaceType.Right))
-                    {
-                        previousWallHit.Set(step.marker.surfaceType, step.hitPoint, step.hitNormal, step.collider);
-                    }
-                    else
-                    {
-                        previousWallHit.Clear();
-                    }
-                }
+
+                if (flightEvent.eventType == BallFlightEventType.BlockHit ||
+                    flightEvent.eventType == BallFlightEventType.WallBounce ||
+                    flightEvent.eventType == BallFlightEventType.Recovery ||
+                    flightEvent.eventType == BallFlightEventType.BottomHit)
+                    RecordActualPoint(flightEvent.point, true);
             }
 
-            body.position = currentPosition;
-            transform.position = currentPosition;
-            lastMoveDirection = currentDirection;
-            RecordActualPoint(currentPosition, false);
-        }
+            currentSpeed = flightState.speed;
+            lastMoveDirection = flightState.direction;
+            flightTimer = flightState.elapsedTime;
+            body.position = flightState.position;
+            transform.position = flightState.position;
+            RecordActualPoint(flightState.position, false);
 
-        bool CanTrigger(Collider2D collider2D)
-        {
-            var instanceId = collider2D.GetInstanceID();
-            if (recentHits.TryGetValue(instanceId, out var lastHitTime) && Time.time - lastHitTime < game.config.ball.hitCooldown)
-                return false;
+            if (!flightState.isTerminated)
+                return;
 
-            recentHits[instanceId] = Time.time;
-            return true;
+            ReturnToBottom(flightState.position);
         }
 
         void BuildLaunchCounter()

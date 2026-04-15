@@ -20,7 +20,6 @@ namespace POPHero
         protected PopHeroGame game;
 
         BlockWorldView worldView;
-        float pulseScale = 1f;
         float rotationAngle;
         bool keepFallbackLabelUpright;
 
@@ -56,9 +55,18 @@ namespace POPHero
 
         public void HandleBallHit(BallController ball)
         {
+            ApplyGameplayHit(ball);
+            PlayHitFeedback();
+        }
+
+        public void ApplyGameplayHit(BallController ball)
+        {
             OnBallHit(ball);
+        }
+
+        public void PlayHitFeedback()
+        {
             worldView?.PlayIconHitAnimation();
-            pulseScale = 1.12f;
         }
 
         public void SetVisualState(BlockVisualState state)
@@ -87,12 +95,6 @@ namespace POPHero
             worldView ??= GetComponent<BlockWorldView>() ?? gameObject.AddComponent<BlockWorldView>();
             worldView.Configure(rotationAngle, keepFallbackLabelUpright);
             worldView.Apply(CardState, BlockPresentationUtility.GetBlockVisual(game.config.board, CardState));
-        }
-
-        void Update()
-        {
-            pulseScale = Mathf.Lerp(pulseScale, 1f, 10f * Time.deltaTime);
-            transform.localScale = Vector3.Lerp(transform.localScale, new Vector3(size.x, size.y, 1f) * pulseScale, 12f * Time.deltaTime);
         }
     }
 }

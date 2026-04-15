@@ -156,6 +156,7 @@ namespace POPHero
         readonly List<CanvasListEntryView> activeModEntries = new();
         readonly List<CanvasListEntryView> reserveModEntries = new();
 
+        GameObject combatPanelObject;
         string tooltipTitleValue;
         string tooltipBodyValue;
         Color tooltipColor = Color.white;
@@ -164,6 +165,7 @@ namespace POPHero
         Color passiveTooltipColor = Color.white;
         string selectedActiveId;
         string selectedReserveId;
+        bool gmPanelOpen;
         bool initialized;
 
         public void Initialize(PopHeroGame owner)
@@ -220,6 +222,8 @@ namespace POPHero
         {
             if (!initialized || game == null)
                 return;
+
+            HandleGmHotkey();
 
             if (!game.CanManageBlockAssignments)
             {
@@ -316,6 +320,7 @@ namespace POPHero
             statusEnemyAtk = T("HudRoot/StatusPanel/EnemyAttackText");
             settingsButton = BOptional("HudRoot/TopStatusBar/SettingsButton") ?? B("HudRoot/TopRightControls/SettingsButton");
 
+            combatPanelObject = GOptional("HudRoot/CombatPanel");
             combatTitle = T("HudRoot/CombatPanel/TitleText");
             combatAttack = T("HudRoot/CombatPanel/RoundAttackText");
             combatShield = T("HudRoot/CombatPanel/RoundShieldText");
@@ -330,10 +335,10 @@ namespace POPHero
             damagePlayerButton = B("HudRoot/CombatPanel/Buttons/DamagePlayerButton");
 
             blockManagementPanel = G("HudRoot/BlockManagementPanel");
-            blockHeader = T("HudRoot/BlockManagementPanel/HeaderText");
-            blockHint = T("HudRoot/BlockManagementPanel/HintText");
-            activeTitle = T("HudRoot/BlockManagementPanel/ActiveSection/TitleText");
-            reserveTitle = T("HudRoot/BlockManagementPanel/ReserveSection/TitleText");
+            blockHeader = TOptional("HudRoot/BlockManagementPanel/HeaderText");
+            blockHint = TOptional("HudRoot/BlockManagementPanel/HintText");
+            activeTitle = TOptional("HudRoot/BlockManagementPanel/ActiveSection/TitleText");
+            reserveTitle = TOptional("HudRoot/BlockManagementPanel/ReserveSection/TitleText");
             activeRowsRoot = R("HudRoot/BlockManagementPanel/ActiveSection/ScrollView/Viewport/Rows");
             reserveRowsRoot = R("HudRoot/BlockManagementPanel/ReserveSection/ScrollView/Viewport/Rows");
 
@@ -501,18 +506,46 @@ namespace POPHero
 
         void RefreshCombat()
         {
+            SetActive(combatPanelObject, gmPanelOpen);
             var model = combatPresenter.Build(game);
-            Set(combatTitle, "战斗信息");
+            Set(combatTitle, "GM 调试 / 战斗信息");
             Set(combatAttack, model.RoundAttackText);
             Set(combatShield, model.RoundShieldText);
             Set(combatHits, model.RoundHitText);
             Set(combatPreview, model.PreviewText);
-            Set(combatMessage, model.IntermissionText);
+            var message = string.IsNullOrWhiteSpace(model.IntermissionText)
+                ? "长按 D 关闭，或按 Esc 关闭。"
+                : $"{model.IntermissionText}\n长按 D 关闭，或按 Esc 关闭。";
+            Set(combatMessage, message);
             SetButtonLabel(toggleAimButton, "切换瞄准");
             SetButtonLabel(shuffleButton, "重排方块");
             SetButtonLabel(addGoldButton, "金币 +25");
             SetButtonLabel(killEnemyButton, "秒杀敌人");
             SetButtonLabel(damagePlayerButton, "主角 -10 血");
+        }
+
+        void HandleGmHotkey()
+        {
+            if (!Application.isPlaying)
+                return;
+
+            if (game != null && game.IsSettingsOpen)
+                return;
+
+            if (gmPanelOpen && Input.GetKeyDown(KeyCode.Escape))
+            {
+                gmPanelOpen = false;
+                ClearTooltip();
+                ClearPassiveTooltip();
+                return;
+            }
+
+            if (!Input.GetKeyDown(KeyCode.D))
+                return;
+
+            gmPanelOpen = !gmPanelOpen;
+            ClearTooltip();
+            ClearPassiveTooltip();
         }
 
         void RefreshBlocks()
@@ -1124,18 +1157,29 @@ namespace POPHero
 
         static void ApplyTopStatusIcon(Image icon, TMP_Text fallbackLabel, Sprite sprite, string fallbackText, Color fallbackColor)
         {
+            var effectiveSprite = sprite != null ? sprite : icon != null ? icon.sprite : null;
             if (icon != null)
             {
-                icon.sprite = sprite;
-                icon.color = Color.white;
-                icon.enabled = sprite != null;
+                if (sprite != null)
+                {
+                    icon.sprite = sprite;
+                    icon.color = Color.white;
+                }
+                else if (effectiveSprite != null && icon.color.a <= 0.001f)
+                {
+                    icon.color = Color.white;
+                }
+
+                icon.preserveAspect = true;
+                icon.raycastTarget = false;
+                icon.enabled = effectiveSprite != null;
             }
 
             if (fallbackLabel != null)
             {
                 fallbackLabel.text = fallbackText;
                 fallbackLabel.color = fallbackColor;
-                fallbackLabel.gameObject.SetActive(sprite == null);
+                fallbackLabel.gameObject.SetActive(effectiveSprite == null);
             }
         }
 

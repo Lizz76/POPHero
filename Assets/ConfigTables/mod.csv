@@ -1,0 +1,18 @@
+id,name,des,categoryKey,valueA,valueB,valueC,effectKey
+string,string,string,string,float,float,float,string
+both,both,both,both,both,both,both,both
+Mod ID,名称,描述,分类Key,主数值,副数值,第三数值,代码效果Key
+,,,,,,,
+aim_assist,瞄准辅助,扩大锁定瞄准的吸附和保持范围,Information,1,0,0,aim_assist
+hit_counter,命中统计,瞄准时显示更详细的命中统计,Information,1,0,0,hit_counter
+trajectory_memory,轨迹记忆,保留上一条锁定路线的短暂残影,Information,1,0,0,trajectory_memory
+more_money,更多金币,击败敌人时额外获得25%金币,Economy,1.25,0,0,more_money
+interest,利息,每回合结束时按当前金币获得少量利息,Economy,25,0,0,interest
+cheap_reroll,廉价刷新,商店刷新费用-1,Economy,1,0,0,cheap_reroll
+fast_fingers,快手,切换到新瞄准路线时更灵敏,Operation,0.8,0,0,fast_fingers
+slow_fingers,稳手,锁定瞄准更稳定 不容易因轻微抖动切线,Operation,1.2,0,0,slow_fingers
+stable_aim,稳定瞄准,更大的角度阈值会让锁定瞄准更稳定,Operation,0.25,0,0,stable_aim
+hold_more,扩容,提升嵌片库存容量,Growth,2,0,0,hold_more
+socket_plus,+1 槽位,随机一张载体方块立刻获得1个可用槽位,Growth,1,0,0,socket_plus
+rich_choice,更多选择,奖励选择从3选1提升到4选1,Growth,4,0,0,rich_choice
+same_sticker_bonus,同系嵌片加成,同一张方块上若有同家族嵌片 效果会更强,Build,1.25,0,0,same_sticker_bonus

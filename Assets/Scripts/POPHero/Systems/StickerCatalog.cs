@@ -9,9 +9,12 @@ namespace POPHero
         readonly List<StickerData> allStickers = new();
         int instanceSerial;
 
-        public StickerCatalog()
+        public StickerCatalog(PopHeroTableConfig tableConfig = null)
         {
-            BuildCatalog();
+            if (tableConfig != null && tableConfig.stickers.Count > 0)
+                BuildFromTables(tableConfig);
+            else
+                BuildCatalog();
         }
 
         public IReadOnlyList<StickerData> AllStickers => allStickers;
@@ -65,6 +68,42 @@ namespace POPHero
             Add(Make("glass_ledger", "玻璃账本", "回合结束时，每种不同家族都会额外增加 2 点伤害。", StickerRarity.Uncommon, SocketTargetMask.Any, StickerFamily.Chain, StickerTriggerType.OnRoundEnd, 2f, detailA: "比连锁账本更稳，但上限更低。", detailB: "很适合混搭型牌组。"));
             Add(Make("frost_trace", "霜痕", "防御方块会留下霜痕；下一次倍率方块额外获得 x1.2 加成。", StickerRarity.Rare, SocketTargetMask.Shield, StickerFamily.Frost, StickerTriggerType.OnShieldBlockHit, 1.2f, detailA: "让防御路线也能反哺倍率路线。", detailB: "会消耗掉储存的霜痕。", spawnType: "frost_trace"));
             Add(Make("alloy_echo", "合金回响", "同一张方块第三次被命中时，额外获得 10 伤害和 4 护盾。", StickerRarity.Epic, SocketTargetMask.Any, StickerFamily.Alloy, StickerTriggerType.OnBlockHit, 10f, 4f, detailA: "奖励你记住那些高价值反弹点。", detailB: "只有真正再次回到同一张方块才会触发。"));
+        }
+
+        void BuildFromTables(PopHeroTableConfig tableConfig)
+        {
+            allStickers.Clear();
+            byId.Clear();
+            foreach (var row in tableConfig.stickers)
+            {
+                if (string.IsNullOrWhiteSpace(row.effectKey))
+                    continue;
+
+                var data = new StickerData
+                {
+                    configId = row.configId,
+                    id = row.effectKey.Trim(),
+                    name = row.name,
+                    shortTitle = row.name,
+                    mainActionText = row.description,
+                    rarity = row.rarity,
+                    targetBlockType = row.targetMask,
+                    family = row.family,
+                    triggerType = row.trigger,
+                    valueA = row.valueA,
+                    valueB = row.valueB,
+                    valueC = row.valueC,
+                    spawnType = row.spawnType,
+                    reactionType = row.reactionType
+                };
+
+                if (!string.IsNullOrWhiteSpace(row.detailA))
+                    data.detailLines.Add(row.detailA);
+                if (!string.IsNullOrWhiteSpace(row.detailB))
+                    data.detailLines.Add(row.detailB);
+
+                Add(data);
+            }
         }
 
         StickerData Make(string id, string name, string mainActionText, StickerRarity rarity, SocketTargetMask targetMask, StickerFamily family, StickerTriggerType triggerType, float valueA = 0f, float valueB = 0f, float valueC = 0f, string detailA = null, string detailB = null, string spawnType = null, string reactionType = null)
