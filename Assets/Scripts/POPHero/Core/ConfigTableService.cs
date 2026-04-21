@@ -119,6 +119,7 @@ namespace POPHero
             config.enemies.endlessGoldGrowth = GetInt("endlessGoldGrowth", config.enemies.endlessGoldGrowth);
             config.enemies.endlessHealGrowth = GetInt("endlessHealGrowth", config.enemies.endlessHealGrowth);
             config.enemies.endlessAttackGrowth = GetInt("endlessAttackGrowth", config.enemies.endlessAttackGrowth);
+            config.enemies.defaultInitialDistanceSteps = GetInt("defaultInitialDistanceSteps", config.enemies.defaultInitialDistanceSteps);
 
             config.board.attackAddCount = GetInt("attackAddCount", config.board.attackAddCount);
             config.board.attackMultiplyCount = GetInt("attackMultiplyCount", config.board.attackMultiplyCount);
@@ -188,6 +189,7 @@ namespace POPHero
                     attackDamage = enemy.attackDamage,
                     rewardGold = enemy.rewardGold,
                     rewardHeal = enemy.rewardHeal,
+                    initialDistanceStepsOverride = Mathf.Max(-1, enemy.initialDistanceSteps),
                     color = enemy.color
                 });
             }

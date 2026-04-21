@@ -17,6 +17,7 @@ namespace POPHero
         [SerializeField] TextMesh intentLabel;
         [SerializeField] TextMesh hpLabel;
 
+        PopHeroGame owner;
         EnemyData currentEnemy;
         Color bodyBaseColor = Color.white;
         Color coreBaseColor = new(1f, 1f, 1f, 0.2f);
@@ -32,6 +33,8 @@ namespace POPHero
 
         public void Initialize(PopHeroGame owner)
         {
+            this.owner = owner;
+
             // Bind from children if not assigned in Inspector
             if (bodyRenderer == null)
             {
@@ -69,7 +72,7 @@ namespace POPHero
                 if (t != null) hpLabel = t.GetComponent<TextMesh>();
             }
 
-            // Fallback — create if scene is missing them
+            // Fallback - create if scene is missing them
             if (bodyRenderer == null)
                 bodyRenderer = PrototypeVisualFactory.CreateSpriteObject("EnemyBody", transform, PrototypeVisualFactory.SquareSprite, Color.white, 10, new Vector2(2.2f, 2.2f)).GetComponent<SpriteRenderer>();
 
@@ -158,8 +161,8 @@ namespace POPHero
             snapshotMaxHp = -1;
             ApplyActorColors();
             nameLabel.text = currentEnemy.DisplayName;
-            intentLabel.text = currentEnemy.CurrentHp > 0 ? $"攻击 {currentEnemy.AttackDamage}" : string.Empty;
             RefreshHpBar();
+            RefreshIntentDisplay();
         }
 
         public void PlayHitFeedback(bool wasKillingBlow)
@@ -230,7 +233,9 @@ namespace POPHero
 
             var showIntent = currentEnemy != null && currentEnemy.CurrentHp > 0 && !intentSuppressed;
             intentLabel.gameObject.SetActive(showIntent);
-            intentLabel.text = showIntent ? $"攻击 {currentEnemy.AttackDamage}" : string.Empty;
+            intentLabel.text = showIntent
+                ? EnemyIntentTextFormatter.BuildWorldText(owner != null ? owner.CurrentEnemyEncounter : null, currentEnemy)
+                : string.Empty;
         }
 
         void Update()

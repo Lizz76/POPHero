@@ -175,6 +175,7 @@ namespace POPHero
         {
             var player = game?.Player;
             var enemy = game?.CurrentEnemy;
+            var encounterState = game?.CurrentEnemyEncounter;
             var hasPlayer = player != null;
             var stickerInventory = game?.StickerInventory;
             var mods = game?.Mods;
@@ -192,7 +193,7 @@ namespace POPHero
             var launches = game != null ? $"{game.RemainingLaunchesForEnemy}/{game.MaxLaunchesPerEnemy}" : "--/--";
             var encounter = game != null ? game.EncounterIndex.ToString() : "--";
 
-            return new StatusPanelModel
+            var model = new StatusPanelModel
             {
                 StateText = $"状态：{state}",
                 AimModeText = $"瞄准模式：{aimMode}",
@@ -210,6 +211,9 @@ namespace POPHero
                 EnemyHpText = enemy != null ? $"敌人生命：{enemy.CurrentHp}/{enemy.MaxHp}" : "敌人生命：-/--",
                 EnemyAttackText = enemy != null ? $"敌人攻击：{enemy.AttackDamage}" : "敌人攻击：-"
             };
+
+            model.EnemyAttackText = EnemyIntentTextFormatter.BuildStatusText(encounterState, enemy);
+            return model;
         }
 
         static string GetStateText(RoundState state)

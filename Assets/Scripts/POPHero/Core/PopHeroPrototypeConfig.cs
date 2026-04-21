@@ -386,6 +386,7 @@ namespace POPHero
         public int endlessGoldGrowth = 14;
         public int endlessHealGrowth = 3;
         public int endlessAttackGrowth = 5;
+        public int defaultInitialDistanceSteps = 3;
         public int maxLaunchesPerEnemy = 6;
     }
 
@@ -397,6 +398,7 @@ namespace POPHero
         public int rewardGold = 20;
         public int rewardHeal = 8;
         public int attackDamage = 8;
+        public int initialDistanceStepsOverride = -1;
         [HideInInspector] public Color color = new(0.95f, 0.38f, 0.38f, 1f);
     }
 

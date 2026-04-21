@@ -205,6 +205,7 @@ namespace POPHero
                     attackDamage = ParseInt(row.Get("attackDamage")),
                     rewardGold = ParseInt(row.Get("rewardGold")),
                     rewardHeal = ParseInt(row.Get("rewardHeal")),
+                    initialDistanceSteps = ParseInt(row.Get("initialDistanceSteps"), -1),
                     color = ConfigTableService.ParseColorHex(row.Get("colorHex"), Color.white),
                     spawnWeight = ParseInt(row.Get("spawnWeight"), 100)
                 });

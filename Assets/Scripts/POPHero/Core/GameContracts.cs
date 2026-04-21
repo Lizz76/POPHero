@@ -8,6 +8,7 @@ namespace POPHero
         RoundState State { get; }
         PlayerData Player { get; }
         EnemyData CurrentEnemy { get; }
+        EnemyEncounterState CurrentEnemyEncounter { get; }
         int EncounterIndex { get; }
         int RemainingLaunchesForEnemy { get; }
         int MaxLaunchesPerEnemy { get; }

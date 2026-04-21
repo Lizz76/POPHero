@@ -8,6 +8,7 @@ namespace POPHero
         public int attackDamage;
         public int shieldGain;
         public int hitCount;
+        public EnemyTurnOutcome enemyTurn;
         public int enemyCounterDamage;
         public bool enemyDefeated;
         public bool playerDefeated;

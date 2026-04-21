@@ -71,6 +71,8 @@ namespace POPHero
         public RoundState State { get; private set; }
         public PlayerData Player { get; private set; }
         public EnemyData CurrentEnemy { get; private set; }
+        public EnemyEncounterState CurrentEnemyEncounter { get; private set; }
+        EnemyEncounterState IGameReadModel.CurrentEnemyEncounter => CurrentEnemyEncounter;
         public Rect BoardRect { get; private set; }
         public Rect PlayAreaRect => new(BoardRect.xMin, CurrentBottomBoundaryY, BoardRect.width, BoardRect.yMax - CurrentBottomBoundaryY);
         public float CurrentBottomBoundaryY => GetBottomBoundaryY(CurrentLaunchPoint.y);
@@ -160,6 +162,7 @@ namespace POPHero
         Coroutine battlePresentationRoutine;
         Vector3 playerIdlePosition;
         Vector3 enemyIdlePosition;
+        Vector3 enemyFarPosition;
         BoardBlock hoveredWorldTooltipBlock;
         float runElapsedSeconds;
         float timeScaleBeforeSettings = 1f;
@@ -468,6 +471,7 @@ namespace POPHero
             ballController.PlaceAt(CurrentLaunchPoint);
             enemyEncounterIndex = 0;
             CurrentEnemy = null;
+            CurrentEnemyEncounter = null;
             initialBlockDraftPending = false;
             GameOverMessage = "本局结束。";
             IntermissionMessage = string.Empty;
@@ -513,6 +517,7 @@ namespace POPHero
 
             playerIdlePosition = panelCenter + new Vector2(-BoardRect.width * 0.28f, -0.16f);
             enemyIdlePosition = panelCenter + new Vector2(BoardRect.width * 0.2f, -0.08f);
+            enemyFarPosition = panelCenter + new Vector2(BoardRect.width * 0.36f, -0.02f);
 
             // Bind Hero
             if (playerPresenterRef == null) playerPresenterRef = battleStageRoot?.GetComponentInChildren<PlayerPresenter>(true);
@@ -528,7 +533,7 @@ namespace POPHero
             enemyController = enemyControllerRef;
             if (enemyController != null)
             {
-                enemyController.transform.position = enemyIdlePosition;
+                enemyController.transform.position = enemyFarPosition;
                 enemyController.Initialize(this);
             }
         }
@@ -957,7 +962,8 @@ namespace POPHero
 
         void SpawnEnemy(int index)
         {
-            CurrentEnemy = BuildEnemyForIndex(index);
+            CurrentEnemyEncounter = BuildEnemyEncounterForIndex(index);
+            CurrentEnemy = CurrentEnemyEncounter?.Enemy;
             RemainingLaunchesForEnemy = MaxLaunchesPerEnemy;
             RefreshLaunchCounter();
             enemyController.gameObject.SetActive(true);
@@ -966,7 +972,7 @@ namespace POPHero
             enemyController.SetIntentSuppressed(false);
         }
 
-        EnemyData BuildEnemyForIndex(int index)
+        EnemyEncounterState BuildEnemyEncounterForIndex(int index)
         {
             var templates = config.enemies.templates;
             var clampedIndex = Mathf.Clamp(index, 0, Mathf.Max(0, templates.Count - 1));
@@ -978,7 +984,28 @@ namespace POPHero
             var attackDamage = template.attackDamage + overflow * config.enemies.endlessAttackGrowth;
             var baseName = string.IsNullOrWhiteSpace(template.displayName) ? "敌人" : template.displayName;
             var name = overflow > 0 ? $"{baseName}+{overflow}" : baseName;
-            return new EnemyData(name, hp, rewardGold, rewardHeal, attackDamage, template.color);
+            var initialDistanceSteps = template.initialDistanceStepsOverride >= 0
+                ? template.initialDistanceStepsOverride
+                : config.enemies.defaultInitialDistanceSteps;
+            var enemy = new EnemyData(name, hp, rewardGold, rewardHeal, attackDamage, template.color);
+            return new EnemyEncounterState(enemy, initialDistanceSteps);
+        }
+
+        Vector3 GetEnemyWorldPosition(EnemyEncounterState encounter)
+        {
+            return encounter == null
+                ? enemyFarPosition
+                : GetEnemyWorldPosition(encounter.DistanceStepsRemaining, encounter.StartingDistanceSteps);
+        }
+
+        Vector3 GetEnemyWorldPosition(int distanceStepsRemaining, int startingDistanceSteps)
+        {
+            var maxDistance = Mathf.Max(0, startingDistanceSteps);
+            if (maxDistance <= 0)
+                return enemyIdlePosition;
+
+            var ratio = Mathf.Clamp01(distanceStepsRemaining / (float)maxDistance);
+            return Vector3.Lerp(enemyIdlePosition, enemyFarPosition, ratio);
         }
 
         void RefreshLaunchGeometry()
@@ -1522,10 +1549,18 @@ namespace POPHero
         IEnumerator PlayResolvePresentation(RoundResolveResult result)
         {
             isBattlePresentationPlaying = true;
+            var encounterStartDistance = CurrentEnemyEncounter?.StartingDistanceSteps ?? result.enemyTurn.DistanceBefore;
+            var enemyPresentBeforeTurn = enemyController != null
+                ? enemyController.transform.position
+                : GetEnemyWorldPosition(result.enemyTurn.DistanceBefore, encounterStartDistance);
+            var shouldSuppressEnemyIntent = !result.enemyDefeated && CurrentEnemy != null && result.enemyTurn.ActionType != EnemyTurnActionType.None;
+            if (shouldSuppressEnemyIntent)
+                enemyController?.SetIntentSuppressed(true);
+
             if (result.attackDamage > 0)
             {
                 playerPresenter?.SetSortingOffset(AttackForegroundSortingOffset);
-                yield return PlayAttackLeap(playerPresenter != null ? playerPresenter.transform : null, playerIdlePosition, enemyController != null ? enemyController.transform.position + new Vector3(0f, 1.18f, 0f) : enemyIdlePosition, new Color(0.35f, 0.92f, 1f, 1f), () =>
+                yield return PlayAttackLeap(playerPresenter != null ? playerPresenter.transform : null, playerIdlePosition, enemyPresentBeforeTurn + new Vector3(0f, 1.18f, 0f), new Color(0.35f, 0.92f, 1f, 1f), () =>
                 {
                     enemyController?.Refresh();
                     enemyController?.PlayHitFeedback(result.enemyDefeated);
@@ -1537,23 +1572,58 @@ namespace POPHero
                 enemyController?.SetHpSnapshot(result.enemyDisplayHpAfterHit, CurrentEnemy != null ? CurrentEnemy.MaxHp : Mathf.Max(1, result.enemyDisplayHpAfterHit));
             }
 
-            if (!result.enemyDefeated && CurrentEnemy != null && result.enemyCounterDamage > 0)
+            if (!result.enemyDefeated && CurrentEnemy != null)
             {
-                yield return new WaitForSeconds(0.06f);
-                enemyController?.SetIntentSuppressed(true);
-                enemyController?.SetSortingOffset(AttackForegroundSortingOffset);
-                yield return PlayAttackLeap(enemyController != null ? enemyController.transform : null, enemyIdlePosition, playerPresenter != null ? playerPresenter.transform.position + new Vector3(0f, 1.04f, 0f) : playerIdlePosition, NeutralEnemyImpactColor, () =>
+                switch (result.enemyTurn.ActionType)
                 {
-                    playerPresenter?.Refresh(Player);
-                    playerPresenter?.PlayHitFeedback(result.playerDefeated || result.enemyCounterDamage >= 18);
-                });
-                enemyController?.SetSortingOffset(0);
-                enemyController?.SetIntentSuppressed(false);
+                    case EnemyTurnActionType.Advance:
+                        yield return new WaitForSeconds(0.06f);
+                        yield return PlayEnemyAdvance(
+                            enemyController != null ? enemyController.transform : null,
+                            GetEnemyWorldPosition(result.enemyTurn.DistanceBefore, encounterStartDistance),
+                            GetEnemyWorldPosition(result.enemyTurn.DistanceAfter, encounterStartDistance));
+                        playerPresenter?.SetHpSnapshot(result.playerDisplayHpAfterCounter, Player != null ? Player.MaxHp : Mathf.Max(1, result.playerDisplayHpAfterCounter));
+                        break;
+
+                    case EnemyTurnActionType.Attack:
+                        yield return new WaitForSeconds(0.06f);
+                        if (result.enemyTurn.DidAdvance)
+                        {
+                            yield return PlayEnemyAdvance(
+                                enemyController != null ? enemyController.transform : null,
+                                GetEnemyWorldPosition(result.enemyTurn.DistanceBefore, encounterStartDistance),
+                                GetEnemyWorldPosition(result.enemyTurn.DistanceAfter, encounterStartDistance));
+                        }
+
+                        enemyController?.SetSortingOffset(AttackForegroundSortingOffset);
+                        yield return PlayAttackLeap(
+                            enemyController != null ? enemyController.transform : null,
+                            enemyController != null ? enemyController.transform.position : GetEnemyWorldPosition(result.enemyTurn.DistanceAfter, encounterStartDistance),
+                            playerPresenter != null ? playerPresenter.transform.position + new Vector3(0f, 1.04f, 0f) : playerIdlePosition,
+                            NeutralEnemyImpactColor,
+                            () =>
+                            {
+                                playerPresenter?.Refresh(Player);
+                                if (result.enemyTurn.DamageDealt > 0)
+                                    playerPresenter?.PlayHitFeedback(result.playerDefeated || result.enemyTurn.DamageDealt >= 18);
+                                else
+                                    playerPresenter?.SetHpSnapshot(result.playerDisplayHpAfterCounter, Player != null ? Player.MaxHp : Mathf.Max(1, result.playerDisplayHpAfterCounter));
+                            });
+                        enemyController?.SetSortingOffset(0);
+                        break;
+
+                    default:
+                        playerPresenter?.SetHpSnapshot(result.playerDisplayHpAfterCounter, Player != null ? Player.MaxHp : Mathf.Max(1, result.playerDisplayHpAfterCounter));
+                        break;
+                }
             }
-            else if (result.enemyCounterDamage <= 0)
+            else
             {
                 playerPresenter?.SetHpSnapshot(result.playerDisplayHpAfterCounter, Player != null ? Player.MaxHp : Mathf.Max(1, result.playerDisplayHpAfterCounter));
             }
+
+            if (shouldSuppressEnemyIntent)
+                enemyController?.SetIntentSuppressed(false);
 
             isBattlePresentationPlaying = false;
             battlePresentationRoutine = null;
@@ -1624,6 +1694,28 @@ namespace POPHero
             actor.localScale = startScale;
         }
 
+        IEnumerator PlayEnemyAdvance(Transform actor, Vector3 startWorldPosition, Vector3 endWorldPosition)
+        {
+            if (actor == null)
+                yield break;
+
+            const float duration = 0.18f;
+            const float arcHeight = 0.18f;
+            var startScale = actor.localScale;
+            var targetScale = startScale * 1.04f;
+
+            for (var t = 0f; t < 1f; t += Time.deltaTime / duration)
+            {
+                var lerpT = Mathf.Clamp01(t);
+                actor.position = Vector3.Lerp(startWorldPosition, endWorldPosition, lerpT) + Vector3.up * Mathf.Sin(lerpT * Mathf.PI) * arcHeight;
+                actor.localScale = Vector3.Lerp(startScale, targetScale, Mathf.Sin(lerpT * Mathf.PI));
+                yield return null;
+            }
+
+            actor.position = endWorldPosition;
+            actor.localScale = Vector3.one;
+        }
+
         IEnumerator PlayImpactBurst(Vector3 position, Color color)
         {
             if (battleEffectsRoot == null)
@@ -1655,7 +1747,7 @@ namespace POPHero
 
             if (enemyController != null)
             {
-                enemyController.transform.position = enemyIdlePosition;
+                enemyController.transform.position = GetEnemyWorldPosition(CurrentEnemyEncounter);
                 enemyController.transform.localScale = Vector3.one;
             }
 

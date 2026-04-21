@@ -279,6 +279,7 @@ namespace POPHero.Editor
                     EditorGUILayout.PropertyField(element.FindPropertyRelative("rewardGold"));
                     EditorGUILayout.PropertyField(element.FindPropertyRelative("rewardHeal"));
                     EditorGUILayout.PropertyField(element.FindPropertyRelative("attackDamage"));
+                    EditorGUILayout.PropertyField(element.FindPropertyRelative("initialDistanceStepsOverride"));
                     EditorGUILayout.EndVertical();
                 }
 
@@ -288,6 +289,7 @@ namespace POPHero.Editor
                 EditorGUILayout.PropertyField(enemies.FindPropertyRelative("endlessGoldGrowth"));
                 EditorGUILayout.PropertyField(enemies.FindPropertyRelative("endlessHealGrowth"));
                 EditorGUILayout.PropertyField(enemies.FindPropertyRelative("endlessAttackGrowth"));
+                EditorGUILayout.PropertyField(enemies.FindPropertyRelative("defaultInitialDistanceSteps"));
                 EditorGUILayout.PropertyField(enemies.FindPropertyRelative("maxLaunchesPerEnemy"));
             }
 

@@ -5,6 +5,7 @@ namespace POPHero
     public class RoundController : MonoBehaviour
     {
         PopHeroGame game;
+        EnemyTurnResolver enemyTurnResolver;
 
         public int RoundNumber { get; private set; }
         public int RoundAttackScore { get; private set; }
@@ -25,6 +26,7 @@ namespace POPHero
             RoundShieldGain = 0;
             RoundHitCount = 0;
             StickerState.Reset();
+            enemyTurnResolver = new EnemyTurnResolver();
         }
 
         public void BeginRound()
@@ -162,6 +164,7 @@ namespace POPHero
                 attackDamage = RoundAttackScore,
                 shieldGain = RoundShieldGain,
                 hitCount = RoundHitCount,
+                enemyTurn = EnemyTurnOutcome.None(game.CurrentEnemyEncounter?.DistanceStepsRemaining ?? 0),
                 enemyCounterDamage = 0,
                 enemyDefeated = false,
                 playerDefeated = false
@@ -175,11 +178,10 @@ namespace POPHero
                     game.CombatEventHub?.Publish(new CombatEventPayload(StickerTriggerType.OnEnemyKilled));
             }
 
-            if (game.CurrentEnemy != null && !result.enemyDefeated && game.CurrentEnemy.AttackDamage > 0)
-            {
-                result.enemyCounterDamage = Mathf.Max(0, game.CurrentEnemy.AttackDamage - StickerState.enemyCounterReduction);
-                game.Player.ApplyDamage(result.enemyCounterDamage);
-            }
+            if (game.CurrentEnemyEncounter != null && !result.enemyDefeated)
+                result.enemyTurn = enemyTurnResolver.Resolve(game.CurrentEnemyEncounter, StickerState.enemyCounterReduction, game.Player);
+
+            result.enemyCounterDamage = result.enemyTurn.DamageDealt;
 
             game.Player.ClearShield();
             result.playerDefeated = game.Player.IsDead;
