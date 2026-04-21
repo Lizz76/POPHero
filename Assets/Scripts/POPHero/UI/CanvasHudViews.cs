@@ -119,64 +119,58 @@ namespace POPHero
         readonly Image background;
         readonly TMP_Text indexText;
         readonly BlockCellView typeCell;
-        readonly RectTransform stickerRoot;
         readonly RectTransform socketRoot;
-        readonly List<Button> stickerButtons = new();
-        readonly List<TMP_Text> stickerLabels = new();
-        readonly List<Image> stickerImages = new();
-        readonly List<Button> socketButtons = new();
-        readonly List<TMP_Text> socketLabels = new();
-        readonly List<Image> socketImages = new();
+        readonly BlockCellView socketCellPrefab;
+        readonly List<BlockCellView> socketCells = new();
 
         public GameObject gameObject => root.gameObject;
 
-        CanvasBlockRowView(RectTransform root, Image background, TMP_Text indexText, BlockCellView typeCell, RectTransform stickerRoot, RectTransform socketRoot)
+        CanvasBlockRowView(RectTransform root, Image background, TMP_Text indexText, BlockCellView typeCell, RectTransform socketRoot, BlockCellView socketCellPrefab)
         {
             this.root = root;
             this.background = background;
             this.indexText = indexText;
             this.typeCell = typeCell;
-            this.stickerRoot = stickerRoot;
             this.socketRoot = socketRoot;
+            this.socketCellPrefab = socketCellPrefab;
         }
 
         public static CanvasBlockRowView Create(Transform parent, BlockCellView blockCellPrefab = null)
         {
             var root = CanvasUiFactory.Node("BlockRow", parent);
             var layoutElement = root.gameObject.AddComponent<LayoutElement>();
-            layoutElement.minHeight = 38f;
-            layoutElement.preferredHeight = 38f;
+            layoutElement.minHeight = 72f;
+            layoutElement.preferredHeight = 72f;
             layoutElement.flexibleWidth = 1f;
             var layout = root.gameObject.AddComponent<HorizontalLayoutGroup>();
-            layout.padding = new RectOffset(8, 8, 4, 4);
-            layout.spacing = 6f;
+            layout.padding = new RectOffset(10, 10, 8, 8);
+            layout.spacing = 8f;
             layout.childAlignment = TextAnchor.MiddleLeft;
             layout.childForceExpandHeight = false;
             layout.childForceExpandWidth = false;
             var background = root.gameObject.AddComponent<Image>();
             background.color = new Color(0.12f, 0.14f, 0.2f, 0.94f);
 
-            var index = CanvasUiFactory.Text("Index", root, 18, Color.white, TextAlignmentOptions.Center, FontStyles.Bold);
-            index.rectTransform.gameObject.AddComponent<LayoutElement>().preferredWidth = 36f;
+            var index = CanvasUiFactory.Text("Index", root, 20, Color.white, TextAlignmentOptions.Center, FontStyles.Bold);
+            var indexLayout = index.rectTransform.gameObject.AddComponent<LayoutElement>();
+            indexLayout.minWidth = 42f;
+            indexLayout.preferredWidth = 42f;
 
             var typeCell = BlockCellView.Create(root, blockCellPrefab);
-
-            var stickerRoot = CanvasUiFactory.Node("StickerRoot", root);
-            stickerRoot.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
-            var stickerLayout = stickerRoot.gameObject.AddComponent<HorizontalLayoutGroup>();
-            stickerLayout.spacing = 4f;
-            stickerLayout.childAlignment = TextAnchor.MiddleLeft;
-            stickerLayout.childForceExpandHeight = false;
-            stickerLayout.childForceExpandWidth = false;
+            var typeCellLayout = typeCell.GetComponent<LayoutElement>() ?? typeCell.gameObject.AddComponent<LayoutElement>();
+            typeCellLayout.minWidth = 58f;
+            typeCellLayout.preferredWidth = 58f;
+            typeCellLayout.minHeight = 44f;
+            typeCellLayout.preferredHeight = 44f;
 
             var socketRoot = CanvasUiFactory.Node("SocketRoot", root);
             var socketLayout = socketRoot.gameObject.AddComponent<HorizontalLayoutGroup>();
-            socketLayout.spacing = 4f;
-            socketLayout.childAlignment = TextAnchor.MiddleRight;
+            socketLayout.spacing = 6f;
+            socketLayout.childAlignment = TextAnchor.MiddleLeft;
             socketLayout.childForceExpandHeight = false;
             socketLayout.childForceExpandWidth = false;
 
-            return new CanvasBlockRowView(root, background, index, typeCell, stickerRoot, socketRoot);
+            return new CanvasBlockRowView(root, background, index, typeCell, socketRoot, blockCellPrefab);
         }
 
         public void SetSelection(bool selected)
@@ -191,7 +185,6 @@ namespace POPHero
         public void SetEmpty()
         {
             typeCell.gameObject.SetActive(false);
-            SetStickerCount(0);
             SetSocketCount(0);
         }
 
@@ -210,68 +203,36 @@ namespace POPHero
             AttachTooltip(typeCell.gameObject, title, body, color, controller);
         }
 
-        public void SetStickerCount(int count)
-        {
-            while (stickerButtons.Count < count)
-            {
-                var button = CanvasUiFactory.Button("Sticker", stickerRoot, "", new Color(0.24f, 0.28f, 0.38f, 1f), Color.white, 14);
-                var layout = button.gameObject.AddComponent<LayoutElement>();
-                layout.preferredWidth = 24f;
-                layout.preferredHeight = 24f;
-                stickerButtons.Add(button);
-                stickerLabels.Add(button.GetComponentInChildren<TMP_Text>());
-                stickerImages.Add(button.GetComponent<Image>());
-            }
-
-            for (var i = 0; i < stickerButtons.Count; i++)
-                stickerButtons[i].gameObject.SetActive(i < count);
-        }
-
-        public void SetSticker(int index, string text, Color color)
-        {
-            stickerImages[index].color = color;
-            stickerLabels[index].text = text;
-            stickerButtons[index].interactable = false;
-        }
-
-        public void SetStickerTooltip(int index, string title, string body, Color color, CanvasHudController controller)
-        {
-            AttachTooltip(stickerButtons[index].gameObject, title, body, color, controller);
-        }
-
         public void SetSocketCount(int count)
         {
-            while (socketButtons.Count < count)
+            while (socketCells.Count < count)
             {
-                var button = CanvasUiFactory.Button("Socket", socketRoot, "+", new Color(0.32f, 0.36f, 0.42f, 1f), Color.white, 14);
-                var layout = button.gameObject.AddComponent<LayoutElement>();
-                layout.preferredWidth = 22f;
-                layout.preferredHeight = 22f;
-                socketButtons.Add(button);
-                socketLabels.Add(button.GetComponentInChildren<TMP_Text>());
-                socketImages.Add(button.GetComponent<Image>());
+                var cell = BlockCellView.Create(socketRoot, socketCellPrefab);
+                var layout = cell.GetComponent<LayoutElement>() ?? cell.gameObject.AddComponent<LayoutElement>();
+                layout.minWidth = 58f;
+                layout.preferredWidth = 58f;
+                layout.minHeight = 44f;
+                layout.preferredHeight = 44f;
+                socketCells.Add(cell);
             }
 
-            for (var i = 0; i < socketButtons.Count; i++)
-                socketButtons[i].gameObject.SetActive(i < count);
+            for (var i = 0; i < socketCells.Count; i++)
+                socketCells[i].gameObject.SetActive(i < count);
         }
 
-        public void SetSocket(int index, string text, Color color, Action action, Action dropAction = null)
+        public void SetSocket(int index, string fallbackText, Sprite iconSprite, Color color, Action action, Action dropAction = null)
         {
-            socketImages[index].color = color;
-            socketLabels[index].text = text;
-            socketButtons[index].onClick.RemoveAllListeners();
-            if (action != null)
-                socketButtons[index].onClick.AddListener(() => action());
+            var cell = socketCells[index];
+            cell.SetCustom(null, color, iconSprite, Color.white, fallbackText, action);
 
-            var dropRelay = socketButtons[index].gameObject.GetComponent<CanvasSocketDropRelay>() ??
-                socketButtons[index].gameObject.AddComponent<CanvasSocketDropRelay>();
+            var dropRelay = cell.gameObject.GetComponent<CanvasSocketDropRelay>() ??
+                cell.gameObject.AddComponent<CanvasSocketDropRelay>();
             dropRelay.Dropped = dropAction;
         }
 
         public void SetSocketTooltip(int index, string title, string body, Color color, CanvasHudController controller)
         {
-            AttachTooltip(socketButtons[index].gameObject, title, body, color, controller);
+            AttachTooltip(socketCells[index].gameObject, title, body, color, controller);
         }
 
         static void AttachTooltip(GameObject go, string title, string body, Color color, CanvasHudController controller)
@@ -532,6 +493,112 @@ namespace POPHero
         }
 
         public void SetInteractable(bool interactable) => button.interactable = interactable;
+
+        public void SetTooltip(string titleValue, string bodyValue, Color color, CanvasHudController controller)
+        {
+            var relay = root.gameObject.GetComponent<CanvasPointerRelay>() ?? root.gameObject.AddComponent<CanvasPointerRelay>();
+            relay.Entered = () => controller.SetTooltip(titleValue, bodyValue, color);
+            relay.Exited = controller.ClearTooltip;
+        }
+    }
+
+    public sealed class CanvasBlockOperationEntryView
+    {
+        readonly RectTransform root;
+        readonly Image background;
+        readonly Button mainButton;
+        readonly TMP_Text title;
+        readonly TMP_Text meta;
+        readonly TMP_Text desc;
+        readonly Button sideButton;
+        readonly TMP_Text sideButtonLabel;
+
+        public GameObject gameObject => root.gameObject;
+
+        CanvasBlockOperationEntryView(RectTransform root, Image background, Button mainButton, TMP_Text title, TMP_Text meta, TMP_Text desc, Button sideButton, TMP_Text sideButtonLabel)
+        {
+            this.root = root;
+            this.background = background;
+            this.mainButton = mainButton;
+            this.title = title;
+            this.meta = meta;
+            this.desc = desc;
+            this.sideButton = sideButton;
+            this.sideButtonLabel = sideButtonLabel;
+        }
+
+        public static CanvasBlockOperationEntryView Create(Transform parent)
+        {
+            var root = CanvasUiFactory.Node("BlockOperationEntry", parent);
+            var layoutElement = root.gameObject.AddComponent<LayoutElement>();
+            layoutElement.minHeight = 74f;
+            layoutElement.preferredHeight = 80f;
+            layoutElement.flexibleWidth = 1f;
+
+            var background = root.gameObject.AddComponent<Image>();
+            background.color = new Color(0.12f, 0.14f, 0.2f, 0.94f);
+
+            var layout = root.gameObject.AddComponent<HorizontalLayoutGroup>();
+            layout.padding = new RectOffset(10, 10, 8, 8);
+            layout.spacing = 10f;
+            layout.childAlignment = TextAnchor.MiddleLeft;
+            layout.childForceExpandHeight = true;
+            layout.childForceExpandWidth = false;
+
+            var mainRoot = CanvasUiFactory.Node("MainRoot", root);
+            var mainLayoutElement = mainRoot.gameObject.AddComponent<LayoutElement>();
+            mainLayoutElement.flexibleWidth = 1f;
+            var mainButton = mainRoot.gameObject.AddComponent<Button>();
+            mainButton.transition = Selectable.Transition.None;
+
+            var mainLayout = mainRoot.gameObject.AddComponent<VerticalLayoutGroup>();
+            mainLayout.spacing = 4f;
+            mainLayout.childAlignment = TextAnchor.UpperLeft;
+            mainLayout.childControlWidth = true;
+            mainLayout.childControlHeight = false;
+            mainLayout.childForceExpandWidth = true;
+            mainLayout.childForceExpandHeight = false;
+
+            var title = CanvasUiFactory.Text("Title", mainRoot, 20, Color.white, TextAlignmentOptions.Left, FontStyles.Bold);
+            var meta = CanvasUiFactory.Text("Meta", mainRoot, 17, new Color(0.96f, 0.82f, 0.44f, 1f), TextAlignmentOptions.Left, FontStyles.Bold);
+            var desc = CanvasUiFactory.Text("Description", mainRoot, 16, new Color(0.85f, 0.88f, 0.94f, 1f), TextAlignmentOptions.Left);
+            desc.enableWordWrapping = false;
+            desc.overflowMode = TextOverflowModes.Ellipsis;
+
+            var sideButton = CanvasUiFactory.Button("SideButton", root, "删除", new Color(0.58f, 0.18f, 0.2f, 1f), Color.white, 18);
+            var sideLayoutElement = sideButton.gameObject.AddComponent<LayoutElement>();
+            sideLayoutElement.minWidth = 92f;
+            sideLayoutElement.preferredWidth = 92f;
+            sideLayoutElement.minHeight = 40f;
+            sideLayoutElement.preferredHeight = 40f;
+
+            return new CanvasBlockOperationEntryView(root, background, mainButton, title, meta, desc, sideButton, sideButton.GetComponentInChildren<TMP_Text>());
+        }
+
+        public void Set(string titleValue, string metaValue, string descValue, Color accent, bool selected, Action mainAction, Action sideAction, string sideLabel)
+        {
+            title.text = titleValue ?? string.Empty;
+            meta.text = metaValue ?? string.Empty;
+            desc.text = descValue ?? string.Empty;
+
+            var baseColor = new Color(accent.r * 0.1f + 0.1f, accent.g * 0.1f + 0.12f, accent.b * 0.1f + 0.16f, 0.94f);
+            background.color = selected
+                ? new Color(0.34f, 0.29f, 0.08f, 0.96f)
+                : baseColor;
+            meta.color = accent;
+
+            mainButton.onClick.RemoveAllListeners();
+            if (mainAction != null)
+                mainButton.onClick.AddListener(() => mainAction());
+
+            sideButton.onClick.RemoveAllListeners();
+            if (sideAction != null)
+                sideButton.onClick.AddListener(() => sideAction());
+
+            sideButton.gameObject.SetActive(sideAction != null);
+            if (sideButtonLabel != null)
+                sideButtonLabel.text = sideLabel ?? string.Empty;
+        }
 
         public void SetTooltip(string titleValue, string bodyValue, Color color, CanvasHudController controller)
         {

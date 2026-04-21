@@ -738,7 +738,7 @@ internal sealed class RuntimeBoardService
             var width = context.Game.config.board.launchSafeWidth;
             var height = context.Game.config.board.launchSafeHeight;
             var minX = Mathf.Clamp(launchPoint.x - width * 0.5f, board.xMin, board.xMax - width);
-            return new Rect(minX, board.yMin + 0.2f, width, height);
+            return new Rect(minX, context.Game.CurrentBottomBoundaryY + 0.2f, width, height);
         }
 
         List<Vector2> BuildCandidatePositions(Rect safeZone)
@@ -749,7 +749,7 @@ internal sealed class RuntimeBoardService
             var halfSize = size * 0.5f;
             var minX = board.xMin + context.Game.config.board.sidePadding + halfSize.x;
             var maxX = board.xMax - context.Game.config.board.sidePadding - halfSize.x;
-            var minY = board.yMin + context.Game.config.board.bottomPadding + halfSize.y;
+            var minY = context.Game.CurrentBottomBoundaryY + context.Game.config.board.bottomPadding + halfSize.y;
             var maxY = board.yMax - context.Game.config.board.topPadding - halfSize.y;
 
             var spacingX = size.x + 0.45f;

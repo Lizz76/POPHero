@@ -44,7 +44,6 @@ namespace POPHero
         [SerializeField] SpriteRenderer boardFrame;
         [SerializeField] SpriteRenderer boardBackground;
         [SerializeField] SpriteRenderer launchGuide;
-        [SerializeField] Transform launchMarkerRef;
         [SerializeField] GameObject bottomLineObject;
         [SerializeField] Transform wallTopRoot;
         [SerializeField] Transform wallLeftRoot;
@@ -73,7 +72,9 @@ namespace POPHero
         public PlayerData Player { get; private set; }
         public EnemyData CurrentEnemy { get; private set; }
         public Rect BoardRect { get; private set; }
-        public float LaunchY { get; private set; }
+        public Rect PlayAreaRect => new(BoardRect.xMin, CurrentBottomBoundaryY, BoardRect.width, BoardRect.yMax - CurrentBottomBoundaryY);
+        public float CurrentBottomBoundaryY => GetBottomBoundaryY(CurrentLaunchPoint.y);
+        public float LaunchY => CurrentLaunchPoint.y;
         public int RemainingLaunchesForEnemy { get; private set; }
         public string GameOverMessage { get; private set; } = "本局结束。";
         public string IntermissionMessage { get; private set; } = string.Empty;
@@ -103,16 +104,18 @@ namespace POPHero
         public IRuntimeBoardService RuntimeBoard => runtimeBoardService;
         public IModService Mods => modService;
         public IShopService Shops => shopService;
+        public IBlockOperationService BlockOperations => blockOperationService;
         public int EncounterIndex => enemyEncounterIndex + 1;
         public int MaxLaunchesPerEnemy => Mathf.Max(1, config.enemies.maxLaunchesPerEnemy + (Player?.BonusLaunchesPerEnemy ?? 0));
         public InputAimMode CurrentAimMode => config.aim.currentAimMode;
         public bool IsInitialBlockDraftPending => initialBlockDraftPending;
         public bool IsSettingsOpen { get; private set; }
         public float RunElapsedSeconds => runElapsedSeconds;
-        public bool CanManageBlockAssignments => !IsSettingsOpen && (State == RoundState.Shop || State == RoundState.LoadoutManage);
+        public bool CanManageBlockAssignments => !IsSettingsOpen && State == RoundState.BlockOperations;
+        public bool CanManageStickerLoadout => !IsSettingsOpen && State == RoundState.LoadoutManage;
         public string AimModeDisplayText => CurrentAimMode == InputAimMode.PCMouseAimClick ? "移动鼠标瞄准，左键发射" : "拖动瞄准，再点一次发射";
         public string CurrentAimModeLabel => CurrentAimMode == InputAimMode.PCMouseAimClick ? "移动鼠标瞄准，左键发射" : "拖动瞄准，再点一次发射";
-        public Vector2 CurrentLaunchPoint => roundController != null ? roundController.LaunchPosition : new Vector2(BoardRect.center.x, LaunchY);
+        public Vector2 CurrentLaunchPoint => roundController != null ? roundController.LaunchPosition : initialLaunchPoint;
         public IReadOnlyList<WallAimPoint> WallAimPoints => wallAimPoints;
 
         PlayerLauncher launcher;
@@ -126,7 +129,6 @@ namespace POPHero
         CanvasHudController canvasHud;
         DamageCounterView damageCounterView;
         PhysicsMaterial2D bounceMaterial;
-        Transform launchMarker;
         Transform battleStageRoot;
         Transform battleEffectsRoot;
         StickerCatalog stickerCatalog;
@@ -135,6 +137,7 @@ namespace POPHero
         RewardChoiceController rewardChoiceController;
         ModManager modManager;
         ShopManager shopManager;
+        BlockOperationManager blockOperationManager;
         ICombatEventHub combatEventHub;
         IBounceStepSolver bounceStepSolver;
         IBlockCollectionService blockCollectionService;
@@ -142,6 +145,7 @@ namespace POPHero
         IRuntimeBoardService runtimeBoardService;
         IModService modService;
         IShopService shopService;
+        IBlockOperationService blockOperationService;
         GamePhaseStateMachine phaseStateMachine;
         GameSessionController gameSessionController;
         BattleFlowController battleFlowController;
@@ -161,11 +165,23 @@ namespace POPHero
         float timeScaleBeforeSettings = 1f;
         bool suppressAimInputAfterUi;
         int suppressAimInputReleaseFrame = int.MaxValue;
+        Vector2 initialLaunchPoint;
 
         void Awake()
         {
             config = Resources.Load<PopHeroPrototypeConfig>("PopHeroPrototypeConfig") ?? PopHeroPrototypeConfig.CreateRuntimeDefault();
-            tableConfig = Resources.Load<PopHeroTableConfig>("POPHeroTableConfig");
+            if (ConfigTableCsvRuntimeLoader.TryLoadFromProjectCsv(out var csvTables, out var csvFolder, out var csvError))
+            {
+                tableConfig = csvTables;
+                Debug.Log($"[POPHero] Loaded gameplay tables directly from CSV: {csvFolder}");
+            }
+            else
+            {
+                tableConfig = Resources.Load<PopHeroTableConfig>("POPHeroTableConfig");
+                if (Application.isEditor && !string.IsNullOrWhiteSpace(csvError))
+                    Debug.LogWarning($"[POPHero] Failed to load CSV tables directly, falling back to runtime asset. Reason: {csvError}");
+            }
+
             Tables = new ConfigTableService(tableConfig, config);
             if (tableConfig == null || !tableConfig.HasGameplayTables)
                 Debug.LogError("[POPHero] POPHeroTableConfig is missing or empty. Run POPHero/Config/Rebuild Tables to generate runtime table data.");
@@ -199,11 +215,12 @@ namespace POPHero
 
             var worldPoint = camera.ScreenToWorldPoint(screenPosition);
             const float padding = 0.15f;
+            var playArea = PlayAreaRect;
             var launchRect = new Rect(
-                BoardRect.xMin - padding,
-                BoardRect.yMin - padding,
-                BoardRect.width + padding * 2f,
-                BoardRect.height + padding * 2f);
+                playArea.xMin - padding,
+                playArea.yMin - padding,
+                playArea.width + padding * 2f,
+                playArea.height + padding * 2f);
             return launchRect.Contains(new Vector2(worldPoint.x, worldPoint.y));
         }
 
@@ -306,7 +323,7 @@ namespace POPHero
             var size = config.arena.boardSize;
             var center = config.arena.boardCenter;
             BoardRect = new Rect(center.x - size.x * 0.5f, center.y - size.y * 0.5f, size.x, size.y);
-            LaunchY = BoardRect.yMin + config.arena.launchLineOffset;
+            initialLaunchPoint = new Vector2(BoardRect.center.x, BoardRect.yMin + config.arena.launchLineOffset);
         }
 
         void SetupCamera()
@@ -342,8 +359,9 @@ namespace POPHero
             if (enemyLayerRoot == null) Debug.LogError("[POPHero] Battle scene is missing World/EnemyLayer.");
 
             BindEnemyLayer();
-            BindBoard();
             BindBall();
+            ResolveInitialLaunchPointFromScene();
+            BindBoard();
 
             roundController = GetComponent<RoundController>() ?? gameObject.AddComponent<RoundController>();
             boardManager = GetComponent<BoardManager>() ?? gameObject.AddComponent<BoardManager>();
@@ -363,6 +381,7 @@ namespace POPHero
             rewardChoiceController = new RewardChoiceController();
             modManager = new ModManager();
             shopManager = new ShopManager();
+            blockOperationManager = new BlockOperationManager();
             combatEventHub = new CombatEventHub();
 
             stickerInventory.Initialize(this);
@@ -370,12 +389,14 @@ namespace POPHero
             rewardChoiceController.Initialize(this);
             modManager.Initialize(this);
             shopManager.Initialize(this);
+            blockOperationManager.Initialize(this);
 
             blockCollectionService = new BlockCollectionServiceFacade(boardManager);
             blockRewardService = new BlockRewardServiceFacade(boardManager);
             runtimeBoardService = new RuntimeBoardServiceFacade(boardManager);
             modService = new ModServiceFacade(modManager);
             shopService = new ShopServiceFacade(shopManager);
+            blockOperationService = blockOperationManager;
             ConfigurePhaseStateMachine();
             gameSessionController = new GameSessionController(this);
             battleFlowController = new BattleFlowController(this);
@@ -442,7 +463,7 @@ namespace POPHero
         {
             Player = new PlayerData(config.player.maxHp, config.player.currentHp, config.player.startShield, config.player.startGold);
             Player.IncreaseInventoryCapacity(config.stickers.baseInventoryCapacity - Player.StickerInventoryCapacity);
-            roundController.Initialize(this, new Vector2(BoardRect.center.x, LaunchY));
+            roundController.Initialize(this, initialLaunchPoint);
             boardManager.ResetBlockProgression();
             ballController.PlaceAt(CurrentLaunchPoint);
             enemyEncounterIndex = 0;
@@ -452,12 +473,13 @@ namespace POPHero
             IntermissionMessage = string.Empty;
             runElapsedSeconds = 0f;
             ClearPendingIntermissionAction();
+            blockOperationManager?.Close();
             damageCounterView?.ResetCounter();
             isBattlePresentationPlaying = false;
             enemyController.gameObject.SetActive(false);
             playerPresenter?.Refresh(Player);
             ResetBattleActorPositions();
-            UpdateLaunchMarker();
+            RefreshLaunchGeometry();
             if (!boardManager.GrantStartingCard(BoardBlockType.AttackAdd, BlockRarity.White, out _, out var failReason))
                 throw new InvalidOperationException($"[POPHero] Failed to grant starting block: {failReason}");
 
@@ -554,6 +576,14 @@ namespace POPHero
             ballController.Initialize(this, ballRigidbody, ballCircleCollider, ballTrail);
         }
 
+        void ResolveInitialLaunchPointFromScene()
+        {
+            if (ballController == null)
+                return;
+
+            initialLaunchPoint = ballController.transform.position;
+        }
+
         void BindBoard()
         {
             // Board Frame
@@ -598,23 +628,6 @@ namespace POPHero
                 launchGuide.color = config.arena.launchGuideColor;
                 launchGuide.sortingOrder = 6;
                 launchGuide.transform.localScale = new Vector3(BoardRect.width - 0.4f, 0.34f, 1f);
-                launchGuide.transform.position = new Vector3(BoardRect.center.x, LaunchY - 0.15f, 0f);
-            }
-
-            // Launch Marker
-            if (launchMarkerRef == null) launchMarkerRef = boardRoot?.Find("LaunchMarker");
-            launchMarker = launchMarkerRef;
-            if (launchMarker != null)
-            {
-                var launchMarkerSize = Mathf.Max(0.14f, config.ball.radius * 2.2f);
-                var sr = launchMarker.GetComponent<SpriteRenderer>();
-                if (sr != null)
-                {
-                    sr.sprite = PrototypeVisualFactory.CircleSprite;
-                    sr.color = new Color(0.97f, 0.97f, 1f, 0.65f);
-                    sr.sortingOrder = 25;
-                }
-                launchMarker.localScale = Vector3.one * launchMarkerSize;
             }
 
             // Walls 鈥?containers exist in scene, bricks are built at runtime
@@ -642,7 +655,6 @@ namespace POPHero
                     sr.sortingOrder = 7;
                 }
                 bottomLineObject.transform.localScale = new Vector3(BoardRect.width, 0.14f, 1f);
-                bottomLineObject.transform.position = new Vector3(BoardRect.center.x, BoardRect.yMin + 0.02f, 0f);
 
                 var bottomTrigger = bottomLineObject.GetComponent<BoxCollider2D>();
                 if (bottomTrigger == null) bottomTrigger = bottomLineObject.AddComponent<BoxCollider2D>();
@@ -653,6 +665,8 @@ namespace POPHero
                 if (marker == null) marker = bottomLineObject.AddComponent<ArenaSurfaceMarker>();
                 marker.surfaceType = ArenaSurfaceType.Bottom;
             }
+
+            ApplyLaunchGeometryVisuals();
         }
 
         public bool TryGetWallSnap(ArenaSurfaceType surfaceType, Vector2 rawBallCenter, out Vector2 snappedBallCenter, out Vector2 wallNormal)
@@ -861,7 +875,7 @@ namespace POPHero
             result.playerDisplayHpAfterCounter = Player != null ? Player.CurrentHp : 0;
             enemyController?.SetHpSnapshot(result.enemyDisplayHpBeforeHit, enemyMaxHp);
             playerPresenter?.SetHpSnapshot(result.playerDisplayHpBeforeCounter, playerMaxHp);
-            UpdateLaunchMarker();
+            RefreshLaunchGeometry();
             if (battlePresentationRoutine != null)
             {
                 StopCoroutine(battlePresentationRoutine);
@@ -929,7 +943,7 @@ namespace POPHero
             enemyController?.SetIntentSuppressed(false);
             enemyController?.Refresh();
             RefreshLaunchCounter();
-            UpdateLaunchMarker();
+            RefreshLaunchGeometry();
             IntermissionMessage = string.Empty;
             ChangeState(RoundState.Aim);
         }
@@ -967,10 +981,44 @@ namespace POPHero
             return new EnemyData(name, hp, rewardGold, rewardHeal, attackDamage, template.color);
         }
 
-        void UpdateLaunchMarker()
+        void RefreshLaunchGeometry()
         {
-            if (launchMarker != null)
-                launchMarker.position = CurrentLaunchPoint;
+            ApplyLaunchGeometryVisuals();
+        }
+
+        void ApplyLaunchGeometryVisuals()
+        {
+            var launchPoint = CurrentLaunchPoint;
+            if (launchGuide != null)
+                launchGuide.transform.position = new Vector3(BoardRect.center.x, launchPoint.y - 0.15f, 0f);
+
+            if (bottomLineObject == null)
+                return;
+
+            bottomLineObject.transform.position = new Vector3(BoardRect.center.x, GetBottomTriggerCenterY(launchPoint.y), 0f);
+        }
+
+        float GetBottomBoundaryY(float launchY)
+        {
+            return launchY - GetLaunchBallRadius() - GetBottomBoundaryClearance();
+        }
+
+        float GetBottomTriggerCenterY(float launchY)
+        {
+            return GetBottomBoundaryY(launchY) - Mathf.Max(0.02f, config.arena.bottomTriggerHeight) * 0.5f;
+        }
+
+        float GetLaunchBallRadius()
+        {
+            if (ballController != null)
+                return Mathf.Max(0.01f, ballController.BallRadiusWorld);
+
+            return Mathf.Max(0.01f, config.ball.radius);
+        }
+
+        float GetBottomBoundaryClearance()
+        {
+            return Mathf.Max(0.03f, config.ball.previewHitEpsilon * 2f);
         }
 
         public void TrySelectBlockReward(int index)
@@ -1073,6 +1121,35 @@ namespace POPHero
             ChangeState(RoundState.Shop);
         }
 
+        public void OpenBlockOperations(string profileId, RoundState returnState)
+        {
+            if (string.IsNullOrWhiteSpace(profileId))
+            {
+                IntermissionMessage = "当前没有配置可用的方块操作。";
+                return;
+            }
+
+            if (!blockOperationManager.TryOpen(profileId, returnState, out var failReason))
+            {
+                IntermissionMessage = failReason;
+                return;
+            }
+
+            IntermissionMessage = blockOperationManager.Session.lastFeedback;
+            ChangeState(RoundState.BlockOperations);
+        }
+
+        public void CloseBlockOperations()
+        {
+            if (State != RoundState.BlockOperations)
+                return;
+
+            var returnState = blockOperationManager.Session.returnState;
+            IntermissionMessage = blockOperationManager.Session.lastFeedback;
+            blockOperationManager.Close();
+            ChangeState(returnState);
+        }
+
         public void TryBuyShopItem(int index)
         {
             if (State != RoundState.Shop)
@@ -1091,22 +1168,24 @@ namespace POPHero
             IntermissionMessage = shopManager.LastFeedback;
         }
 
-        public void TryRemoveBlockInShop(string cardId)
+        public void TryRemoveBlock(string cardId)
         {
-            if (State != RoundState.Shop)
+            if (State != RoundState.BlockOperations)
                 return;
 
-            shopManager.TryRemoveBlock(cardId);
-            IntermissionMessage = shopManager.LastFeedback;
+            if (blockOperationManager.TryRemoveBlock(cardId, out var failReason))
+                IntermissionMessage = blockOperationManager.Session.lastFeedback;
+            else
+                IntermissionMessage = string.IsNullOrWhiteSpace(failReason) ? blockOperationManager.Session.lastFeedback : failReason;
         }
 
         public void TrySwapActiveReserve(string activeCardId, string reserveCardId)
         {
-            if (!CanManageBlockAssignments)
+            if (State != RoundState.BlockOperations)
                 return;
 
-            if (boardManager.TrySwapActiveAndReserve(activeCardId, reserveCardId, out var failReason))
-                IntermissionMessage = "已交换上阵和仓库中的方块。";
+            if (blockOperationManager.TrySwapActiveReserve(activeCardId, reserveCardId, out var failReason))
+                IntermissionMessage = blockOperationManager.Session.lastFeedback;
             else
                 IntermissionMessage = failReason;
         }
@@ -1204,7 +1283,7 @@ namespace POPHero
             if (State != RoundState.GameOver)
             {
                 boardManager.ShuffleBlocks(CurrentLaunchPoint);
-                UpdateLaunchMarker();
+                RefreshLaunchGeometry();
             }
         }
 
@@ -1359,6 +1438,16 @@ namespace POPHero
                 case HudCommandType.TryRerollShop:
                     TryRerollShop();
                     break;
+                case HudCommandType.OpenBlockOperations:
+                    var returnState = State;
+                    if (!string.IsNullOrWhiteSpace(command.SecondaryId) &&
+                        Enum.TryParse(command.SecondaryId, true, out RoundState parsedReturnState))
+                        returnState = parsedReturnState;
+                    OpenBlockOperations(command.PrimaryId, returnState);
+                    break;
+                case HudCommandType.CloseBlockOperations:
+                    CloseBlockOperations();
+                    break;
                 case HudCommandType.CloseShop:
                     CloseShop();
                     break;
@@ -1374,8 +1463,8 @@ namespace POPHero
                 case HudCommandType.ToggleModActivation:
                     ToggleModActivation(command.PrimaryId);
                     break;
-                case HudCommandType.TryRemoveBlockInShop:
-                    TryRemoveBlockInShop(command.PrimaryId);
+                case HudCommandType.TryRemoveBlock:
+                    TryRemoveBlock(command.PrimaryId);
                     break;
                 case HudCommandType.TrySwapActiveReserve:
                     TrySwapActiveReserve(command.PrimaryId, command.SecondaryId);
@@ -1394,7 +1483,7 @@ namespace POPHero
 
         public void DebugKillEnemy()
         {
-            if (CurrentEnemy == null || State == RoundState.GameOver || State == RoundState.BlockRewardChoose || State == RoundState.RewardChoose || State == RoundState.Shop || State == RoundState.LoadoutManage)
+            if (CurrentEnemy == null || State == RoundState.GameOver || State == RoundState.BlockRewardChoose || State == RoundState.RewardChoose || State == RoundState.Shop || State == RoundState.BlockOperations || State == RoundState.LoadoutManage)
                 return;
 
             CurrentEnemy.ApplyDamage(CurrentEnemy.CurrentHp);
@@ -1718,6 +1807,7 @@ namespace POPHero
             phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.BlockRewardChoose, false));
             phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.RewardChoose, false));
             phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.Shop, false));
+            phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.BlockOperations, false));
             phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.LoadoutManage, false));
             phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.GameOver, false));
         }

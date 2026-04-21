@@ -45,14 +45,18 @@ namespace POPHero
             var result = new TrajectoryPreviewResult();
             var predictedAttack = 0;
             var predictedShield = 0;
+            var previewDistanceBudget = GetPreviewDistanceBudget(maxDistance);
+            var previewBounceBudget = GetPreviewBounceBudget(maxBounces, previewDistanceBudget);
             var simulationState = BallFlightState.Create(origin, direction, game.config.ball.speed);
             var simulationResult = flightSimulator.Simulate(simulationState, new BallFlightRunOptions
             {
-                distanceBudget = Mathf.Max(1f, maxDistance),
-                maxTotalDistance = Mathf.Max(1f, maxDistance),
+                // Preview should try to cover the full legal flight, not stop at an arbitrary
+                // visual cap and mislead the live simulation.
+                distanceBudget = previewDistanceBudget,
+                maxTotalDistance = previewDistanceBudget,
                 maxDuration = Mathf.Max(0.1f, game.config.ball.maxFlightDuration),
-                maxBounces = Mathf.Max(1, maxBounces),
-                maxSteps = Mathf.Max(64, Mathf.Max(1, maxBounces) * 6),
+                maxBounces = previewBounceBudget,
+                maxSteps = Mathf.Max(128, previewBounceBudget * 6),
                 includeStartPoint = true
             });
 
@@ -73,6 +77,28 @@ namespace POPHero
             result.predictedAttackScore = predictedAttack;
             result.predictedShieldGain = predictedShield;
             return result;
+        }
+
+        float GetPreviewDistanceBudget(float requestedMaxDistance)
+        {
+            var configuredBudget = Mathf.Max(1f, requestedMaxDistance);
+            if (game == null || game.config == null)
+                return configuredBudget;
+
+            var fullFlightBudget = Mathf.Max(game.config.ball.speed, game.config.ball.maxSpeed) *
+                                   Mathf.Max(0.1f, game.config.ball.maxFlightDuration);
+            return Mathf.Max(configuredBudget, fullFlightBudget);
+        }
+
+        int GetPreviewBounceBudget(int requestedMaxBounces, float distanceBudget)
+        {
+            var configuredBudget = Mathf.Max(1, requestedMaxBounces);
+            if (game == null)
+                return configuredBudget;
+
+            var arenaSpan = Mathf.Max(1f, Mathf.Max(game.BoardRect.width, game.BoardRect.height));
+            var adaptiveBudget = Mathf.CeilToInt(distanceBudget / arenaSpan) * 4;
+            return Mathf.Max(configuredBudget, 64, adaptiveBudget);
         }
 
         void ApplyPredictedBlockEffect(BoardBlock block, ref int predictedAttack, ref int predictedShield)

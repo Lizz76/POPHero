@@ -214,9 +214,10 @@ namespace POPHero
             if (game == null || game.State != RoundState.BallFlying || !isFlying)
                 return;
 
+            var radius = Mathf.Max(0.01f, BallRadiusWorld);
             var landingPoint = rawLandingPoint;
-            landingPoint.x = Mathf.Clamp(landingPoint.x, game.BoardRect.xMin + game.config.ball.radius, game.BoardRect.xMax - game.config.ball.radius);
-            landingPoint.y = game.LaunchY;
+            landingPoint.x = Mathf.Clamp(landingPoint.x, game.BoardRect.xMin + radius, game.BoardRect.xMax - radius);
+            landingPoint.y = game.CurrentLaunchPoint.y;
             StopImmediately();
             game.OnBallReturned(landingPoint);
         }
@@ -229,9 +230,10 @@ namespace POPHero
             var result = flightSimulator.Simulate(flightState, new BallFlightRunOptions
             {
                 distanceBudget = Mathf.Max(0f, currentSpeed * deltaTime),
-                maxTotalDistance = Mathf.Max(1f, game.config.ball.previewDistance),
+                // Live flight must never inherit preview truncation limits.
+                maxTotalDistance = 0f,
                 maxDuration = Mathf.Max(0.1f, game.config.ball.maxFlightDuration),
-                maxBounces = Mathf.Max(1, game.config.ball.previewSegments),
+                maxBounces = 0,
                 maxSteps = Mathf.Max(1, game.config.ball.maxCollisionStepsPerFixedUpdate)
             });
 

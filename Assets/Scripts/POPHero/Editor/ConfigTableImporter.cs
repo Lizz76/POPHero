@@ -11,6 +11,7 @@ namespace POPHero
     public sealed class ConfigTableImporter : AssetPostprocessor
     {
         const string ConfigFolder = "Assets/ConfigTables";
+        const string GlobalConfigFallbackPath = "Assets/globalConfig.csv";
         const string RuntimeAssetPath = "Assets/Resources/POPHeroTableConfig.asset";
         static bool rebuildQueued;
 
@@ -18,6 +19,40 @@ namespace POPHero
         public static void RebuildTablesMenu()
         {
             RebuildTables(true);
+        }
+
+        public static void RebuildTablesCli()
+        {
+            try
+            {
+                var result = LoadAndValidateTables();
+                LogValidationResult(result, true);
+                if (result.HasErrors)
+                {
+                    EditorApplication.Exit(1);
+                    return;
+                }
+
+                Directory.CreateDirectory("Assets/Resources");
+                var asset = AssetDatabase.LoadAssetAtPath<PopHeroTableConfig>(RuntimeAssetPath);
+                if (asset == null)
+                {
+                    asset = ScriptableObject.CreateInstance<PopHeroTableConfig>();
+                    AssetDatabase.CreateAsset(asset, RuntimeAssetPath);
+                }
+
+                FillAsset(asset, result);
+                EditorUtility.SetDirty(asset);
+                AssetDatabase.SaveAssets();
+                AssetDatabase.ImportAsset(RuntimeAssetPath);
+                Debug.Log($"[POPHero Config] Rebuilt runtime table asset: {RuntimeAssetPath}");
+                EditorApplication.Exit(0);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogException(ex);
+                EditorApplication.Exit(1);
+            }
         }
 
         [MenuItem("POPHero/Config/Validate Tables")]
@@ -84,6 +119,13 @@ namespace POPHero
                 ValidateBasicShape(table, result);
             }
 
+            if (!result.Tables.ContainsKey("globalConfig.csv") && File.Exists(GlobalConfigFallbackPath))
+            {
+                var table = CsvTable.Load(GlobalConfigFallbackPath);
+                result.Tables["globalConfig.csv"] = table;
+                ValidateBasicShape(table, result);
+            }
+
             ValidateRequiredTables(result);
             ValidateDomain(result);
             return result;
@@ -101,6 +143,7 @@ namespace POPHero
             asset.mods.Clear();
             asset.growthRewards.Clear();
             asset.shopSlots.Clear();
+            asset.blockOperationProfiles.Clear();
 
             foreach (var row in result.GetRows("globalConfig.csv"))
             {
@@ -246,6 +289,27 @@ namespace POPHero
                     weight = ParseInt(row.Get("weight"), 100)
                 });
             }
+
+            foreach (var row in result.GetRows("blockOperation.csv"))
+            {
+                asset.blockOperationProfiles.Add(new BlockOperationProfileDef
+                {
+                    id = row.Get("id"),
+                    title = row.Get("title"),
+                    subtitle = row.Get("subtitle"),
+                    hintText = row.Get("hintText"),
+                    activeColumnTitle = row.Get("activeColumnTitle"),
+                    reserveColumnTitle = row.Get("reserveColumnTitle"),
+                    openButtonText = row.Get("openButtonText"),
+                    closeButtonText = row.Get("closeButtonText"),
+                    allowDelete = ParseBool(row.Get("allowDelete")),
+                    deleteCostGold = ParseInt(row.Get("deleteCostGold")),
+                    maxDeleteCount = ParseInt(row.Get("maxDeleteCount"), -1),
+                    allowSwap = ParseBool(row.Get("allowSwap")),
+                    swapCostGold = ParseInt(row.Get("swapCostGold")),
+                    maxSwapCount = ParseInt(row.Get("maxSwapCount"), -1)
+                });
+            }
         }
 
         static void ValidateRequiredTables(TableImportResult result)
@@ -253,7 +317,7 @@ namespace POPHero
             foreach (var required in new[]
                      {
                          "globalConfig.csv", "blockType.csv", "blockRarity.csv", "blockRewardStage.csv",
-                         "enemy.csv", "sticker.csv", "stickerToken.csv", "mod.csv", "growthReward.csv", "shop.csv"
+                         "enemy.csv", "sticker.csv", "stickerToken.csv", "mod.csv", "growthReward.csv", "shop.csv", "blockOperation.csv"
                      })
             {
                 if (!result.Tables.ContainsKey(required))
@@ -294,6 +358,7 @@ namespace POPHero
             ValidateRewardStages(result);
             ValidateStickerReferences(result);
             ValidateShop(result);
+            ValidateBlockOperations(result);
         }
 
         static void ValidateEnums(TableImportResult result)
@@ -405,6 +470,22 @@ namespace POPHero
                     if (!Mathf.Approximately(total, 100f))
                         result.AddError($"{row.Table.Name}: row {row.LineNumber} rarityWeights total {total}, expected 100.");
                 }
+
+                if (kind == ShopSlotKind.RemoveBlock)
+                    result.AddWarning($"{row.Table.Name}: row {row.LineNumber} uses legacy RemoveBlock slot. Runtime block deletion now comes from blockOperation.csv and shopBlockOperationProfileId.");
+            }
+        }
+
+        static void ValidateBlockOperations(TableImportResult result)
+        {
+            foreach (var row in result.GetRows("blockOperation.csv"))
+            {
+                ValidateBool(result, row, "allowDelete");
+                ValidateBool(result, row, "allowSwap");
+                ValidateNonNegative(result, row, "deleteCostGold");
+                ValidateNonNegative(result, row, "swapCostGold");
+                ValidateLimit(result, row, "maxDeleteCount");
+                ValidateLimit(result, row, "maxSwapCount");
             }
         }
 
@@ -435,6 +516,17 @@ namespace POPHero
             return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : fallback;
         }
 
+        static bool ParseBool(string value, bool fallback = false)
+        {
+            if (bool.TryParse(value, out var parsed))
+                return parsed;
+
+            if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var intValue))
+                return intValue != 0;
+
+            return fallback;
+        }
+
         static float ParseFloat(string value, float fallback = 0f)
         {
             return float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) ? parsed : fallback;
@@ -453,6 +545,33 @@ namespace POPHero
                 purple = parts.Length > 2 ? ParseFloat(parts[2]) : 0f,
                 gold = parts.Length > 3 ? ParseFloat(parts[3]) : 0f
             };
+        }
+
+        static void ValidateBool(TableImportResult result, CsvRow row, string field)
+        {
+            if (string.IsNullOrWhiteSpace(row.Get(field)))
+                return;
+
+            if (bool.TryParse(row.Get(field), out _))
+                return;
+
+            if (int.TryParse(row.Get(field), NumberStyles.Integer, CultureInfo.InvariantCulture, out var intValue) &&
+                (intValue == 0 || intValue == 1))
+                return;
+
+            result.AddError($"{row.Table.Name}: row {row.LineNumber} {field} `{row.Get(field)}` is not a valid bool.");
+        }
+
+        static void ValidateNonNegative(TableImportResult result, CsvRow row, string field)
+        {
+            if (!int.TryParse(row.Get(field), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) || value < 0)
+                result.AddError($"{row.Table.Name}: row {row.LineNumber} {field} must be >= 0.");
+        }
+
+        static void ValidateLimit(TableImportResult result, CsvRow row, string field)
+        {
+            if (!int.TryParse(row.Get(field), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) || value < -1)
+                result.AddError($"{row.Table.Name}: row {row.LineNumber} {field} must be -1 or >= 0.");
         }
 
         sealed class TableImportResult
@@ -480,7 +599,7 @@ namespace POPHero
             public static CsvTable Load(string path)
             {
                 var table = new CsvTable { Name = Path.GetFileName(path) };
-                var lines = File.ReadAllLines(path);
+                var lines = CsvFileReader.ReadAllLinesWithRetry(path);
                 for (var i = 0; i < lines.Length; i++)
                 {
                     var values = ParseCsvLine(lines[i]);

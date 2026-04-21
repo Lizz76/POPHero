@@ -41,8 +41,8 @@ namespace POPHero
         public float wallStoneColliderOverlap = 0.04f;
         public float wallStoneColorVariance = 0.18f;
         public float topPanelHeight = 3f;
-        public float launchLineOffset = 0.42f;
-        public float bottomTriggerHeight = 0.3f;
+        public float launchLineOffset = 0.3f;
+        public float bottomTriggerHeight = 0.2f;
         public float cameraSize = 8.9f;
         public Color backgroundColor = new(0.08f, 0.08f, 0.08f, 1f);
         public Color boardBackgroundColor = new(0.05f, 0.05f, 0.06f, 1f);
@@ -64,8 +64,8 @@ namespace POPHero
         public float maxSpeed = 24f;
         public float maxFlightDuration = 18f;
         public float outOfBoundsRecoveryPadding = 0.8f;
-        public float minAimAngle = 18f;
-        public float maxAimAngle = 162f;
+        public float minAimAngle = 8f;
+        public float maxAimAngle = 172f;
         public int previewSegments = 30;
         public float previewDistance = 100f;
         public float previewHitEpsilon = 0.01f;
@@ -306,6 +306,7 @@ namespace POPHero
         public int stickerRerollMoney = 4;
         public int shopRerollMoney = 3;
         public int blockRemovalCost = 18;
+        public string blockOperationProfileId = "shop_default";
     }
 
     [Serializable]

@@ -94,6 +94,19 @@ namespace POPHero
                 button.onClick.AddListener(() => action());
         }
 
+        internal void SetCustom(Sprite backgroundSprite, Color backgroundTint, Sprite iconSprite, Color iconTint, string fallbackText, Action action)
+        {
+            SetVisual(
+                null,
+                new BlockVisualPresentation(
+                    backgroundSprite,
+                    backgroundTint,
+                    iconSprite,
+                    iconTint,
+                    fallbackText),
+                action);
+        }
+
         internal void SetPlaceholder(string label, Color color, Action action)
         {
             SetVisual(

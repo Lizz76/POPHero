@@ -17,6 +17,7 @@ namespace POPHero
         public List<ModDef> mods = new();
         public List<GrowthRewardDef> growthRewards = new();
         public List<ShopSlotDef> shopSlots = new();
+        public List<BlockOperationProfileDef> blockOperationProfiles = new();
 
         public bool HasGameplayTables =>
             blockTypes.Count > 0 ||
@@ -26,7 +27,8 @@ namespace POPHero
             stickers.Count > 0 ||
             mods.Count > 0 ||
             growthRewards.Count > 0 ||
-            shopSlots.Count > 0;
+            shopSlots.Count > 0 ||
+            blockOperationProfiles.Count > 0;
     }
 
     [Serializable]
@@ -151,6 +153,25 @@ namespace POPHero
         public int price;
         public RarityWeightSet rarityWeights = new();
         public int weight = 100;
+    }
+
+    [Serializable]
+    public sealed class BlockOperationProfileDef
+    {
+        public string id;
+        public string title;
+        public string subtitle;
+        public string hintText;
+        public string activeColumnTitle;
+        public string reserveColumnTitle;
+        public string openButtonText;
+        public string closeButtonText;
+        public bool allowDelete;
+        public int deleteCostGold;
+        public int maxDeleteCount = -1;
+        public bool allowSwap;
+        public int swapCostGold;
+        public int maxSwapCount = -1;
     }
 
     [Serializable]

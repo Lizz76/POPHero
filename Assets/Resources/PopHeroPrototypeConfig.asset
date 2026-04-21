@@ -22,8 +22,8 @@ MonoBehaviour:
     wallStoneColliderOverlap: 0.04
     wallStoneColorVariance: 0.18
     topPanelHeight: 3
-    launchLineOffset: 0.42
-    bottomTriggerHeight: 0.3
+    launchLineOffset: 0.3
+    bottomTriggerHeight: 0.2
     cameraSize: 8.9
     backgroundColor: {r: 0.08, g: 0.08, b: 0.08, a: 1}
     boardBackgroundColor: {r: 0.05, g: 0.05, b: 0.06, a: 1}
@@ -40,8 +40,8 @@ MonoBehaviour:
     maxSpeed: 24
     maxFlightDuration: 18
     outOfBoundsRecoveryPadding: 0.8
-    minAimAngle: 18
-    maxAimAngle: 162
+    minAimAngle: 8
+    maxAimAngle: 172
     previewSegments: 30
     previewDistance: 100
     previewHitEpsilon: 0.01

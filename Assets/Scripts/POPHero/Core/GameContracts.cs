@@ -11,8 +11,11 @@ namespace POPHero
         int EncounterIndex { get; }
         int RemainingLaunchesForEnemy { get; }
         int MaxLaunchesPerEnemy { get; }
+        Rect PlayAreaRect { get; }
+        float CurrentBottomBoundaryY { get; }
         string IntermissionMessage { get; }
         bool CanManageBlockAssignments { get; }
+        bool CanManageStickerLoadout { get; }
         bool IsInitialBlockDraftPending { get; }
         bool IsSettingsOpen { get; }
         float RunElapsedSeconds { get; }
@@ -28,6 +31,7 @@ namespace POPHero
         RoundController RoundController { get; }
         RewardChoiceController RewardChoiceController { get; }
         IShopService Shops { get; }
+        IBlockOperationService BlockOperations { get; }
         PopHeroPrototypeConfig Config { get; }
         string GameOverMessage { get; }
     }
@@ -112,12 +116,14 @@ namespace POPHero
         SkipRewardChoices,
         TryBuyShopItem,
         TryRerollShop,
+        OpenBlockOperations,
+        CloseBlockOperations,
         CloseShop,
         FinishLoadout,
         BeginStickerDrag,
         CancelStickerDrag,
         ToggleModActivation,
-        TryRemoveBlockInShop,
+        TryRemoveBlock,
         TrySwapActiveReserve,
         TryInstallDraggedSticker,
         RemoveStickerFromCard,
@@ -201,6 +207,16 @@ namespace POPHero
     {
         IReadOnlyList<ShopItemEntry> Items { get; }
         string LastFeedback { get; }
-        bool HasRemovedBlockThisVisit { get; }
+    }
+
+    public interface IBlockOperationService
+    {
+        bool IsOpen { get; }
+        BlockOperationProfileDef CurrentProfile { get; }
+        BlockOperationSessionState Session { get; }
+        bool TryOpen(string profileId, RoundState returnState, out string failReason);
+        void Close();
+        bool TryRemoveBlock(string cardId, out string failReason);
+        bool TrySwapActiveReserve(string activeCardId, string reserveCardId, out string failReason);
     }
 }

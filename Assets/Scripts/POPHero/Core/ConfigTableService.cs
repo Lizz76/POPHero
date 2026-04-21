@@ -14,6 +14,7 @@ namespace POPHero
         readonly Dictionary<string, BlockRarityDef> blockRarities = new();
         readonly Dictionary<string, StickerDef> stickersByEffectKey = new(StringComparer.OrdinalIgnoreCase);
         readonly Dictionary<string, ModDef> modsByEffectKey = new(StringComparer.OrdinalIgnoreCase);
+        readonly Dictionary<string, BlockOperationProfileDef> blockOperationProfilesById = new(StringComparer.OrdinalIgnoreCase);
 
         public ConfigTableService(PopHeroTableConfig tables, PopHeroPrototypeConfig legacy)
         {
@@ -29,6 +30,7 @@ namespace POPHero
         public IReadOnlyList<GrowthRewardDef> GrowthRewardDefs => tableConfig != null ? tableConfig.growthRewards : Array.Empty<GrowthRewardDef>();
         public IReadOnlyList<ShopSlotDef> ShopSlots => tableConfig != null ? tableConfig.shopSlots : Array.Empty<ShopSlotDef>();
         public IReadOnlyList<EnemyDef> EnemyDefs => tableConfig != null ? tableConfig.enemies : Array.Empty<EnemyDef>();
+        public IReadOnlyList<BlockOperationProfileDef> BlockOperationProfiles => tableConfig != null ? tableConfig.blockOperationProfiles : Array.Empty<BlockOperationProfileDef>();
 
         void RebuildIndexes()
         {
@@ -37,6 +39,7 @@ namespace POPHero
             blockRarities.Clear();
             stickersByEffectKey.Clear();
             modsByEffectKey.Clear();
+            blockOperationProfilesById.Clear();
 
             if (tableConfig == null)
                 return;
@@ -64,6 +67,12 @@ namespace POPHero
                 var key = string.IsNullOrWhiteSpace(mod.effectKey) ? mod.id : mod.effectKey;
                 if (!string.IsNullOrWhiteSpace(key))
                     modsByEffectKey[key.Trim()] = mod;
+            }
+
+            foreach (var profile in tableConfig.blockOperationProfiles)
+            {
+                if (!string.IsNullOrWhiteSpace(profile.id))
+                    blockOperationProfilesById[profile.id.Trim()] = profile;
             }
         }
 
@@ -99,7 +108,7 @@ namespace POPHero
             config.shop.stickerRerollMoney = GetInt("stickerRerollMoney", config.shop.stickerRerollMoney);
             config.shop.shopRerollMoney = GetInt("shopRerollMoney", config.shop.shopRerollMoney);
             config.shop.blockRemovalCost = GetInt("blockRemovalCost", config.shop.blockRemovalCost);
-            ApplyShopOperationPrices(config);
+            config.shop.blockOperationProfileId = GetString("shopBlockOperationProfileId", config.shop.blockOperationProfileId);
 
             config.intermission.shopStickerSlots = GetInt("shopStickerSlots", config.intermission.shopStickerSlots);
             config.intermission.shopModSlots = GetInt("shopModSlots", config.intermission.shopModSlots);
@@ -121,28 +130,6 @@ namespace POPHero
             ApplyBlockRewardStages(config);
             ApplyBlockRewardValues(config);
             ApplyEnemies(config);
-        }
-
-        void ApplyShopOperationPrices(PopHeroPrototypeConfig config)
-        {
-            if (tableConfig.shopSlots.Count == 0)
-                return;
-
-            foreach (var slot in tableConfig.shopSlots)
-            {
-                if (slot.price <= 0)
-                    continue;
-
-                switch (slot.slotKind)
-                {
-                    case ShopSlotKind.RemoveBlock:
-                        config.shop.blockRemovalCost = slot.price;
-                        break;
-                    case ShopSlotKind.Reroll:
-                        config.shop.shopRerollMoney = slot.price;
-                        break;
-                }
-            }
         }
 
         void ApplyBlockRewardStages(PopHeroPrototypeConfig config)
@@ -220,6 +207,13 @@ namespace POPHero
                 : fallback;
         }
 
+        public string GetString(string key, string fallback = "")
+        {
+            return globals.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value)
+                ? value.Trim()
+                : fallback;
+        }
+
         public bool TryGetBlockType(BoardBlockType type, out BlockTypeDef definition)
         {
             return blockTypes.TryGetValue(type, out definition);
@@ -294,6 +288,12 @@ namespace POPHero
         public ModDef GetModDef(string effectKey)
         {
             return !string.IsNullOrWhiteSpace(effectKey) && modsByEffectKey.TryGetValue(effectKey, out var mod) ? mod : null;
+        }
+
+        public bool TryGetBlockOperationProfile(string profileId, out BlockOperationProfileDef definition)
+        {
+            definition = null;
+            return !string.IsNullOrWhiteSpace(profileId) && blockOperationProfilesById.TryGetValue(profileId.Trim(), out definition);
         }
 
         static string BuildBlockRarityKey(BoardBlockType blockType, BlockRarity rarity)

@@ -105,6 +105,19 @@ namespace POPHero
         RectTransform shopDeleteActiveScroll;
         RectTransform shopDeleteReserveScroll;
 
+        RectTransform blockOperationsWindow;
+        RectTransform blockOperationsHeader;
+        RectTransform blockOperationsBody;
+        RectTransform blockOperationsFooter;
+        RectTransform blockOperationsHint;
+        RectTransform blockOperationsFeedback;
+        RectTransform blockOperationsStatusRow;
+        RectTransform blockOperationsColumns;
+        RectTransform blockOperationsActiveColumn;
+        RectTransform blockOperationsReserveColumn;
+        RectTransform blockOperationsActiveScrollView;
+        RectTransform blockOperationsReserveScrollView;
+
         RectTransform loadoutWindow;
         RectTransform loadoutHeader;
         RectTransform loadoutBody;
@@ -192,6 +205,19 @@ namespace POPHero
                 "ModalRoot/ShopModal/Window/Body/DeletePanel/Columns/ReserveColumn/ReserveScroll",
                 "ModalRoot/ShopModal/Window/Body/DeletePanel/Columns/ReserveColumn/ReserveContent");
 
+            blockOperationsWindow ??= FindRect("ModalRoot/BlockOperationsModal/Window");
+            blockOperationsHeader ??= FindRect("ModalRoot/BlockOperationsModal/Window/Header");
+            blockOperationsBody ??= FindRect("ModalRoot/BlockOperationsModal/Window/Body");
+            blockOperationsFooter ??= FindRect("ModalRoot/BlockOperationsModal/Window/Footer");
+            blockOperationsHint ??= FindRect("ModalRoot/BlockOperationsModal/Window/Body/HintText");
+            blockOperationsFeedback ??= FindRect("ModalRoot/BlockOperationsModal/Window/Body/FeedbackText");
+            blockOperationsStatusRow ??= FindRect("ModalRoot/BlockOperationsModal/Window/Body/StatusRow");
+            blockOperationsColumns ??= FindRect("ModalRoot/BlockOperationsModal/Window/Body/Columns");
+            blockOperationsActiveColumn ??= FindRect("ModalRoot/BlockOperationsModal/Window/Body/Columns/ActiveColumn");
+            blockOperationsReserveColumn ??= FindRect("ModalRoot/BlockOperationsModal/Window/Body/Columns/ReserveColumn");
+            blockOperationsActiveScrollView ??= FindRect("ModalRoot/BlockOperationsModal/Window/Body/Columns/ActiveColumn/ScrollView");
+            blockOperationsReserveScrollView ??= FindRect("ModalRoot/BlockOperationsModal/Window/Body/Columns/ReserveColumn/ScrollView");
+
             loadoutWindow ??= FindRect("ModalRoot/LoadoutModal/Window");
             loadoutHeader ??= FindRect("ModalRoot/LoadoutModal/Window/Header");
             loadoutBody ??= FindRect("ModalRoot/LoadoutModal/Window/Body");
@@ -232,6 +258,7 @@ namespace POPHero
             ApplyBlockRewardModal(preset);
             ApplyRewardModal(preset);
             ApplyShopModal(preset);
+            ApplyBlockOperationsModal(preset);
             ApplyLoadoutModal(preset);
             ApplyGameOverModal(preset);
 
@@ -363,31 +390,24 @@ namespace POPHero
             {
                 var layout = activeSection.GetComponent<LayoutElement>() ?? activeSection.gameObject.AddComponent<LayoutElement>();
                 layout.flexibleHeight = 1f;
-                layout.minHeight = 420f;
-                layout.preferredHeight = 560f;
+                layout.minHeight = 520f;
+                layout.preferredHeight = 720f;
             }
 
             if (reserveSection != null)
             {
-                var layout = reserveSection.GetComponent<LayoutElement>() ?? reserveSection.gameObject.AddComponent<LayoutElement>();
-                layout.flexibleHeight = 0f;
-                layout.minHeight = 180f;
-                layout.preferredHeight = 220f;
+                reserveSection.gameObject.SetActive(false);
             }
 
             if (activeScrollView != null)
             {
                 var layout = activeScrollView.GetComponent<LayoutElement>() ?? activeScrollView.gameObject.AddComponent<LayoutElement>();
                 layout.flexibleHeight = 1f;
-                layout.minHeight = 320f;
+                layout.minHeight = 440f;
             }
 
             if (reserveScrollView != null)
-            {
-                var layout = reserveScrollView.GetComponent<LayoutElement>() ?? reserveScrollView.gameObject.AddComponent<LayoutElement>();
-                layout.flexibleHeight = 1f;
-                layout.minHeight = 92f;
-            }
+                reserveScrollView.gameObject.SetActive(false);
         }
 
         void ApplyBlockRewardModal(LayoutPreset preset)
@@ -426,50 +446,50 @@ namespace POPHero
 
             if (shopItemsScrollView != null)
                 SetFill(shopItemsScrollView, 12f, 12f, 12f, 12f);
+        }
 
-            if (shopDeletePanel != null)
-            {
-                DisableLayoutGroup(shopDeletePanel);
-                SetFill(shopDeletePanel, 0f, 0f, itemsHeight + 12f, 0f);
-            }
+        void ApplyBlockOperationsModal(LayoutPreset preset)
+        {
+            ApplyModalWindow(blockOperationsWindow, preset.ShopSize);
+            ApplyStandardModalChrome(blockOperationsWindow, blockOperationsHeader, blockOperationsBody, blockOperationsFooter, 104f, 72f);
 
-            if (shopDeletePanel == null)
+            if (blockOperationsBody == null)
                 return;
 
-            const float titlesHeight = 34f;
-            const float hintHeight = 28f;
-            const float sectionPadding = 12f;
-            const float sectionGap = 8f;
+            DisableLayoutGroup(blockOperationsBody);
 
-            if (shopDeleteTitles != null)
+            const float padding = 12f;
+            const float gap = 10f;
+            const float hintHeight = 44f;
+            const float feedbackHeight = 32f;
+            const float statusHeight = 28f;
+
+            if (blockOperationsHint != null)
+                SetTopStretch(blockOperationsHint, padding, padding, padding, hintHeight);
+
+            if (blockOperationsFeedback != null)
+                SetTopStretch(blockOperationsFeedback, padding, padding, padding + hintHeight + gap, feedbackHeight);
+
+            if (blockOperationsStatusRow != null)
+                SetTopStretch(blockOperationsStatusRow, padding, padding, padding + hintHeight + feedbackHeight + gap * 2f, statusHeight);
+
+            if (blockOperationsColumns != null)
             {
-                DisableLayoutGroup(shopDeleteTitles);
-                SetTopStretch(shopDeleteTitles, sectionPadding, sectionPadding, sectionPadding, titlesHeight);
+                DisableLayoutGroup(blockOperationsColumns);
+                SetFill(
+                    blockOperationsColumns,
+                    padding,
+                    padding,
+                    padding + hintHeight + feedbackHeight + statusHeight + gap * 3f,
+                    padding);
+                SplitColumns(blockOperationsColumns, blockOperationsActiveColumn, blockOperationsReserveColumn, 12f, 0.5f);
             }
 
-            if (shopDeleteHint != null)
-            {
-                shopDeleteHint.anchorMin = new Vector2(0f, 1f);
-                shopDeleteHint.anchorMax = new Vector2(1f, 1f);
-                shopDeleteHint.pivot = new Vector2(0.5f, 1f);
-                shopDeleteHint.offsetMin = new Vector2(sectionPadding, -(sectionPadding + titlesHeight + sectionGap + hintHeight));
-                shopDeleteHint.offsetMax = new Vector2(-sectionPadding, -(sectionPadding + titlesHeight + sectionGap));
-            }
+            if (blockOperationsActiveScrollView != null)
+                SetFill(blockOperationsActiveScrollView, 0f, 0f, 36f, 0f);
 
-            if (shopDeleteColumns != null)
-            {
-                DisableLayoutGroup(shopDeleteColumns);
-                SetFill(shopDeleteColumns, sectionPadding, sectionPadding, sectionPadding + titlesHeight + sectionGap + hintHeight + sectionGap, sectionPadding);
-            }
-
-            if (shopDeleteColumns != null)
-                SplitColumns(shopDeleteColumns, shopDeleteActiveColumn, shopDeleteReserveColumn, 12f, 0.5f);
-
-            if (shopDeleteActiveScroll != null)
-                SetFill(shopDeleteActiveScroll, 0f, 0f, 0f, 0f);
-
-            if (shopDeleteReserveScroll != null)
-                SetFill(shopDeleteReserveScroll, 0f, 0f, 0f, 0f);
+            if (blockOperationsReserveScrollView != null)
+                SetFill(blockOperationsReserveScrollView, 0f, 0f, 36f, 0f);
         }
 
         void ApplyLoadoutModal(LayoutPreset preset)

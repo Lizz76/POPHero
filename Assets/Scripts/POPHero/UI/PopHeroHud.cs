@@ -83,6 +83,9 @@ namespace POPHero
             if (game.State == RoundState.Shop)
                 DrawShopPanel();
 
+            if (game.State == RoundState.BlockOperations)
+                DrawBlockOperationsPanel();
+
             if (game.State == RoundState.LoadoutManage)
                 DrawLoadoutPanel();
 
@@ -163,9 +166,7 @@ namespace POPHero
             GUI.Label(new Rect(x, y, width, 36f), model.HintText, textStyle);
             y += 42f;
 
-            y = DrawCompactSection(panelRect, y, "上阵", model.ActiveRows, true);
-            y += 10f;
-            DrawCompactSection(panelRect, y, "仓库", model.ReserveRows, false);
+            DrawCompactSection(panelRect, y, "上阵", model.ActiveRows, true);
         }
 
         float DrawCompactSection(Rect panelRect, float y, string title, System.Collections.Generic.IReadOnlyList<BlockRowModel> rows, bool isActiveSection)
@@ -268,7 +269,7 @@ namespace POPHero
         bool CanInstallDraggingSticker(BlockCardState card, SocketSlotState socket)
         {
             var dragging = game.StickerInventory.DraggingSticker;
-            if (!game.CanManageBlockAssignments || dragging?.data == null || card == null || socket == null)
+            if (!game.CanManageStickerLoadout || dragging?.data == null || card == null || socket == null)
                 return false;
 
             if (!socket.isUnlocked || socket.installedSticker != null)
@@ -280,7 +281,7 @@ namespace POPHero
 
         void HandleSocketHotspot(Rect rect, BlockCardState card, SocketSlotState socket, int socketIndex)
         {
-            if (!game.CanManageBlockAssignments || card == null || socket == null)
+            if (!game.CanManageStickerLoadout || card == null || socket == null)
                 return;
 
             if (Event.current.type != EventType.MouseDown || Event.current.button != 0 || !rect.Contains(Event.current.mousePosition))
@@ -307,32 +308,10 @@ namespace POPHero
 
         void HandleBlockIconClick(BlockCardState card, bool isActiveSection)
         {
-            if (!game.CanManageBlockAssignments || card == null)
+            if (card == null)
                 return;
 
-            if (isActiveSection)
-            {
-                if (!string.IsNullOrEmpty(selectedReserveSwapId))
-                {
-                    RunCommand(new HudCommand(HudCommandType.TrySwapActiveReserve, 0, card.id, selectedReserveSwapId));
-                    selectedActiveSwapId = null;
-                    selectedReserveSwapId = null;
-                    return;
-                }
-
-                selectedActiveSwapId = selectedActiveSwapId == card.id ? null : card.id;
-                return;
-            }
-
-            if (!string.IsNullOrEmpty(selectedActiveSwapId))
-            {
-                RunCommand(new HudCommand(HudCommandType.TrySwapActiveReserve, 0, selectedActiveSwapId, card.id));
-                selectedActiveSwapId = null;
-                selectedReserveSwapId = null;
-                return;
-            }
-
-            selectedReserveSwapId = selectedReserveSwapId == card.id ? null : card.id;
+            SetTooltip(card.cardName, BuildBlockTooltip(card), GetRarityColor(card.rarity));
         }
 
         void RunCommand(HudCommand command)
@@ -431,16 +410,20 @@ namespace POPHero
         void DrawShopPanel()
         {
             var model = intermissionPanelPresenter.BuildShopPanel(game);
-            var panelRect = GetIntermissionRect(1160f, 660f);
+            var panelRect = GetIntermissionRect(980f, 620f);
             GUILayout.BeginArea(panelRect, boxStyle);
             GUILayout.Label(model.TitleText, titleStyle);
             GUILayout.Label(model.SubtitleText, textStyle);
 
             var contentRect = new Rect(12f, 68f, panelRect.width - 24f, panelRect.height - 124f);
             GUILayout.BeginArea(contentRect);
+            GUILayout.BeginHorizontal();
+
+            var listWidth = contentRect.width - 244f;
+            GUILayout.BeginVertical(GUILayout.Width(listWidth));
             shopScroll = GUILayout.BeginScrollView(shopScroll, false, true);
 
-            var itemWidth = GetModalCardWidth(contentRect.width, Mathf.Max(1, model.Items.Count), 132f, 176f);
+            var itemWidth = GetModalCardWidth(listWidth, Mathf.Max(1, model.Items.Count), 132f, 176f);
             var itemHeight = 208f;
             GUILayout.BeginHorizontal();
             for (var index = 0; index < model.Items.Count; index++)
@@ -459,40 +442,79 @@ namespace POPHero
                 GUILayout.EndVertical();
             }
             GUILayout.EndHorizontal();
-
-              GUILayout.Space(12f);
-              GUILayout.BeginVertical(cardStyle);
-              GUILayout.Label("删除方块", titleStyle);
-              GUILayout.Label(model.DeleteHintText, model.HasRemovedBlockThisVisit ? badgeStyle : textStyle);
-
-              GUILayout.BeginHorizontal();
-              DrawShopRemovalSection("上阵区", model.ActiveCards);
-              GUILayout.Space(6f);
-              DrawShopRemovalSection("仓库区", model.ReserveCards);
-              GUILayout.Space(10f);
-              GUILayout.BeginVertical(cardStyle, GUILayout.Width((contentRect.width - 64f) * 0.24f));
-              GUILayout.Label("商店状态", titleStyle);
-              GUILayout.Label(model.GoldText, badgeStyle);
-              GUILayout.Label(model.RerollCostText, badgeStyle);
-              if (!string.IsNullOrWhiteSpace(model.LastFeedbackText))
-                  GUILayout.Label(model.LastFeedbackText, textStyle);
-              GUILayout.EndVertical();
-              GUILayout.EndHorizontal();
-              GUILayout.EndVertical();
-
             GUILayout.EndScrollView();
+            GUILayout.EndVertical();
+
+            GUILayout.Space(12f);
+            GUILayout.BeginVertical(cardStyle, GUILayout.Width(232f), GUILayout.Height(contentRect.height));
+            GUILayout.Label("商店状态", titleStyle);
+            GUILayout.Label(model.GoldText, badgeStyle);
+            GUILayout.Label(model.RerollCostText, badgeStyle);
+            if (!string.IsNullOrWhiteSpace(model.LastFeedbackText))
+                GUILayout.Label(model.LastFeedbackText, textStyle);
+            GUILayout.Space(10f);
+            if (GUILayout.Button(model.BlockOperationsButtonText, buttonStyle, GUILayout.Height(42f)))
+                RunCommand(new HudCommand(HudCommandType.OpenBlockOperations, 0, game?.Config?.shop?.blockOperationProfileId, RoundState.Shop.ToString()));
+            GUILayout.FlexibleSpace();
+            GUILayout.EndVertical();
+
+            GUILayout.EndHorizontal();
             GUILayout.EndArea();
 
-              GUILayout.BeginArea(new Rect(12f, panelRect.height - 48f, panelRect.width - 24f, 32f));
-              GUILayout.BeginHorizontal();
-              if (GUILayout.Button(model.RerollButtonText, buttonStyle, GUILayout.Width(150f)))
-                  RunCommand(new HudCommand(HudCommandType.TryRerollShop));
-              GUILayout.FlexibleSpace();
-              if (GUILayout.Button(model.CloseButtonText, buttonStyle, GUILayout.Width(140f)))
-                  RunCommand(new HudCommand(HudCommandType.CloseShop));
-              GUILayout.EndHorizontal();
-              GUILayout.EndArea();
-              GUILayout.EndArea();
+            GUILayout.BeginArea(new Rect(12f, panelRect.height - 48f, panelRect.width - 24f, 32f));
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button(model.RerollButtonText, buttonStyle, GUILayout.Width(150f)))
+                RunCommand(new HudCommand(HudCommandType.TryRerollShop));
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button(model.CloseButtonText, buttonStyle, GUILayout.Width(140f)))
+                RunCommand(new HudCommand(HudCommandType.CloseShop));
+            GUILayout.EndHorizontal();
+            GUILayout.EndArea();
+            GUILayout.EndArea();
+        }
+
+        void DrawBlockOperationsPanel()
+        {
+            var model = intermissionPanelPresenter.BuildBlockOperationsPanel(game);
+            var panelRect = GetIntermissionRect(1040f, 680f);
+            GUILayout.BeginArea(panelRect, boxStyle);
+            GUILayout.Label(model.TitleText, titleStyle);
+            if (!string.IsNullOrWhiteSpace(model.SubtitleText))
+                GUILayout.Label(model.SubtitleText, textStyle);
+            if (!string.IsNullOrWhiteSpace(model.HintText))
+                GUILayout.Label(model.HintText, textStyle);
+
+            var contentRect = new Rect(12f, 98f, panelRect.width - 24f, panelRect.height - 162f);
+            GUILayout.BeginArea(contentRect);
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(model.DeleteStatusText, badgeStyle, GUILayout.Width(contentRect.width * 0.5f - 6f));
+            GUILayout.Space(12f);
+            GUILayout.Label(model.SwapStatusText, badgeStyle, GUILayout.Width(contentRect.width * 0.5f - 6f));
+            GUILayout.EndHorizontal();
+
+            if (!string.IsNullOrWhiteSpace(model.FeedbackText))
+            {
+                GUILayout.Space(8f);
+                GUILayout.Label(model.FeedbackText, textStyle);
+            }
+
+            GUILayout.Space(10f);
+            GUILayout.BeginHorizontal();
+            DrawBlockOperationSection(model.ActiveColumnTitle, model.ActiveCards, true, model.AllowDelete);
+            GUILayout.Space(12f);
+            DrawBlockOperationSection(model.ReserveColumnTitle, model.ReserveCards, false, false);
+            GUILayout.EndHorizontal();
+            GUILayout.EndArea();
+
+            GUILayout.BeginArea(new Rect(12f, panelRect.height - 48f, panelRect.width - 24f, 32f));
+            GUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button(model.CloseButtonText, buttonStyle, GUILayout.Width(160f)))
+                RunCommand(new HudCommand(HudCommandType.CloseBlockOperations));
+            GUILayout.EndHorizontal();
+            GUILayout.EndArea();
+            GUILayout.EndArea();
         }
 
         void DrawLoadoutPanel()
@@ -680,9 +702,9 @@ namespace POPHero
             GUI.Label(new Rect(mouse.x + 22f, mouse.y + 40f, 150f, 20f), "拖到右侧空槽位松手安装", textStyle);
         }
 
-        void DrawShopRemovalSection(string title, System.Collections.Generic.IReadOnlyList<BlockCardState> cards)
+        void DrawBlockOperationSection(string title, System.Collections.Generic.IReadOnlyList<BlockCardState> cards, bool isActiveSection, bool allowDelete)
         {
-            GUILayout.BeginVertical(cardStyle, GUILayout.Width(280f));
+            GUILayout.BeginVertical(cardStyle, GUILayout.Width(490f));
             GUILayout.Label(title, badgeStyle);
             if (cards.Count == 0)
             {
@@ -699,12 +721,20 @@ namespace POPHero
                 GUI.contentColor = GetBlockIconColor(card);
                 GUILayout.Label(GetBlockTypeIconText(card.baseBlockType), badgeStyle, GUILayout.Width(26f));
                 GUI.contentColor = previousColor;
-                GUILayout.Label(card.cardName, badgeStyle, GUILayout.Width(132f));
-                GUILayout.Label(FormatBlockValue(card), tinyLabelStyle, GUILayout.Width(84f));
-                GUI.enabled = !game.ShopManager.HasRemovedBlockThisVisit;
-                if (GUILayout.Button("删除", buttonStyle, GUILayout.Width(52f)))
-                    RunCommand(new HudCommand(HudCommandType.TryRemoveBlockInShop, 0, card.id));
-                GUI.enabled = true;
+                var selected = isActiveSection
+                    ? selectedActiveSwapId == card.id
+                    : selectedReserveSwapId == card.id;
+                var selectLabel = selected ? "已选中" : "选择";
+                if (GUILayout.Button(selectLabel, buttonStyle, GUILayout.Width(68f)))
+                    ToggleBlockOperationSelection(card, isActiveSection);
+                GUILayout.Label(card.cardName, badgeStyle, GUILayout.Width(160f));
+                GUILayout.Label(FormatBlockValue(card), tinyLabelStyle, GUILayout.Width(92f));
+                GUILayout.FlexibleSpace();
+                if (allowDelete)
+                {
+                    if (GUILayout.Button("删除", buttonStyle, GUILayout.Width(60f)))
+                        RunCommand(new HudCommand(HudCommandType.TryRemoveBlock, 0, card.id));
+                }
                 GUILayout.EndHorizontal();
 
                 var lastRect = GUILayoutUtility.GetLastRect();
@@ -712,6 +742,36 @@ namespace POPHero
                     SetTooltip(card.cardName, BuildBlockTooltip(card), GetRarityColor(card.rarity));
             }
             GUILayout.EndVertical();
+        }
+
+        void ToggleBlockOperationSelection(BlockCardState card, bool isActiveSection)
+        {
+            if (card == null)
+                return;
+
+            if (isActiveSection)
+            {
+                if (!string.IsNullOrEmpty(selectedReserveSwapId))
+                {
+                    RunCommand(new HudCommand(HudCommandType.TrySwapActiveReserve, 0, card.id, selectedReserveSwapId));
+                    selectedActiveSwapId = null;
+                    selectedReserveSwapId = null;
+                    return;
+                }
+
+                selectedActiveSwapId = selectedActiveSwapId == card.id ? null : card.id;
+                return;
+            }
+
+            if (!string.IsNullOrEmpty(selectedActiveSwapId))
+            {
+                RunCommand(new HudCommand(HudCommandType.TrySwapActiveReserve, 0, selectedActiveSwapId, card.id));
+                selectedActiveSwapId = null;
+                selectedReserveSwapId = null;
+                return;
+            }
+
+            selectedReserveSwapId = selectedReserveSwapId == card.id ? null : card.id;
         }
 
         void DrawTooltip()

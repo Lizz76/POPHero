@@ -53,6 +53,23 @@ namespace POPHero
         public IReadOnlyList<BlockRowModel> ReserveRows;
     }
 
+    public sealed class BlockOperationsPanelModel
+    {
+        public string TitleText;
+        public string SubtitleText;
+        public string HintText;
+        public string FeedbackText;
+        public string ActiveColumnTitle;
+        public string ReserveColumnTitle;
+        public string DeleteStatusText;
+        public string SwapStatusText;
+        public string CloseButtonText;
+        public IReadOnlyList<BlockCardState> ActiveCards;
+        public IReadOnlyList<BlockCardState> ReserveCards;
+        public bool AllowDelete;
+        public bool AllowSwap;
+    }
+
     public sealed class BlockRewardCardModel
     {
         public int Index;
@@ -108,13 +125,10 @@ namespace POPHero
         public string TitleText;
         public string SubtitleText;
         public IReadOnlyList<ShopItemCardModel> Items;
-        public IReadOnlyList<BlockCardState> ActiveCards;
-        public IReadOnlyList<BlockCardState> ReserveCards;
-        public string DeleteHintText;
         public string LastFeedbackText;
         public string GoldText;
         public string RerollCostText;
-        public bool HasRemovedBlockThisVisit;
+        public string BlockOperationsButtonText;
         public string RerollButtonText;
         public string CloseButtonText;
     }
@@ -186,7 +200,7 @@ namespace POPHero
                 KillsText = hasPlayer
                     ? $"击杀进度：{player.KillsTowardNextLevel} / {(player.IsMaxLevel ? "已满" : player.KillsRequiredForNextLevel.ToString())}"
                     : "击杀进度：- / --",
-                BlockText = $"方块组：上阵 {activeCount}/{activeCapacity}  仓库 {reserveCount}/{reserveCapacity}",
+                BlockText = $"方块组：上阵 {activeCount}/{activeCapacity}  背包 {reserveCount}/{reserveCapacity}",
                 HpText = hasPlayer ? $"生命：{player.CurrentHp}/{player.MaxHp}" : "生命：-/--",
                 ShieldText = hasPlayer ? $"护盾：{player.CurrentShield}" : "护盾：-",
                 GoldText = hasPlayer ? $"金币：{player.Gold}" : "金币：-",
@@ -208,7 +222,8 @@ namespace POPHero
                 RoundState.BlockRewardChoose => "选方块",
                 RoundState.RewardChoose => "选奖励",
                 RoundState.Shop => "商店",
-                RoundState.LoadoutManage => "整理",
+                RoundState.BlockOperations => "方块操作",
+                RoundState.LoadoutManage => "背包",
                 RoundState.GameOver => "结束",
                 _ => state.ToString()
             };
@@ -273,9 +288,7 @@ namespace POPHero
             return new BlockManagementPanelModel
             {
                 HeaderText = "方块管理",
-                HintText = game != null && game.CanManageBlockAssignments
-                    ? "先点仓库方块，再点上阵方块即可交换。悬停图标可查看详情。"
-                    : "默认显示为紧凑图标。悬停可查看方块、嵌片和槽位详情。",
+                HintText = "右侧只显示上阵方块。悬停可查看方块、嵌片和槽位详情。",
                 ActiveRows = activeRows,
                 ReserveRows = reserveRows
             };
@@ -287,13 +300,14 @@ namespace POPHero
         readonly List<BlockRewardCardModel> blockRewardCards = new();
         readonly List<RewardCardModel> rewardCards = new();
         readonly List<ShopItemCardModel> shopItemCards = new();
+        readonly BlockOperationsPanelModel blockOperationsPanel = new();
 
         public BlockRewardPanelModel BuildBlockReward(IGameReadModel game)
         {
             blockRewardCards.Clear();
             var blockRewards = game?.BlockRewards;
             var blockCollections = game?.BlockCollections;
-            var options = blockRewards?.ActiveRewardOptions ?? System.Array.Empty<BlockRewardOption>();
+            var options = blockRewards?.ActiveRewardOptions ?? Array.Empty<BlockRewardOption>();
             for (var index = 0; index < options.Count; index++)
             {
                 var option = options[index];
@@ -307,16 +321,18 @@ namespace POPHero
                     Description = option.desc,
                     AccentColor = GetRarityColor(option.rarity),
                     CanSelect = game == null || game.IsInitialBlockDraftPending || (blockCollections?.CanAcceptRewardBlock ?? false),
-                    SelectButtonText = blockCollections?.RewardWillGoToReserve == true && game != null && !game.IsInitialBlockDraftPending ? "放入仓库" : "加入方块组"
+                    SelectButtonText = blockCollections?.RewardWillGoToReserve == true && game != null && !game.IsInitialBlockDraftPending
+                        ? "放入背包"
+                        : "加入方块组"
                 });
             }
 
             var subtitle = game != null && game.IsInitialBlockDraftPending
                 ? "在第一场战斗开始前，先选择你的起始方块。"
                 : blockCollections?.CanAcceptRewardBlock == false
-                    ? "上阵和仓库都已满。请先跳过这次奖励，之后再腾出空间。"
+                    ? "上阵和方块背包都已满，请先腾出空间。"
                     : blockCollections?.RewardWillGoToReserve == true
-                        ? "上阵已满，选中的方块将自动进入仓库。"
+                        ? "上阵已满，选中的方块会进入方块背包。"
                         : "上阵还有空位，选中的方块会直接加入上阵。";
 
             return new BlockRewardPanelModel
@@ -361,11 +377,11 @@ namespace POPHero
         {
             shopItemCards.Clear();
             var shops = game?.Shops;
-            var blocks = game?.BlockCollections;
             var mods = game?.Mods;
             var player = game?.Player;
             var config = game?.Config;
-            var items = shops?.Items ?? System.Array.Empty<ShopItemEntry>();
+            var blockOperationsButtonText = "方块操作";
+            var items = shops?.Items ?? Array.Empty<ShopItemEntry>();
             for (var index = 0; index < items.Count; index++)
             {
                 shopItemCards.Add(new ShopItemCardModel
@@ -380,24 +396,49 @@ namespace POPHero
                 });
             }
 
+            if (game is PopHeroGame popHeroGame &&
+                popHeroGame.Tables != null &&
+                popHeroGame.Tables.TryGetBlockOperationProfile(config?.shop?.blockOperationProfileId, out var profile) &&
+                !string.IsNullOrWhiteSpace(profile?.openButtonText))
+            {
+                blockOperationsButtonText = profile.openButtonText;
+            }
+
             var rerollCost = Mathf.Max(1, (config?.shop?.shopRerollMoney ?? 1) - (mods?.GetShopRerollDiscount() ?? 0));
             return new ShopPanelModel
             {
                 TitleText = "商店",
-                SubtitleText = "购买嵌片、模组和成长项。每次进店还能刷新商品，并删除一张方块。",
+                SubtitleText = "购买嵌片、模组和成长项。需要调整方块构筑时，可进入独立的方块操作面板。",
                 Items = shopItemCards,
-                ActiveCards = blocks?.ActiveCardStates ?? System.Array.Empty<BlockCardState>(),
-                ReserveCards = blocks?.ReserveCardStates ?? System.Array.Empty<BlockCardState>(),
-                DeleteHintText = shops?.HasRemovedBlockThisVisit == true
-                    ? "本次进店已经删除过一张方块。"
-                    : $"花费 {config?.shop?.blockRemovalCost ?? 0} 金币可删除一张方块。至少要保留一张上阵方块。",
                 LastFeedbackText = shops?.LastFeedback ?? string.Empty,
                 GoldText = $"金币：{player?.Gold ?? 0}",
                 RerollCostText = $"刷新费用：{rerollCost}",
-                HasRemovedBlockThisVisit = shops?.HasRemovedBlockThisVisit ?? false,
+                BlockOperationsButtonText = blockOperationsButtonText,
                 RerollButtonText = $"刷新商店（-{rerollCost}）",
                 CloseButtonText = "离开商店"
             };
+        }
+
+        public BlockOperationsPanelModel BuildBlockOperationsPanel(IGameReadModel game)
+        {
+            var profile = game?.BlockOperations?.CurrentProfile;
+            var session = game?.BlockOperations?.Session;
+            var blocks = game?.BlockCollections;
+
+            blockOperationsPanel.TitleText = string.IsNullOrWhiteSpace(profile?.title) ? "方块操作" : profile.title;
+            blockOperationsPanel.SubtitleText = profile?.subtitle ?? string.Empty;
+            blockOperationsPanel.HintText = profile?.hintText ?? string.Empty;
+            blockOperationsPanel.FeedbackText = session?.lastFeedback ?? string.Empty;
+            blockOperationsPanel.ActiveColumnTitle = string.IsNullOrWhiteSpace(profile?.activeColumnTitle) ? "上阵方块" : profile.activeColumnTitle;
+            blockOperationsPanel.ReserveColumnTitle = string.IsNullOrWhiteSpace(profile?.reserveColumnTitle) ? "背包方块" : profile.reserveColumnTitle;
+            blockOperationsPanel.DeleteStatusText = BuildOperationStatusText("删除", profile?.allowDelete ?? false, profile?.deleteCostGold ?? 0, profile?.maxDeleteCount ?? -1, session?.deleteUsedCount ?? 0);
+            blockOperationsPanel.SwapStatusText = BuildOperationStatusText("替换", profile?.allowSwap ?? false, profile?.swapCostGold ?? 0, profile?.maxSwapCount ?? -1, session?.swapUsedCount ?? 0);
+            blockOperationsPanel.CloseButtonText = string.IsNullOrWhiteSpace(profile?.closeButtonText) ? "关闭" : profile.closeButtonText;
+            blockOperationsPanel.ActiveCards = blocks?.ActiveCardStates ?? Array.Empty<BlockCardState>();
+            blockOperationsPanel.ReserveCards = blocks?.ReserveCardStates ?? Array.Empty<BlockCardState>();
+            blockOperationsPanel.AllowDelete = profile?.allowDelete ?? false;
+            blockOperationsPanel.AllowSwap = profile?.allowSwap ?? false;
+            return blockOperationsPanel;
         }
 
         public LoadoutPanelModel BuildLoadoutPanel(IGameReadModel game)
@@ -407,14 +448,23 @@ namespace POPHero
             return new LoadoutPanelModel
             {
                 TitleText = "背包",
-                SubtitleText = "从背包里拖拽嵌片，放到右侧高亮槽位松手安装。",
-                Inventory = inventory?.Stored ?? System.Array.Empty<StickerInstance>(),
-                ActiveMods = mods?.ActiveMods ?? System.Array.Empty<ModInstance>(),
-                ReserveMods = mods?.ReserveMods ?? System.Array.Empty<ModInstance>(),
+                SubtitleText = "从背包里拖拽嵌片，然后点击右侧高亮槽位进行安装。",
+                Inventory = inventory?.Stored ?? Array.Empty<StickerInstance>(),
+                ActiveMods = mods?.ActiveMods ?? Array.Empty<ModInstance>(),
+                ReserveMods = mods?.ReserveMods ?? Array.Empty<ModInstance>(),
                 CanCancelDrag = inventory?.DraggingSticker != null,
                 CancelDragText = "取消拖拽",
                 ContinueButtonText = "继续"
             };
+        }
+
+        static string BuildOperationStatusText(string label, bool allowed, int costGold, int maxCount, int usedCount)
+        {
+            if (!allowed)
+                return $"{label}：已禁用";
+
+            var remaining = maxCount < 0 ? "无限" : Mathf.Max(0, maxCount - usedCount).ToString();
+            return $"{label}：{costGold} 金币 / 剩余 {remaining}";
         }
 
         static string GetBlockTypeText(BoardBlockType blockType)

@@ -252,7 +252,7 @@ namespace POPHero
             var normal = Vector2.zero;
             var safePoint = position;
 
-            if (position.y <= game.BoardRect.yMin - padding)
+            if (position.y <= game.CurrentBottomBoundaryY - padding)
             {
                 state.Terminate(BallFlightTerminationReason.HitBottom);
                 AddEvent(result, state, default, BallFlightEventType.BottomHit, 0f, BallFlightTerminationReason.HitBottom);

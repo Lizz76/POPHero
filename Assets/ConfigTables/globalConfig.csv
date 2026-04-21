@@ -1,23 +1,42 @@
-key,value,type,des,,,,,,,,,,,,,,,,,,,,,,,,
-string,string,string,string,,,,,,,,,,,,,,,,,,,,,,,,
-both,both,both,both,,,,,,,,,,,,,,,,,,,,,,,,
-å‚æ•°é”®å,å‚æ•°å€?å€¼ç±»åž?int/float/string),è¯´æ˜Ž,,,,,,,,,,,,,,,,,,,,,,,,,
-,,,,,,,,,,,,,,,,,,,,,,,,,,,
-playerMaxHp,200,int,çŽ©å®¶æœ€å¤§è¡€é‡?playerStartHp,100,int,çŽ©å®¶åˆå§‹è¡€é‡?playerStartShield,0,int,çŽ©å®¶åˆå§‹æŠ¤ç›¾,,,,,,,,,,,,,,,,,,
-playerStartGold,10,int,çŽ©å®¶åˆå§‹é‡‘å¸,,,,,,,,,,,,,,,,,,,,,,,,
-ballRadius,0.15,float,å¼¹çƒåŠå¾„,,,,,,,,,,,,,,,,,,,,,,,,
-ballSpeed,12,float,å¼¹çƒåˆå§‹é€Ÿåº¦,,,,,,,,,,,,,,,,,,,,,,,,
-ballAccelPerBounce,1.5,float,æ¯æ¬¡å¼¹è·³åŠ é€Ÿå€?ballMaxSpeed,24,float,å¼¹çƒæœ€å¤§é€Ÿåº¦,,,,,,,,,,,,,,,,,,,,,
-ballMaxFlightDuration,18,float,å¼¹çƒæœ€å¤§é£žè¡Œæ—¶é—?ç§?,,,,,,,,,,,,,,,,,,,,,,,,
-ballMaxCollisionStepsPerFixedUpdate,64,int,æ¯ä¸ªç‰©ç†å¸§æœ€å¤šå¤„ç†çš„è¿žç»­ç¢°æ’žå­æ­¥æ•?maxActiveBlocks,10,int,æœ€å¤§å‡ºæˆ˜æ–¹å—æ•°,,,,,,,,,,,,,,,,,,,,,
-maxReserveBlocks,3,int,æœ€å¤§å‚¨å¤‡æ–¹å—æ•°,,,,,,,,,,,,,,,,,,,,,,,,
-initialBlockChoiceCount,3,int,åˆå§‹æ–¹å—é€‰æ‹©æ•?blockRewardChoiceCount,3,int,æ¯å›žåˆæ–¹å—å¥–åŠ±é€‰æ‹©æ•?rewardChoiceCount,3,int,åµŒç‰‡/Modå¥–åŠ±é€‰æ‹©æ•?stickerInventoryCapacity,6,int,åµŒç‰‡èƒŒåŒ…å®¹é‡,,,,,,,,,,,,,,,
-defaultSocketsPerCard,2,int,æ¯å¼ æ–¹å—é»˜è®¤æ’æ§½æ•?maxSocketsPerCard,3,int,æ¯å¼ æ–¹å—æœ€å¤§æ’æ§½æ•°,,,,,,,,,,,,,,,,,,,,,
-modUseCap,6,int,Modæœ€å¤§å¯ç”¨æ•°é‡?stickerSkipMoney,6,int,è·³è¿‡åµŒç‰‡é€‰æ‹©èŽ·å¾—é‡‘å¸,,,,,,,,,,,,,,,,,,,,,
-stickerRerollMoney,4,int,é‡æ–°éšæœºå¥–åŠ±æ¶ˆè€—é‡‘å¸?shopRerollMoney,3,int,åˆ·æ–°å•†åº—æ¶ˆè€—é‡‘å¸?blockRemovalCost,18,int,ç§»é™¤æ–¹å—æ¶ˆè€—é‡‘å¸?shopStickerSlots,3,int,å•†åº—åµŒç‰‡æ§½ä½æ•?shopModSlots,1,int,å•†åº—Modæ§½ä½æ•?shopGrowthSlots,1,int,å•†åº—æˆé•¿æ§½ä½æ•?maxLaunchesPerEnemy,6,int,æ¯ä¸ªæ•Œäººæœ€å¤§å‘å°„æ¬¡æ•?endlessHpGrowth,90,int,æ— å°½æ¨¡å¼æ¯è½®è¡€é‡æˆé•?endlessGoldGrowth,14,int,æ— å°½æ¨¡å¼æ¯è½®é‡‘å¸æˆé•¿
-endlessHealGrowth,3,int,æ— å°½æ¨¡å¼æ¯è½®å›žè¡€æˆé•¿,,,,,,,,,,,,,,,,,,,,,,,,
-endlessAttackGrowth,5,int,æ— å°½æ¨¡å¼æ¯è½®æ”»å‡»æˆé•¿,,,,,,,,,,,,,,,,,,,,,,,,
-attackAddCount,6,int,æ£‹ç›˜æ”»å‡»æ–¹å—æ•°é‡(å…¼å®¹æ—§é€»è¾‘),,,,,,,,,,,,,,,,,,,,,,,,
-attackMultiplyCount,2,int,æ£‹ç›˜å€çŽ‡æ–¹å—æ•°é‡(å…¼å®¹æ—§é€»è¾‘),,,,,,,,,,,,,,,,,,,,,,,,
-shieldCount,3,int,æ£‹ç›˜é˜²å¾¡æ–¹å—æ•°é‡(å…¼å®¹æ—§é€»è¾‘),,,,,,,,,,,,,,,,,,,,,,,,
-boardBlockWidth,1.18,float,æ–¹å—å°ºå¯¸å®?boardBlockHeight,1.18,float,æ–¹å—å°ºå¯¸é«?,,,,,,,,,,,,,,,,,,,,,
+key,value,type,des
+string,string,string,string
+both,both,both,both
+²ÎÊý¼üÃû,²ÎÊýÖµ,ÖµÀàÐÍ(int/float/string),ËµÃ÷
+,,,
+playerMaxHp,100,int,Íæ¼Ò×î´óÑªÁ¿
+playerStartHp,100,int,Íæ¼Ò³õÊ¼ÑªÁ¿
+playerStartShield,0,int,Íæ¼Ò³õÊ¼»¤¶Ü
+playerStartGold,10,int,Íæ¼Ò³õÊ¼½ð±Ò
+ballRadius,0.15,float,µ¯Çò°ë¾¶
+ballSpeed,30,float,µ¯Çò³õÊ¼ËÙ¶È
+ballAccelPerBounce,1.5,float,Ã¿´Îµ¯Ìø¼ÓËÙ
+ballMaxSpeed,50,float,µ¯Çò×î´óËÙ¶È
+ballMaxFlightDuration,18,float,µ¯Çò×î´ó·ÉÐÐÊ±¼ä(Ãë)
+ballMaxCollisionStepsPerFixedUpdate,64,int,Ã¿¸öÎïÀíÖ¡×î¶à´¦ÀíµÄÁ¬ÐøÅö×²×Ó²½Êý
+maxActiveBlocks,10,int,×î´ó³öÕ½·½¿éÊý
+maxReserveBlocks,3,int,×î´ó´¢±¸·½¿éÊý
+initialBlockChoiceCount,3,int,³õÊ¼·½¿éÑ¡ÔñÊý
+blockRewardChoiceCount,3,int,Ã¿»ØºÏ·½¿é½±ÀøÑ¡ÔñÊý
+rewardChoiceCount,3,int,Ç¶Æ¬»òMod½±ÀøÑ¡ÔñÊý
+stickerInventoryCapacity,6,int,Ç¶Æ¬±³°üÈÝÁ¿
+defaultSocketsPerCard,2,int,Ã¿ÕÅ·½¿éÄ¬ÈÏ²å²ÛÊý
+maxSocketsPerCard,3,int,Ã¿ÕÅ·½¿é×î´ó²å²ÛÊý
+modUseCap,6,int,Mod×î´óÆôÓÃÊýÁ¿
+stickerSkipMoney,6,int,Ìø¹ýÇ¶Æ¬Ñ¡Ôñ»ñµÃ½ð±Ò
+stickerRerollMoney,4,int,ÖØÐÂËæ»ú½±ÀøÏûºÄ½ð±Ò
+shopRerollMoney,3,int,Ë¢ÐÂÉÌµêÏûºÄ½ð±Ò
+blockRemovalCost,18,int,ÒÆ³ý·½¿éÏûºÄ½ð±Ò(¼æÈÝ¾ÉÂß¼­)
+shopBlockOperationProfileId,shop_default,string,ÉÌµê·½¿é²Ù×÷ÅäÖÃID
+shopStickerSlots,3,int,ÉÌµêÇ¶Æ¬²ÛÎ»Êý
+shopModSlots,1,int,ÉÌµêMod²ÛÎ»Êý
+shopGrowthSlots,1,int,ÉÌµê³É³¤²ÛÎ»Êý
+maxLaunchesPerEnemy,6,int,Ã¿¸öµÐÈË×î´ó·¢Éä´ÎÊý
+endlessHpGrowth,90,int,ÎÞ¾¡Ä£Ê½Ã¿ÂÖÑªÁ¿³É³¤
+endlessGoldGrowth,14,int,ÎÞ¾¡Ä£Ê½Ã¿ÂÖ½ð±Ò³É³¤
+endlessHealGrowth,3,int,ÎÞ¾¡Ä£Ê½Ã¿ÂÖ»ØÑª³É³¤
+endlessAttackGrowth,5,int,ÎÞ¾¡Ä£Ê½Ã¿ÂÖ¹¥»÷³É³¤
+attackAddCount,6,int,ÆåÅÌ¹¥»÷·½¿éÊýÁ¿(¼æÈÝ¾ÉÂß¼­)
+attackMultiplyCount,2,int,ÆåÅÌ±¶ÂÊ·½¿éÊýÁ¿(¼æÈÝ¾ÉÂß¼­)
+shieldCount,3,int,ÆåÅÌ·ÀÓù·½¿éÊýÁ¿(¼æÈÝ¾ÉÂß¼­)
+boardBlockWidth,1.18,float,·½¿é¿í¶È
+boardBlockHeight,1.18,float,·½¿é¸ß¶È

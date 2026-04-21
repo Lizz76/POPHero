@@ -63,6 +63,7 @@ namespace POPHero
         BlockRewardChoose,
         RewardChoose,
         Shop,
+        BlockOperations,
         LoadoutManage,
         GameOver
     }
@@ -436,5 +437,35 @@ namespace POPHero
         public StickerData stickerData;
         public ModData modData;
         public GrowthRewardData growthData;
+    }
+
+    [Serializable]
+    public sealed class BlockOperationSessionState
+    {
+        public string profileId;
+        public RoundState returnState = RoundState.Shop;
+        public int deleteUsedCount;
+        public int swapUsedCount;
+        public string lastFeedback;
+
+        public bool IsOpen => !string.IsNullOrWhiteSpace(profileId);
+
+        public void Reset(string nextProfileId, RoundState nextReturnState)
+        {
+            profileId = nextProfileId;
+            returnState = nextReturnState;
+            deleteUsedCount = 0;
+            swapUsedCount = 0;
+            lastFeedback = string.Empty;
+        }
+
+        public void Clear()
+        {
+            profileId = string.Empty;
+            returnState = RoundState.Shop;
+            deleteUsedCount = 0;
+            swapUsedCount = 0;
+            lastFeedback = string.Empty;
+        }
     }
 }

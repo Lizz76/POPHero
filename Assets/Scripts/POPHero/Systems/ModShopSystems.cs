@@ -108,6 +108,7 @@ namespace POPHero
         public int GetRewardChoiceCount() => Mathf.RoundToInt(GetActiveValue("rich_choice", 4f, 3f));
         public int GetShopRerollDiscount() => Mathf.RoundToInt(GetActiveValue("cheap_reroll", 1f, 0f));
         public float GetRewardGoldMultiplier() => GetActiveValue("more_money", 1.25f, 1f);
+
         public int GetInterestIncome(int currentGold)
         {
             var interest = FindActive("interest");
@@ -187,7 +188,8 @@ namespace POPHero
 
                 return;
             }
-            catalog.Add(Make("aim_assist", "瞄准辅助", "扩大锁定瞄准的吸附和保持范围。", ModCategory.Information));
+
+            catalog.Add(Make("aim_assist", "瞄准辅助", "扩大锁定瞄准时的吸附和保持范围。", ModCategory.Information));
             catalog.Add(Make("hit_counter", "命中统计", "瞄准时显示更详细的命中统计。", ModCategory.Information));
             catalog.Add(Make("trajectory_memory", "轨迹记忆", "保留上一条锁定路线的短暂残影。", ModCategory.Information));
             catalog.Add(Make("more_money", "更多金币", "击败敌人时额外获得 25% 金币。", ModCategory.Economy));
@@ -225,7 +227,6 @@ namespace POPHero
         public ShopEventState EventState { get; private set; } = ShopEventState.Hidden;
         public string LastFeedback { get; private set; } = string.Empty;
         public bool InShop { get; private set; }
-        public bool HasRemovedBlockThisVisit { get; private set; }
 
         public void Initialize(PopHeroGame owner)
         {
@@ -263,14 +264,14 @@ namespace POPHero
             {
                 id = "shop_inventory",
                 name = "库存扩容",
-                description = "嵌片库存容量 +1。",
+                description = "嵌片背包容量 +1。",
                 rewardType = GrowthRewardType.IncreaseInventoryCapacity,
                 value = 1
             });
             growthPool.Add(new GrowthRewardData
             {
                 id = "shop_launch",
-                name = "额外弹珠",
+                name = "额外发射",
                 description = "每个敌人的可发射次数 +1。",
                 rewardType = GrowthRewardType.IncreaseLaunchCapacity,
                 value = 1
@@ -281,7 +282,6 @@ namespace POPHero
         {
             EventState = ShopEventState.ShopWillAppear;
             InShop = true;
-            HasRemovedBlockThisVisit = false;
             GenerateItems();
         }
 
@@ -289,7 +289,6 @@ namespace POPHero
         {
             EventState = ShopEventState.ShopDisappear;
             InShop = false;
-            HasRemovedBlockThisVisit = false;
             LastFeedback = string.Empty;
         }
 
@@ -503,32 +502,6 @@ namespace POPHero
             game.Player.SpendGold(cost);
             GenerateItems();
             LastFeedback = "商店已刷新。";
-            return true;
-        }
-
-        public bool TryRemoveBlock(string cardId)
-        {
-            if (!InShop)
-                return false;
-            if (HasRemovedBlockThisVisit)
-            {
-                LastFeedback = "本次进店已经删除过一张方块。";
-                return false;
-            }
-            if (game.Player.Gold < game.config.shop.blockRemovalCost)
-            {
-                LastFeedback = "金币不足，无法删除方块。";
-                return false;
-            }
-            if (!game.BoardManager.TryRemoveOwnedCard(cardId, out var failReason))
-            {
-                LastFeedback = failReason;
-                return false;
-            }
-
-            game.Player.SpendGold(game.config.shop.blockRemovalCost);
-            HasRemovedBlockThisVisit = true;
-            LastFeedback = "方块已删除。";
             return true;
         }
 

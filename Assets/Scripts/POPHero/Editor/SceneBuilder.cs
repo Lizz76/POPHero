@@ -155,7 +155,7 @@ namespace POPHero.Editor
 
             var title = Text("TitleText", menuPanel, 52, FontStyles.Bold, "POPHero", TextAlignmentOptions.Center);
             title.rectTransform.gameObject.AddComponent<LayoutElement>().preferredHeight = 64f;
-            var subtitle = Text("SubtitleText", menuPanel, 24, FontStyles.Normal, "弹珠构筑战斗原型", TextAlignmentOptions.Center);
+            var subtitle = Text("SubtitleText", menuPanel, 24, FontStyles.Normal, "寮圭彔鏋勭瓚鎴樻枟鍘熷瀷", TextAlignmentOptions.Center);
             subtitle.color = new Color(0.86f, 0.9f, 1f, 1f);
             subtitle.rectTransform.gameObject.AddComponent<LayoutElement>().preferredHeight = 56f;
 
@@ -168,7 +168,7 @@ namespace POPHero.Editor
             var quitButton = Button("QuitButton", menuPanel, "退出游戏");
             quitButton.gameObject.AddComponent<LayoutElement>().preferredWidth = 320f;
             quitButton.gameObject.AddComponent<LayoutElement>().preferredHeight = 48f;
-            var version = Text("VersionText", menuPanel, 18, FontStyles.Normal, "原型版本", TextAlignmentOptions.Center);
+            var version = Text("VersionText", menuPanel, 18, FontStyles.Normal, "鍘熷瀷鐗堟湰", TextAlignmentOptions.Center);
             version.color = new Color(0.7f, 0.74f, 0.82f, 1f);
             version.rectTransform.gameObject.AddComponent<LayoutElement>().preferredHeight = 28f;
 
@@ -200,6 +200,9 @@ namespace POPHero.Editor
             var boardCenter = config.arena.boardCenter;
             var boardRect = new Rect(boardCenter.x - boardSize.x * 0.5f, boardCenter.y - boardSize.y * 0.5f, boardSize.x, boardSize.y);
             var launchY = boardRect.yMin + config.arena.launchLineOffset;
+            var bottomBoundaryClearance = Mathf.Max(0.03f, config.ball.previewHitEpsilon * 2f);
+            var bottomBoundaryY = launchY - Mathf.Max(0.01f, config.ball.radius) - bottomBoundaryClearance;
+            var bottomTriggerCenterY = bottomBoundaryY - Mathf.Max(0.02f, config.arena.bottomTriggerHeight) * 0.5f;
             var panelCenter = new Vector2(boardRect.center.x, boardRect.yMax + config.arena.topPanelHeight * 0.56f);
             var heroPos = panelCenter + new Vector2(-boardRect.width * 0.28f, -0.16f);
             var enemyPos = panelCenter + new Vector2(boardRect.width * 0.2f, -0.08f);
@@ -223,8 +226,7 @@ namespace POPHero.Editor
             var boardFrame = CreateSpriteChild(board, "BoardFrame", new Vector3(boardRect.center.x, boardRect.center.y, 0f), new Vector3(boardRect.width + config.arena.wallThickness * 2f, boardRect.height + config.arena.wallThickness * 2f, 1f), config.arena.boardFrameColor, 2);
             var boardBackground = CreateSpriteChild(board, "BoardBackground", new Vector3(boardRect.center.x, boardRect.center.y, 0f), new Vector3(boardRect.width, boardRect.height, 1f), config.arena.boardBackgroundColor, 3);
             var launchGuide = CreateSpriteChild(board, "LaunchGuide", new Vector3(boardRect.center.x, launchY - 0.15f, 0f), new Vector3(boardRect.width - 0.4f, 0.34f, 1f), config.arena.launchGuideColor, 6);
-            var launchMarker = CreateSpriteChild(board, "LaunchMarker", new Vector3(boardRect.center.x, launchY, 0f), Vector3.one * Mathf.Max(0.14f, config.ball.radius * 2.2f), new Color(0.97f, 0.97f, 1f, 0.65f), 25, true);
-            var bottomLine = CreateSpriteChild(board, "BottomLine", new Vector3(boardRect.center.x, boardRect.yMin + 0.02f, 0f), new Vector3(boardRect.width, 0.14f, 1f), new Color(0.93f, 0.66f, 0.18f, 0.36f), 7);
+            var bottomLine = CreateSpriteChild(board, "BottomLine", new Vector3(boardRect.center.x, bottomTriggerCenterY, 0f), new Vector3(boardRect.width, 0.14f, 1f), new Color(0.93f, 0.66f, 0.18f, 0.36f), 7);
             var bottomCollider = bottomLine.AddComponent<BoxCollider2D>();
             bottomCollider.isTrigger = true;
             bottomCollider.size = new Vector2(boardRect.width, config.arena.bottomTriggerHeight);
@@ -239,11 +241,15 @@ namespace POPHero.Editor
             var enemy = CreateEnemy(battleStage, enemyPos);
             var ball = CreateBall(world, boardRect.center.x, launchY, config);
             var canvasHud = BuildBattleCanvasFrontend().GetComponent<CanvasHudController>();
+            var reserveSection = canvasHud.transform.Find("HudRoot/BlockManagementPanel/ReserveSection");
+            if (reserveSection != null)
+                Object.DestroyImmediate(reserveSection.gameObject);
+            EnsureBlockOperationsUi(canvasHud.transform);
 
             WirePlayerPresenter(hero);
             WireEnemyController(enemy);
             WireBallLauncher(ball.GetComponent<PlayerLauncher>(), ball.transform);
-            WireGame(game, config, world.transform, board.transform, blocks.transform, enemyLayer.transform, battleStage.transform, battleEffects.transform, boardFrame.GetComponent<SpriteRenderer>(), boardBackground.GetComponent<SpriteRenderer>(), launchGuide.GetComponent<SpriteRenderer>(), launchMarker.transform, bottomLine, wallTop.transform, wallLeft.transform, wallRight.transform, enemyPanel.GetComponent<SpriteRenderer>(), hero.GetComponent<PlayerPresenter>(), enemy.GetComponent<EnemyController>(), ball.GetComponent<BallController>(), ball.GetComponent<Rigidbody2D>(), ball.GetComponent<CircleCollider2D>(), ball.GetComponent<TrailRenderer>(), ball.GetComponent<PlayerLauncher>(), canvasHud);
+            WireGame(game, config, world.transform, board.transform, blocks.transform, enemyLayer.transform, battleStage.transform, battleEffects.transform, boardFrame.GetComponent<SpriteRenderer>(), boardBackground.GetComponent<SpriteRenderer>(), launchGuide.GetComponent<SpriteRenderer>(), bottomLine, wallTop.transform, wallLeft.transform, wallRight.transform, enemyPanel.GetComponent<SpriteRenderer>(), hero.GetComponent<PlayerPresenter>(), enemy.GetComponent<EnemyController>(), ball.GetComponent<BallController>(), ball.GetComponent<Rigidbody2D>(), ball.GetComponent<CircleCollider2D>(), ball.GetComponent<TrailRenderer>(), ball.GetComponent<PlayerLauncher>(), canvasHud);
 
             EditorSceneManager.SaveScene(scene, BattleScenePath);
             Debug.Log("[POPHero] Battle scene generated.");
@@ -324,7 +330,7 @@ namespace POPHero.Editor
             CreateSpriteChild(hero, "HeroCore", new Vector3(0f, 0.06f, 0f), Vector3.one * 0.58f, new Color(1f, 1f, 1f, 0.24f), 11, true);
             CreateSpriteChild(hero, "HpBack", new Vector3(0f, -1.48f, 0f), new Vector3(2.45f, 0.28f, 1f), new Color(0f, 0f, 0f, 0.55f), 12);
             CreateSpriteChild(hero, "HpFill", new Vector3(0f, -1.48f, -0.02f), new Vector3(2.2f, 0.15f, 1f), new Color(0.58f, 0.94f, 0.7f, 1f), 13);
-            CreateTextChild(hero, "HeroName", new Vector3(0f, 1.38f, 0f), "主角", Color.white, 15, 0.095f);
+            CreateTextChild(hero, "HeroName", new Vector3(0f, 1.38f, 0f), "涓昏", Color.white, 15, 0.095f);
             CreateTextChild(hero, "HeroHp", new Vector3(0f, -1.84f, 0f), "0/0", Color.white, 15, 0.075f, FontStyle.Normal);
             return hero;
         }
@@ -340,8 +346,8 @@ namespace POPHero.Editor
             CreateSpriteChild(enemy, "HpBack", new Vector3(0f, -1.8f, 0f), new Vector3(2.8f, 0.3f, 1f), new Color(0f, 0f, 0f, 0.55f), 12);
             CreateSpriteChild(enemy, "HpFill", new Vector3(0f, -1.8f, -0.02f), new Vector3(2.5f, 0.16f, 1f), new Color(0.98f, 0.92f, 0.72f, 1f), 13);
             CreateSpriteChild(enemy, "HpPreview", new Vector3(0f, -1.8f, -0.015f), new Vector3(2.5f, 0.16f, 1f), new Color(0.56f, 0.16f, 0.18f, 0.92f), 14);
-            CreateTextChild(enemy, "EnemyName", new Vector3(0f, 1.65f, 0f), "敌人", Color.white, 15, 0.11f);
-            CreateTextChild(enemy, "EnemyIntent", new Vector3(0f, 2.15f, 0f), "攻击 0", new Color(1f, 0.78f, 0.34f, 1f), 16, 0.085f);
+            CreateTextChild(enemy, "EnemyName", new Vector3(0f, 1.65f, 0f), "鏁屼汉", Color.white, 15, 0.11f);
+            CreateTextChild(enemy, "EnemyIntent", new Vector3(0f, 2.15f, 0f), "鏀诲嚮 0", new Color(1f, 0.78f, 0.34f, 1f), 16, 0.085f);
             CreateTextChild(enemy, "EnemyHp", new Vector3(0f, -2.2f, 0f), "0/0", Color.white, 15, 0.08f, FontStyle.Normal);
             return enemy;
         }
@@ -406,10 +412,28 @@ namespace POPHero.Editor
             BuildBlockRewardModal(modalRoot);
             BuildRewardModal(modalRoot);
             BuildShopModal(modalRoot);
+            BuildBlockOperationsModal(modalRoot);
             BuildLoadoutModal(modalRoot);
             BuildGameOverModal(modalRoot);
             BuildSettingsModal(modalRoot);
             return canvasRoot;
+        }
+
+        static void EnsureBlockOperationsUi(Transform canvasRoot)
+        {
+            if (canvasRoot == null)
+                return;
+
+            var deletePanel = canvasRoot.Find("ModalRoot/ShopModal/Window/Body/DeletePanel");
+            if (deletePanel != null)
+                deletePanel.gameObject.SetActive(false);
+
+            var footer = canvasRoot.Find("ModalRoot/ShopModal/Window/Footer") as RectTransform;
+            if (footer == null || footer.Find("BlockOperationsButton") != null)
+                return;
+
+            var blockOperationsButton = Button("BlockOperationsButton", footer, "鏂瑰潡鎿嶄綔");
+            blockOperationsButton.gameObject.AddComponent<LayoutElement>().preferredWidth = 160f;
         }
 
         static void BuildTopStatusBar(RectTransform hudRoot)
@@ -581,7 +605,7 @@ namespace POPHero.Editor
             element.minHeight = 220f;
             element.preferredHeight = 248f;
             var layout = AddVertical(panel, 8, 18);
-            Text("TitleText", panel, 24, FontStyles.Bold, "战斗信息", TextAlignmentOptions.MidlineLeft);
+            Text("TitleText", panel, 24, FontStyles.Bold, "鎴樻枟淇℃伅", TextAlignmentOptions.MidlineLeft);
             Text("RoundAttackText", panel, 18, FontStyles.Normal, string.Empty, TextAlignmentOptions.MidlineLeft);
             Text("RoundShieldText", panel, 18, FontStyles.Normal, string.Empty, TextAlignmentOptions.MidlineLeft);
             Text("RoundHitText", panel, 18, FontStyles.Normal, string.Empty, TextAlignmentOptions.MidlineLeft);
@@ -599,11 +623,11 @@ namespace POPHero.Editor
             grid.cellSize = new Vector2(156f, 34f);
             grid.spacing = new Vector2(8f, 8f);
             buttons.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            Button("ToggleAimButton", buttons, "切换瞄准");
-            Button("ShuffleButton", buttons, "重排方块");
-            Button("AddGoldButton", buttons, "金币 +25");
-            Button("KillEnemyButton", buttons, "秒杀敌人");
-            Button("DamagePlayerButton", buttons, "主角 -10 血");
+            Button("ToggleAimButton", buttons, "鍒囨崲鐬勫噯");
+            Button("ShuffleButton", buttons, "閲嶆帓鏂瑰潡");
+            Button("AddGoldButton", buttons, "閲戝竵 +25");
+            Button("KillEnemyButton", buttons, "绉掓潃鏁屼汉");
+            Button("DamagePlayerButton", buttons, "涓昏 -10 琛€");
         }
 
         static void BuildBlockManagementPanel(RectTransform hudRoot)
@@ -615,7 +639,7 @@ namespace POPHero.Editor
             rootElement.preferredWidth = 420f;
             var layout = AddVertical(panel, 10, 18);
             layout.childForceExpandHeight = false;
-            Text("HeaderText", panel, 24, FontStyles.Bold, "方块管理", TextAlignmentOptions.MidlineLeft);
+            Text("HeaderText", panel, 24, FontStyles.Bold, "鏂瑰潡绠＄悊", TextAlignmentOptions.MidlineLeft);
             var hint = Text("HintText", panel, 16, FontStyles.Normal, string.Empty, TextAlignmentOptions.TopLeft);
             hint.rectTransform.gameObject.AddComponent<LayoutElement>().preferredHeight = 54f;
 
@@ -627,7 +651,7 @@ namespace POPHero.Editor
             activeElement.flexibleHeight = 1f;
             activeElement.minHeight = 420f;
             activeElement.preferredHeight = 560f;
-            Text("TitleText", activeSection, 22, FontStyles.Bold, "上阵", TextAlignmentOptions.MidlineLeft);
+            Text("TitleText", activeSection, 22, FontStyles.Bold, "涓婇樀", TextAlignmentOptions.MidlineLeft);
             var activeRows = ScrollArea("ScrollView", activeSection);
             activeRows.name = "Rows";
             activeRows.gameObject.AddComponent<LayoutElement>().flexibleHeight = 1f;
@@ -641,7 +665,7 @@ namespace POPHero.Editor
             reserveElement.minHeight = 180f;
             reserveElement.preferredHeight = 220f;
             reserveElement.flexibleHeight = 0f;
-            Text("TitleText", reserveSection, 22, FontStyles.Bold, "仓库", TextAlignmentOptions.MidlineLeft);
+            Text("TitleText", reserveSection, 22, FontStyles.Bold, "浠撳簱", TextAlignmentOptions.MidlineLeft);
             var reserveRows = ScrollArea("ScrollView", reserveSection);
             reserveRows.name = "Rows";
             reserveRows.GetComponent<VerticalLayoutGroup>().childControlHeight = true;
@@ -658,7 +682,7 @@ namespace POPHero.Editor
             element.preferredHeight = 132f;
             var layout = AddVertical(panel, 4, 12);
             AddContentFitter(panel, false, true);
-            var label = Text("LabelText", panel, 28, FontStyles.Bold, "伤害", TextAlignmentOptions.Center);
+            var label = Text("LabelText", panel, 28, FontStyles.Bold, "浼ゅ", TextAlignmentOptions.Center);
             label.color = new Color(1f, 0.9f, 0.55f, 1f);
             label.rectTransform.gameObject.AddComponent<LayoutElement>().preferredHeight = 34f;
             var value = Text("ValueText", panel, 52, FontStyles.Bold, "0", TextAlignmentOptions.Center);
@@ -702,12 +726,12 @@ namespace POPHero.Editor
         {
             var modal = Modal("BlockRewardModal", modalRoot, new Vector2(1080f, 620f));
             var header = ModalHeader(modal.window);
-            Text("TitleText", header, 34, FontStyles.Bold, "选择 1 个新方块", TextAlignmentOptions.Center);
+            Text("TitleText", header, 34, FontStyles.Bold, "閫夋嫨 1 涓柊鏂瑰潡", TextAlignmentOptions.Center);
             var subtitle = Text("SubtitleText", header, 18, FontStyles.Normal, string.Empty, TextAlignmentOptions.Center);
             subtitle.rectTransform.gameObject.AddComponent<LayoutElement>().preferredHeight = 52f;
             var body = ModalBody(modal.window);
             ConfigureGridContent(ScrollArea("ScrollView", body), 3, new Vector2(300f, 236f), new Vector2(12f, 12f));
-            Footer(modal.window, ("SkipButton", "跳过"));
+            Footer(modal.window, ("SkipButton", "璺宠繃"));
             modal.overlay.gameObject.SetActive(false);
         }
 
@@ -715,12 +739,12 @@ namespace POPHero.Editor
         {
             var modal = Modal("RewardModal", modalRoot, new Vector2(1080f, 620f));
             var header = ModalHeader(modal.window);
-            Text("TitleText", header, 34, FontStyles.Bold, "选择奖励", TextAlignmentOptions.Center);
+            Text("TitleText", header, 34, FontStyles.Bold, "閫夋嫨濂栧姳", TextAlignmentOptions.Center);
             var subtitle = Text("SubtitleText", header, 18, FontStyles.Normal, string.Empty, TextAlignmentOptions.Center);
             subtitle.rectTransform.gameObject.AddComponent<LayoutElement>().preferredHeight = 52f;
             var body = ModalBody(modal.window);
             ConfigureGridContent(ScrollArea("ScrollView", body), 3, new Vector2(300f, 236f), new Vector2(12f, 12f));
-            Footer(modal.window, ("RerollButton", "刷新奖励"), ("SkipButton", "跳过并得金币"));
+            Footer(modal.window, ("RerollButton", "鍒锋柊濂栧姳"), ("SkipButton", "璺宠繃骞跺緱閲戝竵"));
             modal.overlay.gameObject.SetActive(false);
         }
 
@@ -736,56 +760,61 @@ namespace POPHero.Editor
 
             var body = ModalBody(modal.window);
             var itemsPanel = Panel("ItemsPanel", body, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, 0f));
-            ConfigureVerticalChild(itemsPanel, flexibleHeight: 1f, minHeight: 260f, preferredHeight: 340f);
+            ConfigureVerticalChild(itemsPanel, flexibleHeight: 1f, minHeight: 420f, preferredHeight: 520f);
             itemsPanel.gameObject.AddComponent<Image>().color = new Color(0.14f, 0.17f, 0.22f, 0.75f);
             AddVertical(itemsPanel, 8, 12);
             var itemsPanelElement = itemsPanel.gameObject.AddComponent<LayoutElement>();
             itemsPanelElement.flexibleHeight = 1f;
-            itemsPanelElement.minHeight = 260f;
-            itemsPanelElement.preferredHeight = 340f;
+            itemsPanelElement.minHeight = 420f;
+            itemsPanelElement.preferredHeight = 520f;
             ConfigureGridContent(ScrollArea("ItemsScroll", itemsPanel), 3, new Vector2(300f, 206f), new Vector2(12f, 12f));
 
-            var deletePanel = Panel("DeletePanel", body, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, 0f));
-            ConfigureVerticalChild(deletePanel, flexibleHeight: 0f, minHeight: 240f, preferredHeight: 280f);
-            deletePanel.gameObject.AddComponent<Image>().color = new Color(0.14f, 0.17f, 0.22f, 0.75f);
-            AddVertical(deletePanel, 8, 12);
-            var deleteElement = deletePanel.gameObject.AddComponent<LayoutElement>();
-            deleteElement.minHeight = 220f;
-            deleteElement.preferredHeight = 250f;
+            Footer(modal.window, ("RerollButton", "刷新商店"), ("BlockOperationsButton", "方块操作"), ("CloseButton", "离开商店"));
+            modal.overlay.gameObject.SetActive(false);
+        }
+        static void BuildBlockOperationsModal(RectTransform modalRoot)
+        {
+            var modal = Modal("BlockOperationsModal", modalRoot, new Vector2(1180f, 760f));
+            var header = ModalHeader(modal.window);
+            Text("TitleText", header, 34, FontStyles.Bold, "鏂瑰潡鎿嶄綔", TextAlignmentOptions.Center);
+            var subtitle = Text("SubtitleText", header, 18, FontStyles.Normal, string.Empty, TextAlignmentOptions.Center);
+            subtitle.rectTransform.gameObject.AddComponent<LayoutElement>().preferredHeight = 40f;
 
-            var deleteTitles = Panel("Titles", deletePanel, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, 0f));
-            ConfigureVerticalChild(deleteTitles, preferredHeight: 30f, minHeight: 30f);
-            var titlesLayout = AddHorizontal(deleteTitles, 12, 0);
-            titlesLayout.childControlHeight = false;
-            titlesLayout.childForceExpandWidth = true;
-            Text("ActiveTitleText", deleteTitles, 20, FontStyles.Bold, "删除：上阵", TextAlignmentOptions.Left);
-            Text("ReserveTitleText", deleteTitles, 20, FontStyles.Bold, "删除：仓库", TextAlignmentOptions.Left);
-            var hint = Text("HintText", deletePanel, 16, FontStyles.Normal, string.Empty, TextAlignmentOptions.Left);
-            hint.rectTransform.gameObject.AddComponent<LayoutElement>().preferredHeight = 30f;
+            var body = ModalBody(modal.window);
+            var hint = Text("HintText", body, 18, FontStyles.Normal, string.Empty, TextAlignmentOptions.TopLeft);
+            hint.rectTransform.gameObject.AddComponent<LayoutElement>().preferredHeight = 44f;
+            var feedback = Text("FeedbackText", body, 16, FontStyles.Normal, string.Empty, TextAlignmentOptions.TopLeft);
+            feedback.rectTransform.gameObject.AddComponent<LayoutElement>().preferredHeight = 32f;
 
-            var columns = Panel("Columns", deletePanel, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, 0f));
-            ConfigureVerticalChild(columns, flexibleHeight: 1f, minHeight: 120f);
+            var statusRow = Panel("StatusRow", body, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, 0f));
+            ConfigureVerticalChild(statusRow, preferredHeight: 28f, minHeight: 28f);
+            var statusLayout = AddHorizontal(statusRow, 12, 0);
+            statusLayout.childForceExpandWidth = true;
+            statusLayout.childControlHeight = false;
+            Text("DeleteStatusText", statusRow, 16, FontStyles.Bold, string.Empty, TextAlignmentOptions.Left);
+            Text("SwapStatusText", statusRow, 16, FontStyles.Bold, string.Empty, TextAlignmentOptions.Right);
+
+            var columns = Panel("Columns", body, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, 0f));
+            ConfigureVerticalChild(columns, flexibleHeight: 1f, minHeight: 320f);
             var columnsLayout = AddHorizontal(columns, 12, 0);
             columnsLayout.childForceExpandWidth = true;
-            columns.gameObject.AddComponent<LayoutElement>().flexibleHeight = 1f;
+            columnsLayout.childControlHeight = false;
 
             var activeColumn = Panel("ActiveColumn", columns, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, 0f));
             ConfigureHorizontalChild(activeColumn, flexibleWidth: 1f);
-            activeColumn.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
-            AddVertical(activeColumn, 6, 0);
-            var active = ScrollArea("ActiveScroll", activeColumn);
-            active.name = "ActiveContent";
-            active.GetComponent<VerticalLayoutGroup>().childControlHeight = true;
+            activeColumn.gameObject.AddComponent<Image>().color = new Color(0.14f, 0.17f, 0.22f, 0.75f);
+            Text("TitleText", activeColumn, 22, FontStyles.Bold, "涓婇樀鏂瑰潡", TextAlignmentOptions.Left);
+            var activeScroll = ScrollArea("ScrollView", activeColumn);
+            activeScroll.GetComponent<VerticalLayoutGroup>().childControlHeight = true;
 
             var reserveColumn = Panel("ReserveColumn", columns, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, 0f));
             ConfigureHorizontalChild(reserveColumn, flexibleWidth: 1f);
-            reserveColumn.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
-            AddVertical(reserveColumn, 6, 0);
-            var reserve = ScrollArea("ReserveScroll", reserveColumn);
-            reserve.name = "ReserveContent";
-            reserve.GetComponent<VerticalLayoutGroup>().childControlHeight = true;
+            reserveColumn.gameObject.AddComponent<Image>().color = new Color(0.14f, 0.17f, 0.22f, 0.75f);
+            Text("TitleText", reserveColumn, 22, FontStyles.Bold, "鑳屽寘鏂瑰潡", TextAlignmentOptions.Left);
+            var reserveScroll = ScrollArea("ScrollView", reserveColumn);
+            reserveScroll.GetComponent<VerticalLayoutGroup>().childControlHeight = true;
 
-            Footer(modal.window, ("RerollButton", "刷新商店"), ("CloseButton", "离开商店"));
+            Footer(modal.window, ("CloseButton", "鍏抽棴"));
             modal.overlay.gameObject.SetActive(false);
         }
 
@@ -793,7 +822,7 @@ namespace POPHero.Editor
         {
             var modal = Modal("LoadoutModal", modalRoot, new Vector2(1220f, 760f));
             var header = ModalHeader(modal.window);
-            Text("TitleText", header, 34, FontStyles.Bold, "背包", TextAlignmentOptions.Center);
+            Text("TitleText", header, 34, FontStyles.Bold, "鑳屽寘", TextAlignmentOptions.Center);
             var subtitle = Text("SubtitleText", header, 18, FontStyles.Normal, string.Empty, TextAlignmentOptions.Center);
             subtitle.rectTransform.gameObject.AddComponent<LayoutElement>().preferredHeight = 52f;
 
@@ -813,7 +842,7 @@ namespace POPHero.Editor
             inventoryElement.flexibleWidth = 1.4f;
             inventoryElement.minWidth = 360f;
             AddVertical(inventoryPanel, 8, 12);
-            Text("InventoryTitleText", inventoryPanel, 22, FontStyles.Bold, "嵌片背包", TextAlignmentOptions.Left);
+            Text("InventoryTitleText", inventoryPanel, 22, FontStyles.Bold, "宓岀墖鑳屽寘", TextAlignmentOptions.Left);
             ConfigureGridContent(ScrollArea("ScrollView", inventoryPanel), 4, new Vector2(88f, 88f), new Vector2(10f, 10f));
 
             var modsPanel = Panel("ModsPanel", columns, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, 0f));
@@ -823,18 +852,18 @@ namespace POPHero.Editor
             modsElement.flexibleWidth = 1f;
             modsElement.minWidth = 300f;
             AddVertical(modsPanel, 8, 12);
-            Text("ActiveTitleText", modsPanel, 22, FontStyles.Bold, "启用模组", TextAlignmentOptions.Left);
+            Text("ActiveTitleText", modsPanel, 22, FontStyles.Bold, "鍚敤妯＄粍", TextAlignmentOptions.Left);
             var active = Panel("ActiveContent", modsPanel, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, 0f));
             ConfigureVerticalChild(active, flexibleHeight: 1f);
             AddVertical(active, 6, 0).childControlHeight = true;
             active.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            Text("ReserveTitleText", modsPanel, 22, FontStyles.Bold, "待机模组", TextAlignmentOptions.Left);
+            Text("ReserveTitleText", modsPanel, 22, FontStyles.Bold, "寰呮満妯＄粍", TextAlignmentOptions.Left);
             var reserve = Panel("ReserveContent", modsPanel, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, 0f));
             ConfigureVerticalChild(reserve, flexibleHeight: 1f);
             AddVertical(reserve, 6, 0).childControlHeight = true;
             reserve.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-            Footer(modal.window, ("CancelButton", "取消拖拽"), ("ContinueButton", "继续战斗"));
+            Footer(modal.window, ("CancelButton", "鍙栨秷鎷栨嫿"), ("ContinueButton", "缁х画鎴樻枟"));
             modal.overlay.gameObject.SetActive(false);
         }
 
@@ -842,7 +871,7 @@ namespace POPHero.Editor
         {
             var modal = Modal("GameOverModal", modalRoot, new Vector2(720f, 340f));
             var header = ModalHeader(modal.window);
-            Text("TitleText", header, 38, FontStyles.Bold, "本局结束", TextAlignmentOptions.Center);
+            Text("TitleText", header, 38, FontStyles.Bold, "鏈眬缁撴潫", TextAlignmentOptions.Center);
             var body = ModalBody(modal.window);
             var message = Text("MessageText", body, 20, FontStyles.Normal, string.Empty, TextAlignmentOptions.Center);
             message.rectTransform.gameObject.AddComponent<LayoutElement>().preferredHeight = 110f;
@@ -867,7 +896,7 @@ namespace POPHero.Editor
         {
             var controls = RootPanel("TopRightControls");
             ConfigureSettingsButtonRect(controls);
-            var button = Button("SettingsButton", controls, "设置");
+            var button = Button("SettingsButton", controls, "璁剧疆");
             Stretch(button.transform as RectTransform);
             return controls.gameObject;
         }
@@ -889,7 +918,7 @@ namespace POPHero.Editor
             layout.childForceExpandWidth = true;
 
             var header = ModalHeader(window);
-            Text("TitleText", header, 38, FontStyles.Bold, "设置", TextAlignmentOptions.Center);
+            Text("TitleText", header, 38, FontStyles.Bold, "璁剧疆", TextAlignmentOptions.Center);
             var body = ModalBody(window);
             var hint = Text("HintText", body, 20, FontStyles.Normal, "游戏已暂停。继续游戏会回到当前战斗或中场界面。", TextAlignmentOptions.Center);
             hint.rectTransform.gameObject.AddComponent<LayoutElement>().preferredHeight = 120f;
@@ -1261,7 +1290,7 @@ namespace POPHero.Editor
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        static void WireGame(PopHeroGame game, PopHeroPrototypeConfig config, Transform worldRoot, Transform boardRoot, Transform blockRoot, Transform enemyLayerRoot, Transform battleStageRoot, Transform battleEffectsRoot, SpriteRenderer boardFrame, SpriteRenderer boardBackground, SpriteRenderer launchGuide, Transform launchMarker, GameObject bottomLineObject, Transform wallTopRoot, Transform wallLeftRoot, Transform wallRightRoot, SpriteRenderer enemyPanel, PlayerPresenter playerPresenter, EnemyController enemyController, BallController ballController, Rigidbody2D ballBody, CircleCollider2D ballCollider, TrailRenderer ballTrail, PlayerLauncher launcher, CanvasHudController canvasHud)
+        static void WireGame(PopHeroGame game, PopHeroPrototypeConfig config, Transform worldRoot, Transform boardRoot, Transform blockRoot, Transform enemyLayerRoot, Transform battleStageRoot, Transform battleEffectsRoot, SpriteRenderer boardFrame, SpriteRenderer boardBackground, SpriteRenderer launchGuide, GameObject bottomLineObject, Transform wallTopRoot, Transform wallLeftRoot, Transform wallRightRoot, SpriteRenderer enemyPanel, PlayerPresenter playerPresenter, EnemyController enemyController, BallController ballController, Rigidbody2D ballBody, CircleCollider2D ballCollider, TrailRenderer ballTrail, PlayerLauncher launcher, CanvasHudController canvasHud)
         {
             var so = new SerializedObject(game);
             so.FindProperty("config").objectReferenceValue = config;
@@ -1274,7 +1303,6 @@ namespace POPHero.Editor
             so.FindProperty("boardFrame").objectReferenceValue = boardFrame;
             so.FindProperty("boardBackground").objectReferenceValue = boardBackground;
             so.FindProperty("launchGuide").objectReferenceValue = launchGuide;
-            so.FindProperty("launchMarkerRef").objectReferenceValue = launchMarker;
             so.FindProperty("bottomLineObject").objectReferenceValue = bottomLineObject;
             so.FindProperty("wallTopRoot").objectReferenceValue = wallTopRoot;
             so.FindProperty("wallLeftRoot").objectReferenceValue = wallLeftRoot;
@@ -1292,3 +1320,4 @@ namespace POPHero.Editor
         }
     }
 }
+

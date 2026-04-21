@@ -84,9 +84,14 @@ namespace POPHero
         TMP_Text shopSubtitle;
         TMP_Text shopGold;
         TMP_Text shopFeedback;
-        TMP_Text shopDeleteActive;
-        TMP_Text shopDeleteReserve;
-        TMP_Text shopDeleteHint;
+        TMP_Text blockOperationsTitle;
+        TMP_Text blockOperationsSubtitle;
+        TMP_Text blockOperationsHint;
+        TMP_Text blockOperationsFeedback;
+        TMP_Text blockOperationsActiveTitle;
+        TMP_Text blockOperationsReserveTitle;
+        TMP_Text blockOperationsDeleteStatus;
+        TMP_Text blockOperationsSwapStatus;
         TMP_Text loadoutTitle;
         TMP_Text loadoutSubtitle;
         TMP_Text inventoryTitle;
@@ -107,7 +112,9 @@ namespace POPHero
         Button rewardRerollButton;
         Button rewardSkipButton;
         Button shopRerollButton;
+        Button shopBlockOperationsButton;
         Button shopCloseButton;
+        Button blockOperationsCloseButton;
         Button loadoutCancelButton;
         Button loadoutContinueButton;
         Button gameOverRetryButton;
@@ -124,16 +131,18 @@ namespace POPHero
         RectTransform blockRewardContent;
         RectTransform rewardContent;
         RectTransform shopItemsContent;
-        RectTransform shopDeleteActiveContent;
-        RectTransform shopDeleteReserveContent;
+        RectTransform blockOperationsActiveContent;
+        RectTransform blockOperationsReserveContent;
         RectTransform inventoryContent;
         RectTransform activeModsContent;
         RectTransform reserveModsContent;
 
         GameObject blockManagementPanel;
+        GameObject reserveSectionObject;
         GameObject blockRewardModal;
         GameObject rewardModal;
         GameObject shopModal;
+        GameObject blockOperationsModal;
         GameObject loadoutModal;
         GameObject gameOverModal;
         GameObject settingsModal;
@@ -150,8 +159,8 @@ namespace POPHero
         readonly List<CanvasCardView> blockRewardCards = new();
         readonly List<CanvasCardView> rewardCards = new();
         readonly List<CanvasCardView> shopCards = new();
-        readonly List<CanvasListEntryView> deleteActiveEntries = new();
-        readonly List<CanvasListEntryView> deleteReserveEntries = new();
+        readonly List<CanvasBlockOperationEntryView> blockOperationActiveEntries = new();
+        readonly List<CanvasBlockOperationEntryView> blockOperationReserveEntries = new();
         readonly List<CanvasStickerCellView> inventoryStickerCells = new();
         readonly List<CanvasListEntryView> activeModEntries = new();
         readonly List<CanvasListEntryView> reserveModEntries = new();
@@ -165,6 +174,8 @@ namespace POPHero
         Color passiveTooltipColor = Color.white;
         string selectedActiveId;
         string selectedReserveId;
+        string selectedBlockOperationActiveId;
+        string selectedBlockOperationReserveId;
         bool gmPanelOpen;
         bool initialized;
 
@@ -229,6 +240,8 @@ namespace POPHero
             {
                 selectedActiveId = null;
                 selectedReserveId = null;
+                selectedBlockOperationActiveId = null;
+                selectedBlockOperationReserveId = null;
             }
 
             SafeRefresh("status", RefreshStatus);
@@ -285,6 +298,8 @@ namespace POPHero
 
         void BindScene()
         {
+            EnsureRuntimeBlockOperationsUi();
+
             statusPanelObject = GOptional("HudRoot/StatusPanel");
             topStatusBar = ROptional("HudRoot/TopStatusBar");
             topAvatarIcon = ImageOptional("HudRoot/TopStatusBar/AvatarSlot/Icon");
@@ -339,8 +354,9 @@ namespace POPHero
             blockHint = TOptional("HudRoot/BlockManagementPanel/HintText");
             activeTitle = TOptional("HudRoot/BlockManagementPanel/ActiveSection/TitleText");
             reserveTitle = TOptional("HudRoot/BlockManagementPanel/ReserveSection/TitleText");
+            reserveSectionObject = GOptional("HudRoot/BlockManagementPanel/ReserveSection");
             activeRowsRoot = R("HudRoot/BlockManagementPanel/ActiveSection/ScrollView/Viewport/Rows");
-            reserveRowsRoot = R("HudRoot/BlockManagementPanel/ReserveSection/ScrollView/Viewport/Rows");
+            reserveRowsRoot = ROptional("HudRoot/BlockManagementPanel/ReserveSection/ScrollView/Viewport/Rows");
 
             damagePanel = R("HudRoot/DamageCounterPanel");
             damageLabel = T("HudRoot/DamageCounterPanel/LabelText");
@@ -378,17 +394,22 @@ namespace POPHero
             shopGold = T("ModalRoot/ShopModal/Window/Header/GoldText");
             shopFeedback = T("ModalRoot/ShopModal/Window/Header/FeedbackText");
             shopItemsContent = R("ModalRoot/ShopModal/Window/Body/ItemsPanel/ItemsScroll/Viewport/Content");
-            shopDeleteActiveContent =
-                ROptional("ModalRoot/ShopModal/Window/Body/DeletePanel/Columns/ActiveColumn/ActiveScroll/Viewport/ActiveContent") ??
-                R("ModalRoot/ShopModal/Window/Body/DeletePanel/Columns/ActiveColumn/ActiveContent");
-            shopDeleteReserveContent =
-                ROptional("ModalRoot/ShopModal/Window/Body/DeletePanel/Columns/ReserveColumn/ReserveScroll/Viewport/ReserveContent") ??
-                R("ModalRoot/ShopModal/Window/Body/DeletePanel/Columns/ReserveColumn/ReserveContent");
-            shopDeleteActive = T("ModalRoot/ShopModal/Window/Body/DeletePanel/Titles/ActiveTitleText");
-            shopDeleteReserve = T("ModalRoot/ShopModal/Window/Body/DeletePanel/Titles/ReserveTitleText");
-            shopDeleteHint = T("ModalRoot/ShopModal/Window/Body/DeletePanel/HintText");
             shopRerollButton = B("ModalRoot/ShopModal/Window/Footer/RerollButton");
+            shopBlockOperationsButton = BOptional("ModalRoot/ShopModal/Window/Footer/BlockOperationsButton");
             shopCloseButton = B("ModalRoot/ShopModal/Window/Footer/CloseButton");
+
+            blockOperationsModal = GOptional("ModalRoot/BlockOperationsModal");
+            blockOperationsTitle = TOptional("ModalRoot/BlockOperationsModal/Window/Header/TitleText");
+            blockOperationsSubtitle = TOptional("ModalRoot/BlockOperationsModal/Window/Header/SubtitleText");
+            blockOperationsHint = TOptional("ModalRoot/BlockOperationsModal/Window/Body/HintText");
+            blockOperationsFeedback = TOptional("ModalRoot/BlockOperationsModal/Window/Body/FeedbackText");
+            blockOperationsActiveTitle = TOptional("ModalRoot/BlockOperationsModal/Window/Body/Columns/ActiveColumn/TitleText");
+            blockOperationsReserveTitle = TOptional("ModalRoot/BlockOperationsModal/Window/Body/Columns/ReserveColumn/TitleText");
+            blockOperationsDeleteStatus = TOptional("ModalRoot/BlockOperationsModal/Window/Body/StatusRow/DeleteStatusText");
+            blockOperationsSwapStatus = TOptional("ModalRoot/BlockOperationsModal/Window/Body/StatusRow/SwapStatusText");
+            blockOperationsActiveContent = ROptional("ModalRoot/BlockOperationsModal/Window/Body/Columns/ActiveColumn/ScrollView/Viewport/Content");
+            blockOperationsReserveContent = ROptional("ModalRoot/BlockOperationsModal/Window/Body/Columns/ReserveColumn/ScrollView/Viewport/Content");
+            blockOperationsCloseButton = BOptional("ModalRoot/BlockOperationsModal/Window/Footer/CloseButton");
 
             loadoutModal = G("ModalRoot/LoadoutModal");
             loadoutTitle = T("ModalRoot/LoadoutModal/Window/Header/TitleText");
@@ -427,7 +448,6 @@ namespace POPHero
             Validate(combatTitle, "HudRoot/CombatPanel/TitleText");
             Validate(blockManagementPanel, "HudRoot/BlockManagementPanel");
             Validate(activeRowsRoot, "HudRoot/BlockManagementPanel/ActiveSection/Rows");
-            Validate(reserveRowsRoot, "HudRoot/BlockManagementPanel/ReserveSection/Rows");
             Validate(blockRewardModal, "ModalRoot/BlockRewardModal");
             Validate(rewardModal, "ModalRoot/RewardModal");
             Validate(shopModal, "ModalRoot/ShopModal");
@@ -449,7 +469,9 @@ namespace POPHero
             Bind(rewardRerollButton, () => Run(new HudCommand(HudCommandType.TryRerollRewardChoices)));
             Bind(rewardSkipButton, () => Run(new HudCommand(HudCommandType.SkipRewardChoices)));
             Bind(shopRerollButton, () => Run(new HudCommand(HudCommandType.TryRerollShop)));
+            Bind(shopBlockOperationsButton, () => Run(new HudCommand(HudCommandType.OpenBlockOperations, 0, game?.Config?.shop?.blockOperationProfileId, RoundState.Shop.ToString())));
             Bind(shopCloseButton, () => Run(new HudCommand(HudCommandType.CloseShop)));
+            Bind(blockOperationsCloseButton, () => Run(new HudCommand(HudCommandType.CloseBlockOperations)));
             Bind(loadoutCancelButton, () => Run(new HudCommand(HudCommandType.CancelStickerDrag)));
             Bind(loadoutContinueButton, () => Run(new HudCommand(HudCommandType.FinishLoadout)));
             Bind(gameOverRetryButton, () => SceneFlowService.Instance.ReloadBattle());
@@ -556,15 +578,15 @@ namespace POPHero
             Set(blockHeader, model.HeaderText);
             Set(blockHint, BuildBlockHint(model.HintText));
             Set(activeTitle, $"上阵 {blockCollections?.ActiveCardCount ?? 0}/{blockCollections?.ActiveCapacity ?? 0}");
-            Set(reserveTitle, $"仓库 {blockCollections?.ReserveCardCount ?? 0}/{blockCollections?.ReserveCapacity ?? 0}");
+            SetActive(reserveSectionObject, false);
+            if (reserveTitle != null)
+                reserveTitle.text = string.Empty;
 
             EnsureRows(activeRows, activeRowsRoot, model.ActiveRows.Count, blockCellPrefab);
             for (var index = 0; index < model.ActiveRows.Count; index++)
                 ConfigureRow(activeRows[index], model.ActiveRows[index], true);
 
-            EnsureRows(reserveRows, reserveRowsRoot, model.ReserveRows.Count, blockCellPrefab);
-            for (var index = 0; index < model.ReserveRows.Count; index++)
-                ConfigureRow(reserveRows[index], model.ReserveRows[index], false);
+            HideExtra(reserveRows, 0);
         }
 
         void RefreshDamage()
@@ -584,6 +606,7 @@ namespace POPHero
             SetActive(blockRewardModal, state == RoundState.BlockRewardChoose);
             SetActive(rewardModal, state == RoundState.RewardChoose);
             SetActive(shopModal, state == RoundState.Shop);
+            SetActive(blockOperationsModal, state == RoundState.BlockOperations);
             SetActive(loadoutModal, state == RoundState.LoadoutManage);
             SetActive(gameOverModal, state == RoundState.GameOver);
             SetActive(settingsModal, game != null && game.IsSettingsOpen);
@@ -603,8 +626,14 @@ namespace POPHero
             else
             {
                 HideExtra(shopCards, 0);
-                HideExtra(deleteActiveEntries, 0);
-                HideExtra(deleteReserveEntries, 0);
+            }
+
+            if (state == RoundState.BlockOperations)
+                RefreshBlockOperations();
+            else
+            {
+                HideExtra(blockOperationActiveEntries, 0);
+                HideExtra(blockOperationReserveEntries, 0);
             }
 
             if (state == RoundState.LoadoutManage)
@@ -667,7 +696,7 @@ namespace POPHero
         void RefreshDragPanel()
         {
             var dragging = game?.StickerInventory?.DraggingSticker;
-            var visible = dragging != null && game != null && game.CanManageBlockAssignments;
+            var visible = dragging != null && game != null && game.CanManageStickerLoadout;
             if (game != null && game.IsSettingsOpen)
                 visible = false;
             SetActive(dragPanel, visible);
@@ -748,9 +777,8 @@ namespace POPHero
             Set(shopSubtitle, model.SubtitleText);
             Set(shopGold, model.GoldText);
             Set(shopFeedback, model.LastFeedbackText);
-            Set(shopDeleteActive, "删除：上阵");
-            Set(shopDeleteReserve, "删除：仓库");
-            Set(shopDeleteHint, model.DeleteHintText);
+            if (shopBlockOperationsButton != null)
+                SetButtonLabel(shopBlockOperationsButton, model.BlockOperationsButtonText);
             SetButtonLabel(shopRerollButton, model.RerollButtonText);
             SetButtonLabel(shopCloseButton, model.CloseButtonText);
 
@@ -760,14 +788,66 @@ namespace POPHero
                 var item = model.Items[index];
                 var view = shopCards[index];
                 view.gameObject.SetActive(true);
-                view.Set(item.Title, item.KindText, item.PriceText, item.Description, item.ButtonText, RewardKindColor(item.KindText));
-                view.SetInteractable(!item.Purchased);
-                var capturedIndex = item.Index;
-                view.SetAction(() => Run(new HudCommand(HudCommandType.TryBuyShopItem, capturedIndex)));
+                  view.Set(item.Title, item.KindText, item.PriceText, item.Description, item.ButtonText, RewardKindColor(item.KindText));
+                  view.SetInteractable(!item.Purchased);
+                  var capturedIndex = item.Index;
+                  view.SetAction(() => Run(new HudCommand(HudCommandType.TryBuyShopItem, capturedIndex)));
+            }
+        }
+
+        void RefreshBlockOperations()
+        {
+            var model = intermissionPresenter.BuildBlockOperationsPanel(game);
+            Set(blockOperationsTitle, model.TitleText);
+            Set(blockOperationsSubtitle, model.SubtitleText);
+            Set(blockOperationsHint, model.HintText);
+            Set(blockOperationsFeedback, model.FeedbackText);
+            Set(blockOperationsActiveTitle, model.ActiveColumnTitle);
+            Set(blockOperationsReserveTitle, model.ReserveColumnTitle);
+            Set(blockOperationsDeleteStatus, model.DeleteStatusText);
+            Set(blockOperationsSwapStatus, model.SwapStatusText);
+            SetButtonLabel(blockOperationsCloseButton, model.CloseButtonText);
+
+            if (blockOperationsActiveContent == null || blockOperationsReserveContent == null)
+                return;
+
+            EnsureBlockOperationEntries(blockOperationActiveEntries, blockOperationsActiveContent, model.ActiveCards.Count);
+            for (var index = 0; index < model.ActiveCards.Count; index++)
+            {
+                var card = model.ActiveCards[index];
+                var view = blockOperationActiveEntries[index];
+                var tooltip = BlockPresentationUtility.BuildTooltip(card);
+                view.gameObject.SetActive(true);
+                view.Set(
+                    card.cardName,
+                    $"{BlockIcon(card.baseBlockType)} {Format(card)}",
+                    model.AllowDelete ? "选择替换，或直接删除" : "选择后可与背包方块替换",
+                    BlockColor(card),
+                    selectedBlockOperationActiveId == card.id,
+                    () => ClickBlockOperationCard(card, true),
+                    model.AllowDelete ? () => Run(new HudCommand(HudCommandType.TryRemoveBlock, 0, card.id)) : null,
+                    model.AllowDelete ? "删除" : string.Empty);
+                view.SetTooltip(tooltip.Title, tooltip.Body, tooltip.AccentColor, this);
             }
 
-            RefreshRemoval(deleteActiveEntries, shopDeleteActiveContent, model.ActiveCards, model.HasRemovedBlockThisVisit);
-            RefreshRemoval(deleteReserveEntries, shopDeleteReserveContent, model.ReserveCards, model.HasRemovedBlockThisVisit);
+            EnsureBlockOperationEntries(blockOperationReserveEntries, blockOperationsReserveContent, model.ReserveCards.Count);
+            for (var index = 0; index < model.ReserveCards.Count; index++)
+            {
+                var card = model.ReserveCards[index];
+                var view = blockOperationReserveEntries[index];
+                var tooltip = BlockPresentationUtility.BuildTooltip(card);
+                view.gameObject.SetActive(true);
+                view.Set(
+                    card.cardName,
+                    $"{BlockIcon(card.baseBlockType)} {Format(card)}",
+                    model.AllowSwap ? "选择后可与上阵方块替换" : "当前规则不允许替换",
+                    BlockColor(card),
+                    selectedBlockOperationReserveId == card.id,
+                    () => ClickBlockOperationCard(card, false),
+                    null,
+                    string.Empty);
+                view.SetTooltip(tooltip.Title, tooltip.Body, tooltip.AccentColor, this);
+            }
         }
 
         void RefreshLoadout()
@@ -822,21 +902,6 @@ namespace POPHero
             SetButtonLabel(settingsQuitButton, "退出游戏");
         }
 
-        void RefreshRemoval(List<CanvasListEntryView> views, RectTransform root, IReadOnlyList<BlockCardState> cards, bool disabled)
-        {
-            EnsureEntries(views, root, cards.Count);
-            for (var index = 0; index < cards.Count; index++)
-            {
-                var card = cards[index];
-                var view = views[index];
-                var tooltip = BlockPresentationUtility.BuildTooltip(card);
-                view.gameObject.SetActive(true);
-                view.Set(card.cardName, BlockIcon(card.baseBlockType), Format(card), BlockColor(card), () => Run(new HudCommand(HudCommandType.TryRemoveBlockInShop, 0, card.id)));
-                view.SetInteractable(!disabled);
-                view.SetTooltip(tooltip.Title, tooltip.Body, tooltip.AccentColor, this);
-            }
-        }
-
         void RefreshMods(List<CanvasListEntryView> views, RectTransform root, IReadOnlyList<ModInstance> mods, bool active)
         {
             EnsureEntries(views, root, mods.Count);
@@ -862,7 +927,6 @@ namespace POPHero
             {
                 view.SetTypePlaceholder("-", new Color(0.24f, 0.26f, 0.3f, 0.8f), null);
                 view.SetTypeTooltip("空槽位", activeSection ? "这里还没有上阵方块。" : "这里还没有仓库方块。", new Color(0.72f, 0.76f, 0.84f, 1f), this);
-                view.SetStickerCount(0);
                 view.SetSocketCount(0);
                 return;
             }
@@ -872,27 +936,14 @@ namespace POPHero
             view.SetTypeVisual(model.Card, blockVisual, () => ClickBlock(model.Card, activeSection));
             view.SetTypeTooltip(tooltip.Title, tooltip.Body, tooltip.AccentColor, this);
 
-            var stickers = new List<StickerInstance>();
-            foreach (var socket in model.Card.sockets)
-            {
-                if (socket.installedSticker != null)
-                    stickers.Add(socket.installedSticker);
-            }
-
-            view.SetStickerCount(stickers.Count);
-            for (var index = 0; index < stickers.Count; index++)
-            {
-                view.SetSticker(index, StickerShort(stickers[index]), StickerColor(stickers[index].data.rarity));
-                view.SetStickerTooltip(index, stickers[index].data.name, StickerTooltip(stickers[index]), StickerColor(stickers[index].data.rarity), this);
-            }
-
             view.SetSocketCount(model.Card.sockets.Count);
             for (var index = 0; index < model.Card.sockets.Count; index++)
             {
                 var socket = model.Card.sockets[index];
-                var icon = socket.isUnlocked
+                var fallbackText = socket.isUnlocked
                     ? socket.installedSticker != null ? StickerShort(socket.installedSticker) : "+"
                     : "L";
+                var iconSprite = socket.installedSticker?.data?.iconSprite;
                 var color = socket.isUnlocked
                     ? socket.installedSticker != null
                         ? StickerColor(socket.installedSticker.data.rarity)
@@ -901,7 +952,8 @@ namespace POPHero
                 var capturedIndex = index;
                 view.SetSocket(
                     index,
-                    icon,
+                    fallbackText,
+                    iconSprite,
                     color,
                     () => ClickSocket(model.Card, capturedIndex),
                     () => DropStickerOnSocket(model.Card, capturedIndex));
@@ -914,7 +966,7 @@ namespace POPHero
             var dragging = game?.StickerInventory?.DraggingSticker;
             if (dragging == null || card == null || socket == null)
                 return false;
-            if (!socket.isUnlocked || socket.installedSticker != null || !game.CanManageBlockAssignments)
+            if (!socket.isUnlocked || socket.installedSticker != null || !game.CanManageStickerLoadout)
                 return false;
 
             var cardMask = CardMask(card.baseBlockType);
@@ -923,7 +975,7 @@ namespace POPHero
 
         void ClickSocket(BlockCardState card, int socketIndex)
         {
-            if (card == null || !game.CanManageBlockAssignments)
+            if (card == null || !game.CanManageStickerLoadout)
                 return;
 
             if (socketIndex < 0 || socketIndex >= card.sockets.Count)
@@ -942,7 +994,7 @@ namespace POPHero
 
         bool BeginStickerDragFromInventory(string runtimeId)
         {
-            if (game == null || !game.CanManageBlockAssignments || game.IsSettingsOpen || string.IsNullOrWhiteSpace(runtimeId))
+            if (game == null || !game.CanManageStickerLoadout || game.IsSettingsOpen || string.IsNullOrWhiteSpace(runtimeId))
                 return false;
 
             Run(new HudCommand(HudCommandType.BeginStickerDrag, 0, runtimeId));
@@ -971,7 +1023,7 @@ namespace POPHero
 
         void DropStickerOnSocket(BlockCardState card, int socketIndex)
         {
-            if (game == null || card == null || !game.CanManageBlockAssignments)
+            if (game == null || card == null || !game.CanManageStickerLoadout)
                 return;
 
             if (game.StickerInventory?.DraggingSticker == null)
@@ -986,46 +1038,45 @@ namespace POPHero
             if (card == null)
                 return;
 
-            if (!game.CanManageBlockAssignments)
-            {
-                var tooltip = BlockPresentationUtility.BuildTooltip(card);
-                SetTooltip(tooltip.Title, tooltip.Body, tooltip.AccentColor);
+            var tooltip = BlockPresentationUtility.BuildTooltip(card);
+            SetTooltip(tooltip.Title, tooltip.Body, tooltip.AccentColor);
+        }
+
+        void ClickBlockOperationCard(BlockCardState card, bool activeSection)
+        {
+            if (card == null || !game.CanManageBlockAssignments)
                 return;
-            }
 
             if (activeSection)
             {
-                if (!string.IsNullOrEmpty(selectedReserveId))
+                if (!string.IsNullOrEmpty(selectedBlockOperationReserveId))
                 {
-                    Run(new HudCommand(HudCommandType.TrySwapActiveReserve, 0, card.id, selectedReserveId));
-                    selectedActiveId = null;
-                    selectedReserveId = null;
+                    Run(new HudCommand(HudCommandType.TrySwapActiveReserve, 0, card.id, selectedBlockOperationReserveId));
+                    selectedBlockOperationActiveId = null;
+                    selectedBlockOperationReserveId = null;
                     return;
                 }
 
-                selectedActiveId = selectedActiveId == card.id ? null : card.id;
-                selectedReserveId = null;
+                selectedBlockOperationActiveId = selectedBlockOperationActiveId == card.id ? null : card.id;
+                selectedBlockOperationReserveId = null;
+                return;
             }
-            else
+
+            if (!string.IsNullOrEmpty(selectedBlockOperationActiveId))
             {
-                if (!string.IsNullOrEmpty(selectedActiveId))
-                {
-                    Run(new HudCommand(HudCommandType.TrySwapActiveReserve, 0, selectedActiveId, card.id));
-                    selectedActiveId = null;
-                    selectedReserveId = null;
-                    return;
-                }
-
-                selectedReserveId = selectedReserveId == card.id ? null : card.id;
-                selectedActiveId = null;
+                Run(new HudCommand(HudCommandType.TrySwapActiveReserve, 0, selectedBlockOperationActiveId, card.id));
+                selectedBlockOperationActiveId = null;
+                selectedBlockOperationReserveId = null;
+                return;
             }
+
+            selectedBlockOperationReserveId = selectedBlockOperationReserveId == card.id ? null : card.id;
+            selectedBlockOperationActiveId = null;
         }
 
         string BuildBlockHint(string hint)
         {
-            return string.IsNullOrWhiteSpace(hint)
-                ? "默认显示为紧凑图标。悬停可查看详情；整理阶段可交换上阵和仓库方块。"
-                : hint;
+            return "右侧只显示上阵方块。悬停可查看详情。";
         }
 
         string BuildLoadoutSubtitle(string subtitle)
@@ -1153,6 +1204,239 @@ namespace POPHero
         {
             var node = transform.Find(path);
             return node == null ? null : node.GetComponent<Button>();
+        }
+
+        void EnsureRuntimeBlockOperationsUi()
+        {
+            var modalRoot = ROptional("ModalRoot");
+            if (modalRoot == null)
+                return;
+
+            var legacyDeletePanel = modalRoot.Find("ShopModal/Window/Body/DeletePanel");
+            if (legacyDeletePanel != null)
+                legacyDeletePanel.gameObject.SetActive(false);
+
+            EnsureShopBlockOperationsButton(modalRoot);
+            EnsureBlockOperationsModalRuntime(modalRoot);
+        }
+
+        void EnsureShopBlockOperationsButton(RectTransform modalRoot)
+        {
+            var footer = modalRoot.Find("ShopModal/Window/Footer") as RectTransform;
+            if (footer == null)
+                return;
+
+            if (footer.Find("BlockOperationsButton") == null)
+            {
+                var button = CanvasUiFactory.Button(
+                    "BlockOperationsButton",
+                    footer,
+                    "方块操作",
+                    new Color(0.16f, 0.23f, 0.62f, 0.96f),
+                    Color.white,
+                    20);
+                button.transform.SetSiblingIndex(Mathf.Max(0, footer.childCount - 1));
+            }
+
+            LayoutFooterButtons(footer, 160f, 44f, 10f);
+        }
+
+        void EnsureBlockOperationsModalRuntime(RectTransform modalRoot)
+        {
+            if (modalRoot.Find("BlockOperationsModal") != null)
+                return;
+
+            var modal = CanvasUiFactory.Node("BlockOperationsModal", modalRoot);
+            Stretch(modal);
+            var overlay = modal.gameObject.AddComponent<Image>();
+            overlay.color = new Color(0f, 0f, 0f, 0.62f);
+            modal.gameObject.SetActive(false);
+            modal.SetAsLastSibling();
+
+            var window = CanvasUiFactory.Node("Window", modal);
+            window.anchorMin = new Vector2(0.5f, 0.5f);
+            window.anchorMax = new Vector2(0.5f, 0.5f);
+            window.pivot = new Vector2(0.5f, 0.5f);
+            window.sizeDelta = new Vector2(1180f, 760f);
+            var windowImage = window.gameObject.AddComponent<Image>();
+            windowImage.color = new Color(0.09f, 0.11f, 0.16f, 0.98f);
+
+            var header = CanvasUiFactory.Node("Header", window);
+            SetTopStretch(header, 18f, 18f, 18f, 104f);
+            var title = CanvasUiFactory.Text("TitleText", header, 34, Color.white, TextAlignmentOptions.Center, FontStyles.Bold);
+            SetTopStretch(title.rectTransform, 12f, 12f, 8f, 38f);
+            var subtitle = CanvasUiFactory.Text("SubtitleText", header, 18, new Color(0.82f, 0.86f, 0.94f, 1f), TextAlignmentOptions.Center);
+            SetTopStretch(subtitle.rectTransform, 12f, 12f, 48f, 30f);
+
+            var body = CanvasUiFactory.Node("Body", window);
+            SetFill(body, 18f, 18f, 134f, 102f);
+
+            var hint = CanvasUiFactory.Text("HintText", body, 18, new Color(0.9f, 0.92f, 0.97f, 1f), TextAlignmentOptions.TopLeft);
+            SetTopStretch(hint.rectTransform, 12f, 12f, 12f, 44f);
+            var feedback = CanvasUiFactory.Text("FeedbackText", body, 16, new Color(0.72f, 0.86f, 1f, 1f), TextAlignmentOptions.TopLeft);
+            SetTopStretch(feedback.rectTransform, 12f, 12f, 66f, 32f);
+
+            var statusRow = CanvasUiFactory.Node("StatusRow", body);
+            SetTopStretch(statusRow, 12f, 12f, 108f, 28f);
+            var deleteStatus = CanvasUiFactory.Text("DeleteStatusText", statusRow, 16, new Color(1f, 0.9f, 0.62f, 1f), TextAlignmentOptions.Left, FontStyles.Bold);
+            SetLeftStretch(deleteStatus.rectTransform, 0f, 6f, 0f, 0f, 0.5f);
+            var swapStatus = CanvasUiFactory.Text("SwapStatusText", statusRow, 16, new Color(0.82f, 0.96f, 1f, 1f), TextAlignmentOptions.Right, FontStyles.Bold);
+            SetRightStretch(swapStatus.rectTransform, 6f, 0f, 0f, 0f, 0.5f);
+
+            var columns = CanvasUiFactory.Node("Columns", body);
+            SetFill(columns, 12f, 12f, 148f, 12f);
+
+            var activeColumn = CanvasUiFactory.Node("ActiveColumn", columns);
+            SetLeftStretch(activeColumn, 0f, 6f, 0f, 0f, 0.5f);
+            activeColumn.gameObject.AddComponent<Image>().color = new Color(0.14f, 0.17f, 0.22f, 0.86f);
+            var activeColumnTitle = CanvasUiFactory.Text("TitleText", activeColumn, 22, Color.white, TextAlignmentOptions.Left, FontStyles.Bold);
+            SetTopStretch(activeColumnTitle.rectTransform, 12f, 12f, 8f, 28f);
+            var activeScroll = CreateScrollArea("ScrollView", activeColumn);
+            SetFill(activeScroll, 12f, 12f, 44f, 12f);
+
+            var reserveColumn = CanvasUiFactory.Node("ReserveColumn", columns);
+            SetRightStretch(reserveColumn, 6f, 0f, 0f, 0f, 0.5f);
+            reserveColumn.gameObject.AddComponent<Image>().color = new Color(0.14f, 0.17f, 0.22f, 0.86f);
+            var reserveColumnTitle = CanvasUiFactory.Text("TitleText", reserveColumn, 22, Color.white, TextAlignmentOptions.Left, FontStyles.Bold);
+            SetTopStretch(reserveColumnTitle.rectTransform, 12f, 12f, 8f, 28f);
+            var reserveScroll = CreateScrollArea("ScrollView", reserveColumn);
+            SetFill(reserveScroll, 12f, 12f, 44f, 12f);
+
+            var footer = CanvasUiFactory.Node("Footer", window);
+            SetBottomStretch(footer, 18f, 18f, 18f, 72f);
+            CanvasUiFactory.Button(
+                "CloseButton",
+                footer,
+                "关闭",
+                new Color(0.16f, 0.23f, 0.62f, 0.96f),
+                Color.white,
+                20);
+            LayoutFooterButtons(footer, 200f, 44f, 10f);
+        }
+
+        static RectTransform CreateScrollArea(string name, Transform parent)
+        {
+            var scroll = CanvasUiFactory.Node(name, parent);
+            scroll.gameObject.AddComponent<Image>().color = new Color(0.08f, 0.1f, 0.14f, 0.88f);
+
+            var scrollRect = scroll.gameObject.AddComponent<ScrollRect>();
+            scrollRect.horizontal = false;
+            scrollRect.vertical = true;
+            scrollRect.movementType = ScrollRect.MovementType.Clamped;
+            scrollRect.scrollSensitivity = 28f;
+
+            var viewport = CanvasUiFactory.Node("Viewport", scroll);
+            Stretch(viewport);
+            var viewportImage = viewport.gameObject.AddComponent<Image>();
+            viewportImage.color = new Color(1f, 1f, 1f, 0.01f);
+            var mask = viewport.gameObject.AddComponent<Mask>();
+            mask.showMaskGraphic = false;
+
+            var content = CanvasUiFactory.Node("Content", viewport);
+            content.anchorMin = new Vector2(0f, 1f);
+            content.anchorMax = new Vector2(1f, 1f);
+            content.pivot = new Vector2(0.5f, 1f);
+            content.anchoredPosition = Vector2.zero;
+            content.sizeDelta = Vector2.zero;
+
+            var layout = content.gameObject.AddComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(12, 12, 12, 12);
+            layout.spacing = 8f;
+            layout.childAlignment = TextAnchor.UpperCenter;
+            layout.childControlHeight = true;
+            layout.childControlWidth = true;
+            layout.childForceExpandHeight = false;
+            layout.childForceExpandWidth = true;
+
+            var fitter = content.gameObject.AddComponent<ContentSizeFitter>();
+            fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            scrollRect.viewport = viewport;
+            scrollRect.content = content;
+            return scroll;
+        }
+
+        static void LayoutFooterButtons(RectTransform footer, float width, float height, float spacing)
+        {
+            if (footer == null)
+                return;
+
+            var buttons = new List<RectTransform>();
+            for (var index = 0; index < footer.childCount; index++)
+            {
+                if (footer.GetChild(index) is RectTransform child && child.GetComponent<Button>() != null)
+                    buttons.Add(child);
+            }
+
+            if (buttons.Count == 0)
+                return;
+
+            var totalWidth = buttons.Count * width + Mathf.Max(0, buttons.Count - 1) * spacing;
+            var startX = -totalWidth * 0.5f + width * 0.5f;
+            for (var index = 0; index < buttons.Count; index++)
+            {
+                var button = buttons[index];
+                button.anchorMin = new Vector2(0.5f, 0.5f);
+                button.anchorMax = new Vector2(0.5f, 0.5f);
+                button.pivot = new Vector2(0.5f, 0.5f);
+                button.sizeDelta = new Vector2(width, height);
+                button.anchoredPosition = new Vector2(startX + index * (width + spacing), 0f);
+            }
+        }
+
+        static void Stretch(RectTransform rect)
+        {
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            rect.pivot = new Vector2(0.5f, 0.5f);
+        }
+
+        static void SetFill(RectTransform rect, float left, float right, float top, float bottom)
+        {
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.offsetMin = new Vector2(left, bottom);
+            rect.offsetMax = new Vector2(-right, -top);
+        }
+
+        static void SetTopStretch(RectTransform rect, float left, float right, float top, float height)
+        {
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.offsetMin = new Vector2(left, -(top + height));
+            rect.offsetMax = new Vector2(-right, -top);
+        }
+
+        static void SetBottomStretch(RectTransform rect, float left, float right, float bottom, float height)
+        {
+            rect.anchorMin = new Vector2(0f, 0f);
+            rect.anchorMax = new Vector2(1f, 0f);
+            rect.pivot = new Vector2(0.5f, 0f);
+            rect.offsetMin = new Vector2(left, bottom);
+            rect.offsetMax = new Vector2(-right, bottom + height);
+        }
+
+        static void SetLeftStretch(RectTransform rect, float left, float gap, float top, float bottom, float widthPercent)
+        {
+            rect.anchorMin = new Vector2(0f, 0f);
+            rect.anchorMax = new Vector2(widthPercent, 1f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.offsetMin = new Vector2(left, bottom);
+            rect.offsetMax = new Vector2(-gap, -top);
+        }
+
+        static void SetRightStretch(RectTransform rect, float gap, float right, float top, float bottom, float widthPercent)
+        {
+            rect.anchorMin = new Vector2(widthPercent, 0f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.offsetMin = new Vector2(gap, bottom);
+            rect.offsetMax = new Vector2(-right, -top);
         }
 
         static void ApplyTopStatusIcon(Image icon, TMP_Text fallbackLabel, Sprite sprite, string fallbackText, Color fallbackColor)
@@ -1370,6 +1654,13 @@ namespace POPHero
             HideExtra(entries, count);
         }
 
+        void EnsureBlockOperationEntries(List<CanvasBlockOperationEntryView> entries, RectTransform root, int count)
+        {
+            while (entries.Count < count)
+                entries.Add(CanvasBlockOperationEntryView.Create(root));
+            HideExtra(entries, count);
+        }
+
         void EnsureStickerCells(List<CanvasStickerCellView> entries, RectTransform root, int count)
         {
             while (entries.Count < count)
@@ -1396,6 +1687,12 @@ namespace POPHero
         }
 
         static void HideExtra(List<CanvasStickerCellView> entries, int usedCount)
+        {
+            for (var index = 0; index < entries.Count; index++)
+                entries[index].gameObject.SetActive(index < usedCount);
+        }
+
+        static void HideExtra(List<CanvasBlockOperationEntryView> entries, int usedCount)
         {
             for (var index = 0; index < entries.Count; index++)
                 entries[index].gameObject.SetActive(index < usedCount);

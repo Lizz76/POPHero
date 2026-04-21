@@ -151,7 +151,6 @@ namespace POPHero
 
         public IReadOnlyList<ShopItemEntry> Items => shopManager.Items;
         public string LastFeedback => shopManager.LastFeedback;
-        public bool HasRemovedBlockThisVisit => shopManager.HasRemovedBlockThisVisit;
     }
 
     public sealed class GameSessionController
