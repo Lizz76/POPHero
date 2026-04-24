@@ -23,7 +23,8 @@ namespace POPHero
             SkipRewardChoices,
             OpenShop,
             CloseShop,
-            FinishLoadout
+            FinishLoadout,
+            CompleteMapNode
         }
 
         public PopHeroPrototypeConfig config;
@@ -107,6 +108,7 @@ namespace POPHero
         public IModService Mods => modService;
         public IShopService Shops => shopService;
         public IBlockOperationService BlockOperations => blockOperationService;
+        public IRunMapService RunMap => runMapManager;
         public int EncounterIndex => enemyEncounterIndex + 1;
         public int MaxLaunchesPerEnemy => Mathf.Max(1, config.enemies.maxLaunchesPerEnemy + (Player?.BonusLaunchesPerEnemy ?? 0));
         public InputAimMode CurrentAimMode => config.aim.currentAimMode;
@@ -140,6 +142,7 @@ namespace POPHero
         ModManager modManager;
         ShopManager shopManager;
         BlockOperationManager blockOperationManager;
+        RunMapManager runMapManager;
         ICombatEventHub combatEventHub;
         IBounceStepSolver bounceStepSolver;
         IBlockCollectionService blockCollectionService;
@@ -152,6 +155,7 @@ namespace POPHero
         GameSessionController gameSessionController;
         BattleFlowController battleFlowController;
         IntermissionFlowController intermissionFlowController;
+        MapFlowController mapFlowController;
         readonly List<WallAimPoint> wallAimPoints = new();
         readonly List<RaycastResult> uiRaycastResults = new();
         int enemyEncounterIndex;
@@ -169,6 +173,7 @@ namespace POPHero
         bool suppressAimInputAfterUi;
         int suppressAimInputReleaseFrame = int.MaxValue;
         Vector2 initialLaunchPoint;
+        bool loadoutReturnsToMap;
 
         void Awake()
         {
@@ -385,6 +390,7 @@ namespace POPHero
             modManager = new ModManager();
             shopManager = new ShopManager();
             blockOperationManager = new BlockOperationManager();
+            runMapManager = new RunMapManager();
             combatEventHub = new CombatEventHub();
 
             stickerInventory.Initialize(this);
@@ -393,6 +399,7 @@ namespace POPHero
             modManager.Initialize(this);
             shopManager.Initialize(this);
             blockOperationManager.Initialize(this);
+            runMapManager.Initialize(this);
 
             blockCollectionService = new BlockCollectionServiceFacade(boardManager);
             blockRewardService = new BlockRewardServiceFacade(boardManager);
@@ -404,6 +411,7 @@ namespace POPHero
             gameSessionController = new GameSessionController(this);
             battleFlowController = new BattleFlowController(this);
             intermissionFlowController = new IntermissionFlowController(this);
+            mapFlowController = new MapFlowController(this);
 
             launcher = launcherRef != null ? launcherRef : (ballController.GetComponent<PlayerLauncher>() ?? ballController.gameObject.AddComponent<PlayerLauncher>());
             launcher.Initialize(this, ballController, trajectoryPredictor);
@@ -476,8 +484,10 @@ namespace POPHero
             GameOverMessage = "本局结束。";
             IntermissionMessage = string.Empty;
             runElapsedSeconds = 0f;
+            loadoutReturnsToMap = false;
             ClearPendingIntermissionAction();
             blockOperationManager?.Close();
+            runMapManager?.GenerateNewMap();
             damageCounterView?.ResetCounter();
             isBattlePresentationPlaying = false;
             enemyController.gameObject.SetActive(false);
@@ -487,8 +497,8 @@ namespace POPHero
             if (!boardManager.GrantStartingCard(BoardBlockType.AttackAdd, BlockRarity.White, out _, out var failReason))
                 throw new InvalidOperationException($"[POPHero] Failed to grant starting block: {failReason}");
 
-            SpawnEnemy(enemyEncounterIndex);
-            PrepareNextRound();
+            IntermissionMessage = runMapManager?.LastFeedback ?? "选择一个地图节点开始路线。";
+            ChangeState(RoundState.Map);
         }
 
         void BindEnemyLayer()
@@ -960,6 +970,112 @@ namespace POPHero
             PrepareNextRound();
         }
 
+        public void SelectMapNode(string nodeId)
+        {
+            mapFlowController?.SelectNode(nodeId);
+        }
+
+        internal void SelectMapNodeCore(string nodeId)
+        {
+            if (State != RoundState.Map)
+                return;
+
+            if (runMapManager == null)
+            {
+                IntermissionMessage = "地图系统不可用。";
+                return;
+            }
+
+            if (!runMapManager.TrySelectNode(nodeId, out var node, out var failReason))
+            {
+                IntermissionMessage = failReason;
+                return;
+            }
+
+            IntermissionMessage = runMapManager.LastFeedback;
+            switch (node.kind)
+            {
+                case MapNodeKind.Battle:
+                case MapNodeKind.Boss:
+                    enemyEncounterIndex = Mathf.Max(0, node.enemyIndex);
+                    SpawnEnemy(enemyEncounterIndex);
+                    PrepareNextRound();
+                    break;
+                case MapNodeKind.Shop:
+                    EnterShop();
+                    break;
+                case MapNodeKind.Workbench:
+                    OpenBlockOperations("map_workbench", RoundState.Map);
+                    break;
+                case MapNodeKind.Event:
+                    ChangeState(RoundState.MapEvent);
+                    break;
+            }
+        }
+
+        public void ChooseMapEventOption(int index)
+        {
+            mapFlowController?.ChooseEventOption(index);
+        }
+
+        internal void ChooseMapEventOptionCore(int index)
+        {
+            if (State != RoundState.MapEvent || runMapManager?.CurrentNode == null)
+                return;
+
+            switch (index)
+            {
+                case 0:
+                    Player.AddGold(12);
+                    IntermissionMessage = "旧货箱里有 12 金币。";
+                    CompleteCurrentMapNodeAndReturnCore();
+                    break;
+                case 1:
+                    Player.ApplyDamage(10);
+                    boardManager.UnlockRandomSocket();
+                    playerPresenter?.Refresh(Player);
+                    IntermissionMessage = "训练留下伤口，但一个方块槽位被打开了。";
+                    if (Player.IsDead)
+                        TriggerGameOver("训练过度，生命归零，本局结束。");
+                    else
+                        CompleteCurrentMapNodeAndReturnCore();
+                    break;
+                case 2:
+                    OpenBlockOperations("map_workbench", RoundState.Map);
+                    break;
+                default:
+                    IntermissionMessage = "无效的事件选项。";
+                    break;
+            }
+        }
+
+        internal void CompleteCurrentMapNodeAndReturnCore()
+        {
+            if (runMapManager == null)
+                return;
+
+            if (!runMapManager.TryCompleteCurrentNode(out var completedBoss, out var failReason))
+            {
+                IntermissionMessage = failReason;
+                ChangeState(RoundState.Map);
+                return;
+            }
+
+            IntermissionMessage = runMapManager.LastFeedback;
+            if (completedBoss)
+            {
+                TriggerGameOver("路线完成，Boss 已被击败。");
+                return;
+            }
+
+            enemyController?.gameObject.SetActive(false);
+            CurrentEnemy = null;
+            CurrentEnemyEncounter = null;
+            RemainingLaunchesForEnemy = 0;
+            ballController?.StopImmediately();
+            ChangeState(RoundState.Map);
+        }
+
         void SpawnEnemy(int index)
         {
             CurrentEnemyEncounter = BuildEnemyEncounterForIndex(index);
@@ -1108,7 +1224,7 @@ namespace POPHero
             if (!rewardChoiceController.TrySelectChoice(index))
                 return;
 
-            QueueIntermissionAction(IntermissionActionKind.OpenShop);
+            QueueIntermissionAction(IntermissionActionKind.CompleteMapNode);
         }
 
         public void TryRerollRewardChoices()
@@ -1138,7 +1254,7 @@ namespace POPHero
 
             rewardChoiceController.SkipChoices();
             IntermissionMessage = rewardChoiceController.LastStatusMessage;
-            QueueIntermissionAction(IntermissionActionKind.OpenShop);
+            QueueIntermissionAction(IntermissionActionKind.CompleteMapNode);
         }
 
         void EnterShop()
@@ -1174,6 +1290,12 @@ namespace POPHero
             var returnState = blockOperationManager.Session.returnState;
             IntermissionMessage = blockOperationManager.Session.lastFeedback;
             blockOperationManager.Close();
+            if (returnState == RoundState.Map)
+            {
+                CompleteCurrentMapNodeAndReturnCore();
+                return;
+            }
+
             ChangeState(returnState);
         }
 
@@ -1231,6 +1353,7 @@ namespace POPHero
                 return;
 
             shopManager.CloseShop();
+            loadoutReturnsToMap = runMapManager?.CurrentNode?.kind == MapNodeKind.Shop;
             ChangeState(RoundState.LoadoutManage);
         }
 
@@ -1505,12 +1628,18 @@ namespace POPHero
                 case HudCommandType.RemoveStickerFromCard:
                     RemoveStickerFromCard(command.PrimaryId, command.IntValue);
                     break;
+                case HudCommandType.SelectMapNode:
+                    SelectMapNode(command.PrimaryId);
+                    break;
+                case HudCommandType.ChooseMapEventOption:
+                    ChooseMapEventOption(command.IntValue);
+                    break;
             }
         }
 
         public void DebugKillEnemy()
         {
-            if (CurrentEnemy == null || State == RoundState.GameOver || State == RoundState.BlockRewardChoose || State == RoundState.RewardChoose || State == RoundState.Shop || State == RoundState.BlockOperations || State == RoundState.LoadoutManage)
+            if (CurrentEnemy == null || State == RoundState.GameOver || State == RoundState.Map || State == RoundState.MapEvent || State == RoundState.BlockRewardChoose || State == RoundState.RewardChoose || State == RoundState.Shop || State == RoundState.BlockOperations || State == RoundState.LoadoutManage)
                 return;
 
             CurrentEnemy.ApplyDamage(CurrentEnemy.CurrentHp);
@@ -1880,11 +2009,22 @@ namespace POPHero
                 case IntermissionActionKind.CloseShop:
                     ExecuteCloseShop();
                     break;
+                case IntermissionActionKind.CompleteMapNode:
+                    CompleteCurrentMapNodeAndReturnCore();
+                    break;
                 case IntermissionActionKind.FinishLoadout:
                     if (State == RoundState.LoadoutManage)
                     {
                         boardManager.EnsureAtLeastOneActive();
-                        ContinueToNextEnemy();
+                        if (loadoutReturnsToMap)
+                        {
+                            loadoutReturnsToMap = false;
+                            CompleteCurrentMapNodeAndReturnCore();
+                        }
+                        else
+                        {
+                            ContinueToNextEnemy();
+                        }
                     }
                     break;
             }
@@ -1893,6 +2033,7 @@ namespace POPHero
         void ConfigurePhaseStateMachine()
         {
             phaseStateMachine = new GamePhaseStateMachine();
+            phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.Map, false));
             phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.Aim, true));
             phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.BallFlying, false));
             phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.RoundResolve, false));
@@ -1901,6 +2042,7 @@ namespace POPHero
             phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.Shop, false));
             phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.BlockOperations, false));
             phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.LoadoutManage, false));
+            phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.MapEvent, false));
             phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.GameOver, false));
         }
 

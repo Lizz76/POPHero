@@ -133,6 +133,47 @@ namespace POPHero
         public string CloseButtonText;
     }
 
+    public sealed class MapNodeCardModel
+    {
+        public string NodeId;
+        public int Floor;
+        public MapNodeKind Kind;
+        public MapNodeStatus Status;
+        public Vector2 NormalizedPosition;
+        public IReadOnlyList<string> NextNodeIds;
+        public string Title;
+        public string KindText;
+        public string StatusText;
+        public string Description;
+        public string ButtonText;
+        public bool CanSelect;
+        public Color AccentColor;
+    }
+
+    public sealed class MapPanelModel
+    {
+        public string TitleText;
+        public string SubtitleText;
+        public string FeedbackText;
+        public string ConnectionsText;
+        public IReadOnlyList<MapNodeCardModel> Nodes;
+    }
+
+    public sealed class MapEventOptionCardModel
+    {
+        public int Index;
+        public string Title;
+        public string Description;
+        public string ButtonText;
+    }
+
+    public sealed class MapEventPanelModel
+    {
+        public string TitleText;
+        public string SubtitleText;
+        public IReadOnlyList<MapEventOptionCardModel> Options;
+    }
+
     public sealed class LoadoutPanelModel
     {
         public string TitleText;
@@ -228,6 +269,8 @@ namespace POPHero
                 RoundState.Shop => "商店",
                 RoundState.BlockOperations => "方块操作",
                 RoundState.LoadoutManage => "背包",
+                RoundState.Map => "地图",
+                RoundState.MapEvent => "路线事件",
                 RoundState.GameOver => "结束",
                 _ => state.ToString()
             };
@@ -304,7 +347,69 @@ namespace POPHero
         readonly List<BlockRewardCardModel> blockRewardCards = new();
         readonly List<RewardCardModel> rewardCards = new();
         readonly List<ShopItemCardModel> shopItemCards = new();
+        readonly List<MapNodeCardModel> mapNodeCards = new();
+        readonly List<MapEventOptionCardModel> mapEventOptionCards = new();
         readonly BlockOperationsPanelModel blockOperationsPanel = new();
+
+        public MapPanelModel BuildMapPanel(IGameReadModel game)
+        {
+            mapNodeCards.Clear();
+            var map = game?.RunMap;
+            var nodes = map?.Nodes ?? Array.Empty<MapNodeState>();
+            for (var index = 0; index < nodes.Count; index++)
+            {
+                var node = nodes[index];
+                mapNodeCards.Add(new MapNodeCardModel
+                {
+                    NodeId = node.id,
+                    Floor = node.floor,
+                    Kind = node.kind,
+                    Status = node.status,
+                    NormalizedPosition = node.normalizedPosition,
+                    NextNodeIds = node.nextNodeIds,
+                    Title = $"{node.floor + 1}-{index + 1} {RunMapManager.GetNodeKindName(node.kind)}",
+                    KindText = $"类型：{RunMapManager.GetNodeKindName(node.kind)}",
+                    StatusText = $"状态：{GetMapNodeStatusText(node.status)}",
+                    Description = BuildMapNodeDescription(node),
+                    ButtonText = node.IsSelectable ? "进入" : GetMapNodeStatusText(node.status),
+                    CanSelect = node.IsSelectable,
+                    AccentColor = GetMapNodeColor(node.kind, node.status)
+                });
+            }
+
+            return new MapPanelModel
+            {
+                TitleText = "路线地图",
+                SubtitleText = "选择一个亮起的节点继续前进。战斗奖励结束后会回到地图。",
+                FeedbackText = map?.LastFeedback ?? string.Empty,
+                ConnectionsText = BuildConnectionsText(nodes),
+                Nodes = mapNodeCards
+            };
+        }
+
+        public MapEventPanelModel BuildMapEventPanel(IGameReadModel game)
+        {
+            mapEventOptionCards.Clear();
+            var choices = game?.RunMap?.CurrentEventChoices ?? Array.Empty<MapEventChoiceState>();
+            for (var index = 0; index < choices.Count; index++)
+            {
+                var choice = choices[index];
+                mapEventOptionCards.Add(new MapEventOptionCardModel
+                {
+                    Index = choice.index,
+                    Title = choice.title,
+                    Description = choice.description,
+                    ButtonText = choice.buttonText
+                });
+            }
+
+            return new MapEventPanelModel
+            {
+                TitleText = "路线事件",
+                SubtitleText = "选择一种处理方式，然后继续路线。",
+                Options = mapEventOptionCards
+            };
+        }
 
         public BlockRewardPanelModel BuildBlockReward(IGameReadModel game)
         {
@@ -502,6 +607,91 @@ namespace POPHero
                 ShopItemKind.Mod => "模组",
                 ShopItemKind.Growth => "成长",
                 _ => kind.ToString()
+            };
+        }
+
+        static string BuildMapNodeDescription(MapNodeState node)
+        {
+            if (node == null)
+                return string.Empty;
+
+            var nextText = node.nextNodeIds.Count > 0
+                ? $"连向 {node.nextNodeIds.Count} 个后续节点。"
+                : "路线终点。";
+            return node.kind switch
+            {
+                MapNodeKind.Battle => $"进入一场普通战斗。{nextText}",
+                MapNodeKind.Shop => $"打开商店，随后进入背包整理。{nextText}",
+                MapNodeKind.Workbench => $"免费进行一次方块操作。{nextText}",
+                MapNodeKind.Event => $"触发一个轻量路线事件。{nextText}",
+                MapNodeKind.Boss => "最终 Boss。击败后完成本条路线。",
+                _ => nextText
+            };
+        }
+
+        static string BuildConnectionsText(IReadOnlyList<MapNodeState> nodes)
+        {
+            if (nodes == null || nodes.Count == 0)
+                return "暂无路线。";
+
+            var text = new System.Text.StringBuilder();
+            for (var index = 0; index < nodes.Count; index++)
+            {
+                var node = nodes[index];
+                if (node.nextNodeIds.Count == 0)
+                    continue;
+
+                text.Append($"{node.floor + 1}层 {RunMapManager.GetNodeKindName(node.kind)} -> ");
+                for (var nextIndex = 0; nextIndex < node.nextNodeIds.Count; nextIndex++)
+                {
+                    if (nextIndex > 0)
+                        text.Append(" / ");
+                    text.Append(FindNodeLabel(nodes, node.nextNodeIds[nextIndex]));
+                }
+                text.AppendLine();
+            }
+
+            return text.Length > 0 ? text.ToString() : "暂无后续连线。";
+        }
+
+        static string FindNodeLabel(IReadOnlyList<MapNodeState> nodes, string nodeId)
+        {
+            for (var index = 0; index < nodes.Count; index++)
+            {
+                if (nodes[index].id == nodeId)
+                    return $"{nodes[index].floor + 1}层 {RunMapManager.GetNodeKindName(nodes[index].kind)}";
+            }
+
+            return nodeId;
+        }
+
+        static string GetMapNodeStatusText(MapNodeStatus status)
+        {
+            return status switch
+            {
+                MapNodeStatus.Locked => "未解锁",
+                MapNodeStatus.Available => "可进入",
+                MapNodeStatus.Current => "处理中",
+                MapNodeStatus.Completed => "已完成",
+                _ => status.ToString()
+            };
+        }
+
+        static Color GetMapNodeColor(MapNodeKind kind, MapNodeStatus status)
+        {
+            if (status == MapNodeStatus.Completed)
+                return new Color(0.38f, 0.74f, 0.48f, 1f);
+            if (status == MapNodeStatus.Locked)
+                return new Color(0.42f, 0.46f, 0.54f, 1f);
+
+            return kind switch
+            {
+                MapNodeKind.Battle => new Color(0.9f, 0.35f, 0.28f, 1f),
+                MapNodeKind.Shop => new Color(0.92f, 0.72f, 0.28f, 1f),
+                MapNodeKind.Workbench => new Color(0.36f, 0.62f, 0.95f, 1f),
+                MapNodeKind.Event => new Color(0.66f, 0.48f, 0.92f, 1f),
+                MapNodeKind.Boss => new Color(1f, 0.22f, 0.32f, 1f),
+                _ => Color.white
             };
         }
 

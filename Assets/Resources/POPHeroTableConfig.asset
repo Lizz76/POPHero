@@ -291,6 +291,7 @@ MonoBehaviour:
     attackDamage: 8
     rewardGold: 20
     rewardHeal: 8
+    initialDistanceSteps: -1
     color: {r: 0.9490196, g: 0.38039216, b: 0.38039216, a: 1}
     spawnWeight: 100
   - id: 3002
@@ -299,6 +300,7 @@ MonoBehaviour:
     attackDamage: 12
     rewardGold: 30
     rewardHeal: 10
+    initialDistanceSteps: -1
     color: {r: 0.99215686, g: 0.52156866, b: 0.2509804, a: 1}
     spawnWeight: 100
   - id: 3003
@@ -307,6 +309,7 @@ MonoBehaviour:
     attackDamage: 18
     rewardGold: 45
     rewardHeal: 12
+    initialDistanceSteps: -1
     color: {r: 0.9490196, g: 0.7411765, b: 0.23921569, a: 1}
     spawnWeight: 100
   - id: 3004
@@ -315,6 +318,7 @@ MonoBehaviour:
     attackDamage: 25
     rewardGold: 60
     rewardHeal: 15
+    initialDistanceSteps: -1
     color: {r: 0.9019608, g: 0.36862746, b: 0.7921569, a: 1}
     spawnWeight: 100
   - id: 3005
@@ -323,6 +327,7 @@ MonoBehaviour:
     attackDamage: 35
     rewardGold: 80
     rewardHeal: 18
+    initialDistanceSteps: -1
     color: {r: 0.52156866, g: 0.47843137, b: 1, a: 1}
     spawnWeight: 100
   stickers:
@@ -881,3 +886,29 @@ MonoBehaviour:
     allowSwap: 1
     swapCostGold: 0
     maxSwapCount: -1
+  - id: map_workbench
+    title: "\u8DEF\u7EBF\u5DE5\u574A"
+    subtitle: "\u5728\u5730\u56FE\u8282\u70B9\u4E2D\u6574\u7406\u65B9\u5757\u3002"
+    hintText: "\u672C\u8282\u70B9\u53EF\u514D\u8D39\u8C03\u6574\u4E0A\u9635\u4E0E\u4ED3\u5E93\uFF0C\u4E5F\u53EF\u5220\u9664
+      1 \u5F20\u65B9\u5757\u3002\u5173\u95ED\u540E\u8FD4\u56DE\u5730\u56FE\u3002"
+    activeColumnTitle: "\u4E0A\u9635\u65B9\u5757"
+    reserveColumnTitle: "\u80CC\u5305\u65B9\u5757"
+    openButtonText: "\u8FDB\u5165\u5DE5\u574A"
+    closeButtonText: "\u8FD4\u56DE\u5730\u56FE"
+    allowDelete: 1
+    deleteCostGold: 0
+    maxDeleteCount: 1
+    allowSwap: 1
+    swapCostGold: 0
+    maxSwapCount: -1
+  mapConfigs:
+  - id: default
+    floorCount: 7
+    minNodesPerFloor: 2
+    maxNodesPerFloor: 3
+    extraConnectionChance: 0.35
+    battleWeight: 70
+    shopWeight: 12
+    workbenchWeight: 8
+    eventWeight: 10
+    bossEnemyIndex: 4

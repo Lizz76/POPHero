@@ -18,6 +18,7 @@ namespace POPHero
         public List<GrowthRewardDef> growthRewards = new();
         public List<ShopSlotDef> shopSlots = new();
         public List<BlockOperationProfileDef> blockOperationProfiles = new();
+        public List<MapConfigDef> mapConfigs = new();
 
         public bool HasGameplayTables =>
             blockTypes.Count > 0 ||
@@ -28,7 +29,8 @@ namespace POPHero
             mods.Count > 0 ||
             growthRewards.Count > 0 ||
             shopSlots.Count > 0 ||
-            blockOperationProfiles.Count > 0;
+            blockOperationProfiles.Count > 0 ||
+            mapConfigs.Count > 0;
     }
 
     [Serializable]
@@ -173,6 +175,21 @@ namespace POPHero
         public bool allowSwap;
         public int swapCostGold;
         public int maxSwapCount = -1;
+    }
+
+    [Serializable]
+    public sealed class MapConfigDef
+    {
+        public string id;
+        public int floorCount = 7;
+        public int minNodesPerFloor = 2;
+        public int maxNodesPerFloor = 3;
+        public float extraConnectionChance = 0.35f;
+        public int battleWeight = 70;
+        public int shopWeight = 12;
+        public int workbenchWeight = 8;
+        public int eventWeight = 10;
+        public int bossEnemyIndex = -1;
     }
 
     [Serializable]

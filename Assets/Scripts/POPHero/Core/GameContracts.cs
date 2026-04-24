@@ -33,6 +33,7 @@ namespace POPHero
         RewardChoiceController RewardChoiceController { get; }
         IShopService Shops { get; }
         IBlockOperationService BlockOperations { get; }
+        IRunMapService RunMap { get; }
         PopHeroPrototypeConfig Config { get; }
         string GameOverMessage { get; }
     }
@@ -131,7 +132,9 @@ namespace POPHero
         OpenSettings,
         CloseSettings,
         BackToMenu,
-        QuitGame
+        QuitGame,
+        SelectMapNode,
+        ChooseMapEventOption
     }
 
     public readonly struct HudCommand
@@ -219,5 +222,14 @@ namespace POPHero
         void Close();
         bool TryRemoveBlock(string cardId, out string failReason);
         bool TrySwapActiveReserve(string activeCardId, string reserveCardId, out string failReason);
+    }
+
+    public interface IRunMapService
+    {
+        IReadOnlyList<MapNodeState> Nodes { get; }
+        IReadOnlyList<MapEventChoiceState> CurrentEventChoices { get; }
+        MapNodeState CurrentNode { get; }
+        string LastFeedback { get; }
+        bool HasMap { get; }
     }
 }

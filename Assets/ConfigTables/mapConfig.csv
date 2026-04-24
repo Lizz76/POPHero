@@ -1,0 +1,6 @@
+id,floorCount,minNodesPerFloor,maxNodesPerFloor,extraConnectionChance,battleWeight,shopWeight,workbenchWeight,eventWeight,bossEnemyIndex
+string,int,int,int,float,int,int,int,int,int
+both,both,both,both,both,both,both,both,both,both
+配置ID,层数,每层最少节点,每层最多节点,额外连线概率,普通战斗权重,商店权重,工坊权重,事件权重,Boss敌人索引(-1取最后一个)
+,,,,,,,,,
+default,7,2,3,0.35,70,12,8,10,4

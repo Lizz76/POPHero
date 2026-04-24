@@ -57,6 +57,7 @@ namespace POPHero
 
     public enum RoundState
     {
+        Map,
         Aim,
         BallFlying,
         RoundResolve,
@@ -65,6 +66,7 @@ namespace POPHero
         Shop,
         BlockOperations,
         LoadoutManage,
+        MapEvent,
         GameOver
     }
 
@@ -211,6 +213,23 @@ namespace POPHero
         ShopNoMoney,
         ShopShuffle,
         ShopDisappear
+    }
+
+    public enum MapNodeKind
+    {
+        Battle,
+        Shop,
+        Workbench,
+        Event,
+        Boss
+    }
+
+    public enum MapNodeStatus
+    {
+        Locked,
+        Available,
+        Current,
+        Completed
     }
 
     [Serializable]
@@ -467,5 +486,28 @@ namespace POPHero
             swapUsedCount = 0;
             lastFeedback = string.Empty;
         }
+    }
+
+    [Serializable]
+    public sealed class MapNodeState
+    {
+        public string id;
+        public int floor;
+        public MapNodeKind kind;
+        public MapNodeStatus status;
+        public Vector2 normalizedPosition;
+        public int enemyIndex;
+        public List<string> nextNodeIds = new();
+
+        public bool IsSelectable => status == MapNodeStatus.Available;
+    }
+
+    [Serializable]
+    public sealed class MapEventChoiceState
+    {
+        public int index;
+        public string title;
+        public string description;
+        public string buttonText;
     }
 }

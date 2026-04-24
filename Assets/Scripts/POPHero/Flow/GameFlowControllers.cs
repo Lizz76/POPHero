@@ -207,4 +207,29 @@ namespace POPHero
             game.ProcessPendingIntermissionActionCore();
         }
     }
+
+    public sealed class MapFlowController
+    {
+        readonly PopHeroGame game;
+
+        public MapFlowController(PopHeroGame owner)
+        {
+            game = owner;
+        }
+
+        public void SelectNode(string nodeId)
+        {
+            game.SelectMapNodeCore(nodeId);
+        }
+
+        public void ChooseEventOption(int index)
+        {
+            game.ChooseMapEventOptionCore(index);
+        }
+
+        public void CompleteCurrentNodeAndReturnToMap()
+        {
+            game.CompleteCurrentMapNodeAndReturnCore();
+        }
+    }
 }

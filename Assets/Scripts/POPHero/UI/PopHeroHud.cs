@@ -34,6 +34,8 @@ namespace POPHero
         Vector2 blockRewardScroll;
         Vector2 rewardScroll;
         Vector2 shopScroll;
+        Vector2 mapScroll;
+        Vector2 mapEventScroll;
         Vector2 inventoryScroll;
         Vector2 modScroll;
 
@@ -73,6 +75,12 @@ namespace POPHero
             DrawStatusPanel();
             DrawCombatPanel();
             DrawBlockManagementPanel();
+
+            if (game.State == RoundState.Map)
+                DrawMapPanel();
+
+            if (game.State == RoundState.MapEvent)
+                DrawMapEventPanel();
 
             if (game.State == RoundState.BlockRewardChoose)
                 DrawBlockRewardPanel();
@@ -469,6 +477,75 @@ namespace POPHero
             if (GUILayout.Button(model.CloseButtonText, buttonStyle, GUILayout.Width(140f)))
                 RunCommand(new HudCommand(HudCommandType.CloseShop));
             GUILayout.EndHorizontal();
+            GUILayout.EndArea();
+            GUILayout.EndArea();
+        }
+
+        void DrawMapPanel()
+        {
+            var model = intermissionPanelPresenter.BuildMapPanel(game);
+            var panelRect = GetIntermissionRect(1040f, 680f);
+            GUILayout.BeginArea(panelRect, boxStyle);
+            GUILayout.Label(model.TitleText, titleStyle);
+            GUILayout.Label(model.SubtitleText, textStyle);
+            if (!string.IsNullOrWhiteSpace(model.FeedbackText))
+                GUILayout.Label(model.FeedbackText, badgeStyle);
+
+            var contentRect = new Rect(12f, 94f, panelRect.width - 24f, panelRect.height - 112f);
+            GUILayout.BeginArea(contentRect);
+            GUILayout.BeginHorizontal();
+
+            mapScroll = GUILayout.BeginScrollView(mapScroll, false, true, GUILayout.Width(contentRect.width * 0.66f));
+            for (var index = 0; index < model.Nodes.Count; index++)
+            {
+                var node = model.Nodes[index];
+                GUILayout.BeginVertical(cardStyle, GUILayout.MinHeight(120f));
+                GUILayout.Label(node.Title, titleStyle);
+                GUILayout.Label(node.KindText, badgeStyle);
+                GUILayout.Label(node.StatusText, badgeStyle);
+                GUILayout.Label(node.Description, textStyle);
+                GUI.enabled = node.CanSelect;
+                if (GUILayout.Button(node.ButtonText, buttonStyle, GUILayout.Height(34f)))
+                    RunCommand(new HudCommand(HudCommandType.SelectMapNode, 0, node.NodeId));
+                GUI.enabled = true;
+                GUILayout.EndVertical();
+            }
+            GUILayout.EndScrollView();
+
+            GUILayout.Space(12f);
+            GUILayout.BeginVertical(cardStyle, GUILayout.Width(contentRect.width * 0.32f), GUILayout.Height(contentRect.height));
+            GUILayout.Label("路线连线", titleStyle);
+            GUILayout.Label(model.ConnectionsText, textStyle);
+            GUILayout.EndVertical();
+
+            GUILayout.EndHorizontal();
+            GUILayout.EndArea();
+            GUILayout.EndArea();
+        }
+
+        void DrawMapEventPanel()
+        {
+            var model = intermissionPanelPresenter.BuildMapEventPanel(game);
+            var panelRect = GetIntermissionRect(840f, 520f);
+            GUILayout.BeginArea(panelRect, boxStyle);
+            GUILayout.Label(model.TitleText, titleStyle);
+            GUILayout.Label(model.SubtitleText, textStyle);
+
+            var contentRect = new Rect(12f, 76f, panelRect.width - 24f, panelRect.height - 94f);
+            GUILayout.BeginArea(contentRect);
+            mapEventScroll = GUILayout.BeginScrollView(mapEventScroll, false, true);
+            for (var index = 0; index < model.Options.Count; index++)
+            {
+                var option = model.Options[index];
+                GUILayout.BeginVertical(cardStyle, GUILayout.MinHeight(118f));
+                GUILayout.Label(option.Title, titleStyle);
+                GUILayout.Label(option.Description, textStyle);
+                GUILayout.FlexibleSpace();
+                if (GUILayout.Button(option.ButtonText, buttonStyle, GUILayout.Height(36f)))
+                    RunCommand(new HudCommand(HudCommandType.ChooseMapEventOption, option.Index));
+                GUILayout.EndVertical();
+            }
+            GUILayout.EndScrollView();
             GUILayout.EndArea();
             GUILayout.EndArea();
         }
@@ -870,7 +947,10 @@ namespace POPHero
                 RoundState.BlockRewardChoose => "选方块",
                 RoundState.RewardChoose => "奖励",
                 RoundState.Shop => "商店",
+                RoundState.BlockOperations => "方块操作",
                 RoundState.LoadoutManage => "背包",
+                RoundState.Map => "地图",
+                RoundState.MapEvent => "路线事件",
                 RoundState.GameOver => "结束",
                 _ => state.ToString()
             };
