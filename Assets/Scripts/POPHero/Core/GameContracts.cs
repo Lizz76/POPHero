@@ -9,6 +9,7 @@ namespace POPHero
         PlayerData Player { get; }
         EnemyData CurrentEnemy { get; }
         EnemyEncounterState CurrentEnemyEncounter { get; }
+        IReadOnlyList<EnemyEncounterState> CurrentEnemyEncounters { get; }
         int EncounterIndex { get; }
         int RemainingLaunchesForEnemy { get; }
         int MaxLaunchesPerEnemy { get; }

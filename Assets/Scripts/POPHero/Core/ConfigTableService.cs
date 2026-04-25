@@ -180,18 +180,29 @@ namespace POPHero
                 return;
 
             config.enemies.templates.Clear();
+            var supportAssigned = false;
             foreach (var enemy in tableConfig.enemies)
             {
-                config.enemies.templates.Add(new EnemyTemplate
+                var template = new EnemyTemplate
                 {
                     displayName = enemy.displayName,
                     maxHp = enemy.maxHp,
                     attackDamage = enemy.attackDamage,
                     rewardGold = enemy.rewardGold,
                     rewardHeal = enemy.rewardHeal,
+                    behaviorType = enemy.behaviorType,
                     initialDistanceStepsOverride = Mathf.Max(-1, enemy.initialDistanceSteps),
                     color = enemy.color
-                });
+                };
+
+                if (!supportAssigned && template.behaviorType == EnemyBehaviorType.FlyingRangedOrigin)
+                {
+                    config.enemies.flyingSupportTemplate = template;
+                    supportAssigned = true;
+                    continue;
+                }
+
+                config.enemies.templates.Add(template);
             }
         }
 

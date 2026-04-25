@@ -19,6 +19,7 @@ namespace POPHero
 
         PopHeroGame owner;
         EnemyData currentEnemy;
+        EnemyEncounterState currentEncounter;
         Color bodyBaseColor = Color.white;
         Color coreBaseColor = new(1f, 1f, 1f, 0.2f);
         float flashTimer;
@@ -30,6 +31,7 @@ namespace POPHero
         int[] baseSortingOrders;
 
         public EnemyData CurrentEnemy => currentEnemy;
+        public EnemyEncounterState CurrentEncounter => currentEncounter;
 
         public void Initialize(PopHeroGame owner)
         {
@@ -125,12 +127,14 @@ namespace POPHero
             CacheSortingRenderers();
         }
 
-        public void SetEnemy(EnemyData enemyData)
+        public void SetEncounter(EnemyEncounterState encounter)
         {
-            currentEnemy = enemyData;
+            currentEncounter = encounter;
+            currentEnemy = encounter?.Enemy;
             snapshotHp = -1;
             snapshotMaxHp = -1;
             intentSuppressed = false;
+            ApplyEnemyPalette();
             CaptureBaseColors();
             Refresh();
             RefreshIntentDisplay();
@@ -159,6 +163,7 @@ namespace POPHero
 
             snapshotHp = -1;
             snapshotMaxHp = -1;
+            ApplyEnemyPalette();
             ApplyActorColors();
             nameLabel.text = currentEnemy.DisplayName;
             RefreshHpBar();
@@ -234,8 +239,23 @@ namespace POPHero
             var showIntent = currentEnemy != null && currentEnemy.CurrentHp > 0 && !intentSuppressed;
             intentLabel.gameObject.SetActive(showIntent);
             intentLabel.text = showIntent
-                ? EnemyIntentTextFormatter.BuildWorldText(owner != null ? owner.CurrentEnemyEncounter : null, currentEnemy)
+                ? EnemyIntentTextFormatter.BuildWorldText(currentEncounter, currentEnemy)
                 : string.Empty;
+        }
+
+        void ApplyEnemyPalette()
+        {
+            if (currentEnemy == null)
+                return;
+
+            if (bodyRenderer != null)
+                bodyRenderer.color = currentEnemy.AccentColor;
+
+            if (coreRenderer != null)
+            {
+                var glowColor = Color.Lerp(currentEnemy.AccentColor, Color.white, 0.3f);
+                coreRenderer.color = new Color(glowColor.r, glowColor.g, glowColor.b, 0.22f);
+            }
         }
 
         void Update()

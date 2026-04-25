@@ -176,6 +176,8 @@ namespace POPHero
             var player = game?.Player;
             var enemy = game?.CurrentEnemy;
             var encounterState = game?.CurrentEnemyEncounter;
+            var encounters = game?.CurrentEnemyEncounters;
+            var secondaryEncounter = GetSecondaryEncounter(encounters, encounterState);
             var hasPlayer = player != null;
             var stickerInventory = game?.StickerInventory;
             var mods = game?.Mods;
@@ -207,13 +209,34 @@ namespace POPHero
                 GoldText = hasPlayer ? $"金币：{player.Gold}" : "金币：-",
                 InventoryText = $"嵌片库存：{inventoryCount}/{inventoryCapacity}",
                 LaunchesText = $"发射次数：{launches}",
-                EnemyText = $"敌人 #{encounter}：{enemy?.DisplayName ?? "--"}",
-                EnemyHpText = enemy != null ? $"敌人生命：{enemy.CurrentHp}/{enemy.MaxHp}" : "敌人生命：-/--",
-                EnemyAttackText = enemy != null ? $"敌人攻击：{enemy.AttackDamage}" : "敌人攻击：-"
+                EnemyText = $"当前目标 #{encounter}：{enemy?.DisplayName ?? "--"}",
+                EnemyHpText = enemy != null ? $"目标生命：{enemy.CurrentHp}/{enemy.MaxHp}" : "目标生命：-/--",
+                EnemyAttackText = enemy != null ? $"目标攻击：{enemy.AttackDamage}" : "目标攻击：-"
             };
 
             model.EnemyAttackText = EnemyIntentTextFormatter.BuildStatusText(encounterState, enemy);
+            if (secondaryEncounter != null && secondaryEncounter.Enemy != null)
+            {
+                model.EnemyHpText += $"\n副敌生命：{secondaryEncounter.Enemy.CurrentHp}/{secondaryEncounter.Enemy.MaxHp}";
+                model.EnemyAttackText += $"\n副敌意图：{EnemyIntentTextFormatter.BuildWorldText(secondaryEncounter, secondaryEncounter.Enemy).Replace("\n", "，")}";
+            }
+
             return model;
+        }
+
+        static EnemyEncounterState GetSecondaryEncounter(IReadOnlyList<EnemyEncounterState> encounters, EnemyEncounterState currentEncounter)
+        {
+            if (encounters == null)
+                return null;
+
+            for (var index = 0; index < encounters.Count; index++)
+            {
+                var encounter = encounters[index];
+                if (encounter != null && encounter != currentEncounter && encounter.IsAlive)
+                    return encounter;
+            }
+
+            return null;
         }
 
         static string GetStateText(RoundState state)

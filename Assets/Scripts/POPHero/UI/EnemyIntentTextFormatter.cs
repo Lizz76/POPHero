@@ -5,8 +5,12 @@ namespace POPHero
         public static string BuildStatusText(EnemyEncounterState encounter, EnemyData fallbackEnemy = null)
         {
             var enemy = encounter?.Enemy ?? fallbackEnemy;
+            var behaviorType = encounter?.BehaviorType ?? fallbackEnemy?.BehaviorType ?? EnemyBehaviorType.MeleeAdvance;
             if (enemy == null || enemy.CurrentHp <= 0)
                 return "敌人意图：-";
+
+            if (behaviorType == EnemyBehaviorType.FlyingRangedOrigin)
+                return $"敌人意图：远程攻击 {enemy.AttackDamage}";
 
             if (encounter == null)
                 return $"敌人意图：攻击 {enemy.AttackDamage}";
@@ -23,8 +27,12 @@ namespace POPHero
         public static string BuildWorldText(EnemyEncounterState encounter, EnemyData fallbackEnemy = null)
         {
             var enemy = encounter?.Enemy ?? fallbackEnemy;
+            var behaviorType = encounter?.BehaviorType ?? fallbackEnemy?.BehaviorType ?? EnemyBehaviorType.MeleeAdvance;
             if (enemy == null || enemy.CurrentHp <= 0)
                 return string.Empty;
+
+            if (behaviorType == EnemyBehaviorType.FlyingRangedOrigin)
+                return $"远程攻击 {enemy.AttackDamage}";
 
             if (encounter == null)
                 return $"攻击 {enemy.AttackDamage}";

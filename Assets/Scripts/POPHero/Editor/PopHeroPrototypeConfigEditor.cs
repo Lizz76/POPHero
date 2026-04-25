@@ -279,11 +279,26 @@ namespace POPHero.Editor
                     EditorGUILayout.PropertyField(element.FindPropertyRelative("rewardGold"));
                     EditorGUILayout.PropertyField(element.FindPropertyRelative("rewardHeal"));
                     EditorGUILayout.PropertyField(element.FindPropertyRelative("attackDamage"));
+                    EditorGUILayout.PropertyField(element.FindPropertyRelative("behaviorType"));
                     EditorGUILayout.PropertyField(element.FindPropertyRelative("initialDistanceStepsOverride"));
                     EditorGUILayout.EndVertical();
                 }
 
                 EditorGUI.indentLevel--;
+                EditorGUILayout.Space(4f);
+                EditorGUILayout.LabelField("Flying Support", EditorStyles.boldLabel);
+                var supportTemplate = enemies.FindPropertyRelative("flyingSupportTemplate");
+                if (supportTemplate != null)
+                {
+                    EditorGUILayout.PropertyField(supportTemplate.FindPropertyRelative("displayName"));
+                    EditorGUILayout.PropertyField(supportTemplate.FindPropertyRelative("maxHp"));
+                    EditorGUILayout.PropertyField(supportTemplate.FindPropertyRelative("rewardGold"));
+                    EditorGUILayout.PropertyField(supportTemplate.FindPropertyRelative("rewardHeal"));
+                    EditorGUILayout.PropertyField(supportTemplate.FindPropertyRelative("attackDamage"));
+                    EditorGUILayout.PropertyField(supportTemplate.FindPropertyRelative("behaviorType"));
+                    EditorGUILayout.PropertyField(supportTemplate.FindPropertyRelative("initialDistanceStepsOverride"));
+                }
+
                 EditorGUILayout.HelpBox("Enemy accent colors are no longer the visual source of truth. Enemy-specific prefabs can take over later without changing this config layout again.", MessageType.None);
                 EditorGUILayout.PropertyField(enemies.FindPropertyRelative("endlessHpGrowth"));
                 EditorGUILayout.PropertyField(enemies.FindPropertyRelative("endlessGoldGrowth"));

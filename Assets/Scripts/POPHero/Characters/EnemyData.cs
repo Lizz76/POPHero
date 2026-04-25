@@ -2,6 +2,18 @@ using UnityEngine;
 
 namespace POPHero
 {
+    public enum EnemyBehaviorType
+    {
+        MeleeAdvance,
+        FlyingRangedOrigin
+    }
+
+    public enum EnemyEncounterSlot
+    {
+        Primary,
+        Support
+    }
+
     public class EnemyData
     {
         public string DisplayName { get; }
@@ -11,8 +23,9 @@ namespace POPHero
         public int RewardHeal { get; }
         public int AttackDamage { get; }
         public Color AccentColor { get; }
+        public EnemyBehaviorType BehaviorType { get; }
 
-        public EnemyData(string displayName, int maxHp, int rewardGold, int rewardHeal, int attackDamage, Color accentColor)
+        public EnemyData(string displayName, int maxHp, int rewardGold, int rewardHeal, int attackDamage, Color accentColor, EnemyBehaviorType behaviorType = EnemyBehaviorType.MeleeAdvance)
         {
             DisplayName = string.IsNullOrWhiteSpace(displayName) ? "敌人" : displayName;
             MaxHp = Mathf.Max(1, maxHp);
@@ -21,6 +34,7 @@ namespace POPHero
             RewardHeal = Mathf.Max(0, rewardHeal);
             AttackDamage = Mathf.Max(0, attackDamage);
             AccentColor = accentColor;
+            BehaviorType = behaviorType;
         }
 
         public bool ApplyDamage(int amount)

@@ -375,17 +375,29 @@ namespace POPHero
     {
         public List<EnemyTemplate> templates = new()
         {
-            new EnemyTemplate { displayName = "Briar Idol", maxHp = 80, rewardGold = 20, rewardHeal = 8, attackDamage = 8, color = new Color(0.95f, 0.38f, 0.38f, 1f) },
-            new EnemyTemplate { displayName = "Iron Courier", maxHp = 140, rewardGold = 30, rewardHeal = 10, attackDamage = 12, color = new Color(0.99f, 0.52f, 0.25f, 1f) },
-            new EnemyTemplate { displayName = "Spike Totem", maxHp = 220, rewardGold = 45, rewardHeal = 12, attackDamage = 18, color = new Color(0.95f, 0.74f, 0.24f, 1f) },
-            new EnemyTemplate { displayName = "War Priest", maxHp = 320, rewardGold = 60, rewardHeal = 15, attackDamage = 25, color = new Color(0.9f, 0.37f, 0.79f, 1f) },
-            new EnemyTemplate { displayName = "Abyss Lord", maxHp = 450, rewardGold = 80, rewardHeal = 18, attackDamage = 35, color = new Color(0.52f, 0.48f, 1f, 1f) }
+            new EnemyTemplate { displayName = "Briar Idol", maxHp = 40, rewardGold = 20, rewardHeal = 8, attackDamage = 8, behaviorType = EnemyBehaviorType.MeleeAdvance, color = new Color(0.95f, 0.38f, 0.38f, 1f) },
+            new EnemyTemplate { displayName = "Iron Courier", maxHp = 70, rewardGold = 30, rewardHeal = 10, attackDamage = 12, behaviorType = EnemyBehaviorType.MeleeAdvance, color = new Color(0.99f, 0.52f, 0.25f, 1f) },
+            new EnemyTemplate { displayName = "Spike Totem", maxHp = 110, rewardGold = 45, rewardHeal = 12, attackDamage = 18, behaviorType = EnemyBehaviorType.MeleeAdvance, color = new Color(0.95f, 0.74f, 0.24f, 1f) },
+            new EnemyTemplate { displayName = "War Priest", maxHp = 160, rewardGold = 60, rewardHeal = 15, attackDamage = 25, behaviorType = EnemyBehaviorType.MeleeAdvance, color = new Color(0.9f, 0.37f, 0.79f, 1f) },
+            new EnemyTemplate { displayName = "Abyss Lord", maxHp = 225, rewardGold = 80, rewardHeal = 18, attackDamage = 35, behaviorType = EnemyBehaviorType.MeleeAdvance, color = new Color(0.52f, 0.48f, 1f, 1f) }
         };
 
-        public int endlessHpGrowth = 90;
+        public EnemyTemplate flyingSupportTemplate = new()
+        {
+            displayName = "Sky Wisp",
+            maxHp = 48,
+            rewardGold = 18,
+            rewardHeal = 5,
+            attackDamage = 6,
+            initialDistanceStepsOverride = 0,
+            behaviorType = EnemyBehaviorType.FlyingRangedOrigin,
+            color = new Color(0.5f, 0.84f, 1f, 1f)
+        };
+
+        public int endlessHpGrowth = 45;
         public int endlessGoldGrowth = 14;
         public int endlessHealGrowth = 3;
-        public int endlessAttackGrowth = 5;
+        public int endlessAttackGrowth = 2;
         public int defaultInitialDistanceSteps = 3;
         public int maxLaunchesPerEnemy = 6;
     }
@@ -399,6 +411,7 @@ namespace POPHero
         public int rewardHeal = 8;
         public int attackDamage = 8;
         public int initialDistanceStepsOverride = -1;
+        public EnemyBehaviorType behaviorType = EnemyBehaviorType.MeleeAdvance;
         [HideInInspector] public Color color = new(0.95f, 0.38f, 0.38f, 1f);
     }
 

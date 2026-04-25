@@ -158,34 +158,118 @@ namespace POPHero
 
             game.CombatEventHub?.Publish(new CombatEventPayload(StickerTriggerType.OnRoundEnd));
 
+            var targetEncounter = game.CurrentEnemyEncounter;
+            var enemyGroup = game.CurrentEnemyGroup;
+            var targetSlot = targetEncounter != null ? targetEncounter.Slot : EnemyEncounterSlot.Primary;
+            var targetDistance = targetEncounter != null ? targetEncounter.DistanceStepsRemaining : 0;
+            var targetBehavior = targetEncounter != null ? targetEncounter.BehaviorType : EnemyBehaviorType.MeleeAdvance;
+            var playerHpBeforeCounter = game.Player != null ? game.Player.CurrentHp : 0;
+
             var result = new RoundResolveResult
             {
                 landingPoint = landingPoint,
                 attackDamage = RoundAttackScore,
                 shieldGain = RoundShieldGain,
                 hitCount = RoundHitCount,
-                enemyTurn = EnemyTurnOutcome.None(game.CurrentEnemyEncounter?.DistanceStepsRemaining ?? 0),
+                targetSlot = targetSlot,
+                enemyTurn = EnemyTurnOutcome.None(targetSlot, targetBehavior, targetDistance, playerHpBeforeCounter),
                 enemyCounterDamage = 0,
                 enemyDefeated = false,
-                playerDefeated = false
+                encounterCleared = false,
+                playerDefeated = false,
+                playerDisplayHpBeforeCounter = playerHpBeforeCounter,
+                playerDisplayHpAfterCounter = playerHpBeforeCounter,
+                enemyResults = BuildEnemyResolveEntries(enemyGroup),
+                enemyTurns = new System.Collections.Generic.List<EnemyTurnOutcome>(2)
             };
 
-            if (game.CurrentEnemy != null && RoundAttackScore > 0)
+            if (targetEncounter != null)
             {
-                result.enemyDefeated = game.CurrentEnemy.ApplyDamage(RoundAttackScore);
+                result.enemyDisplayHpBeforeHit = targetEncounter.Enemy != null ? targetEncounter.Enemy.CurrentHp : 0;
+                result.enemyDisplayHpAfterHit = result.enemyDisplayHpBeforeHit;
+            }
+
+            if (targetEncounter != null && targetEncounter.Enemy != null && RoundAttackScore > 0)
+            {
+                result.enemyDefeated = targetEncounter.Enemy.ApplyDamage(RoundAttackScore);
+                result.enemyDisplayHpAfterHit = targetEncounter.Enemy.CurrentHp;
+                UpdateEnemyResolveEntry(result.enemyResults, targetEncounter, true, result.enemyDefeated, RoundAttackScore);
                 game.CombatEventHub?.Publish(new CombatEventPayload(StickerTriggerType.OnEnemyDamaged, damage: RoundAttackScore));
                 if (result.enemyDefeated)
                     game.CombatEventHub?.Publish(new CombatEventPayload(StickerTriggerType.OnEnemyKilled));
             }
+            else if (targetEncounter != null)
+            {
+                UpdateEnemyResolveEntry(result.enemyResults, targetEncounter, false, false, 0);
+            }
 
-            if (game.CurrentEnemyEncounter != null && !result.enemyDefeated)
-                result.enemyTurn = enemyTurnResolver.Resolve(game.CurrentEnemyEncounter, StickerState.enemyCounterReduction, game.Player);
+            if (enemyGroup != null && !enemyGroup.AllDefeated)
+            {
+                result.enemyTurns = enemyTurnResolver.ResolveGroup(enemyGroup.GetAliveEnemiesInTargetOrder(), StickerState.enemyCounterReduction, game.Player);
+                if (result.enemyTurns.Count > 0)
+                    result.enemyTurn = result.enemyTurns[0];
 
-            result.enemyCounterDamage = result.enemyTurn.DamageDealt;
+                for (var index = 0; index < result.enemyTurns.Count; index++)
+                    result.enemyCounterDamage += result.enemyTurns[index].DamageDealt;
+            }
 
+            result.encounterCleared = enemyGroup == null || enemyGroup.AllDefeated;
+            game.RefreshEnemyTargetSelection();
             game.Player.ClearShield();
             result.playerDefeated = game.Player.IsDead;
+            result.playerDisplayHpAfterCounter = game.Player != null ? game.Player.CurrentHp : 0;
             return result;
+        }
+
+        static System.Collections.Generic.List<EnemyResolveEntry> BuildEnemyResolveEntries(EnemyEncounterGroupState enemyGroup)
+        {
+            var entries = new System.Collections.Generic.List<EnemyResolveEntry>(enemyGroup?.Encounters.Count ?? 0);
+            if (enemyGroup == null)
+                return entries;
+
+            var encounters = enemyGroup.Encounters;
+            for (var index = 0; index < encounters.Count; index++)
+            {
+                var encounter = encounters[index];
+                if (encounter == null || encounter.Enemy == null)
+                    continue;
+
+                entries.Add(new EnemyResolveEntry
+                {
+                    slot = encounter.Slot,
+                    behaviorType = encounter.BehaviorType,
+                    enemy = encounter.Enemy,
+                    wasTargeted = false,
+                    wasDefeated = !encounter.IsAlive,
+                    damageTaken = 0,
+                    displayHpBefore = encounter.Enemy.CurrentHp,
+                    displayHpAfter = encounter.Enemy.CurrentHp,
+                    maxHp = encounter.Enemy.MaxHp
+                });
+            }
+
+            return entries;
+        }
+
+        static void UpdateEnemyResolveEntry(System.Collections.Generic.List<EnemyResolveEntry> entries, EnemyEncounterState encounter, bool wasTargeted, bool wasDefeated, int damageTaken)
+        {
+            if (entries == null || encounter == null || encounter.Enemy == null)
+                return;
+
+            for (var index = 0; index < entries.Count; index++)
+            {
+                if (entries[index].slot != encounter.Slot)
+                    continue;
+
+                var entry = entries[index];
+                entry.wasTargeted = wasTargeted;
+                entry.wasDefeated = wasDefeated;
+                entry.damageTaken = Mathf.Max(0, damageTaken);
+                entry.displayHpAfter = encounter.Enemy.CurrentHp;
+                entry.maxHp = encounter.Enemy.MaxHp;
+                entries[index] = entry;
+                return;
+            }
         }
 
         void RegisterBlockHit(BlockCardState card)

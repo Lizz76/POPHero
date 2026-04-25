@@ -291,6 +291,7 @@ MonoBehaviour:
     attackDamage: 8
     rewardGold: 20
     rewardHeal: 8
+    initialDistanceSteps: -1
     color: {r: 0.9490196, g: 0.38039216, b: 0.38039216, a: 1}
     spawnWeight: 100
   - id: 3002
@@ -299,6 +300,7 @@ MonoBehaviour:
     attackDamage: 12
     rewardGold: 30
     rewardHeal: 10
+    initialDistanceSteps: -1
     color: {r: 0.99215686, g: 0.52156866, b: 0.2509804, a: 1}
     spawnWeight: 100
   - id: 3003
@@ -307,6 +309,7 @@ MonoBehaviour:
     attackDamage: 18
     rewardGold: 45
     rewardHeal: 12
+    initialDistanceSteps: -1
     color: {r: 0.9490196, g: 0.7411765, b: 0.23921569, a: 1}
     spawnWeight: 100
   - id: 3004
@@ -315,6 +318,7 @@ MonoBehaviour:
     attackDamage: 25
     rewardGold: 60
     rewardHeal: 15
+    initialDistanceSteps: -1
     color: {r: 0.9019608, g: 0.36862746, b: 0.7921569, a: 1}
     spawnWeight: 100
   - id: 3005
@@ -323,7 +327,17 @@ MonoBehaviour:
     attackDamage: 35
     rewardGold: 80
     rewardHeal: 18
+    initialDistanceSteps: -1
     color: {r: 0.52156866, g: 0.47843137, b: 1, a: 1}
+    spawnWeight: 100
+  - id: 3901
+    displayName: "\u5929\u7A79\u5996\u7075"
+    maxHp: 95
+    attackDamage: 6
+    rewardGold: 18
+    rewardHeal: 5
+    initialDistanceSteps: 0
+    color: {r: 0.49803922, g: 0.8392157, b: 1, a: 1}
     spawnWeight: 100
   stickers:
   - configId: 1001

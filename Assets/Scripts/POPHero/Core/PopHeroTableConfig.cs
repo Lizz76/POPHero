@@ -82,6 +82,7 @@ namespace POPHero
         public int attackDamage;
         public int rewardGold;
         public int rewardHeal;
+        public EnemyBehaviorType behaviorType = EnemyBehaviorType.MeleeAdvance;
         public int initialDistanceSteps = -1;
         public Color color = Color.white;
         public int spawnWeight = 100;
