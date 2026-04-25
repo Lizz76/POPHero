@@ -112,6 +112,8 @@ namespace POPHero
         DebugAddGold,
         DebugKillEnemy,
         DebugDamagePlayer,
+        DebugTriggerMapNode,
+        DebugTriggerMapEventChoice,
         TrySelectBlockReward,
         SkipBlockReward,
         TrySelectReward,

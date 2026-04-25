@@ -114,14 +114,14 @@ namespace POPHero
 
             foreach (var path in Directory.GetFiles(ConfigFolder, "*.csv"))
             {
-                var table = CsvTable.Load(path);
+                var table = ConfigCsvTable.Load(path);
                 result.Tables[Path.GetFileName(path)] = table;
                 ValidateBasicShape(table, result);
             }
 
             if (!result.Tables.ContainsKey("globalConfig.csv") && File.Exists(GlobalConfigFallbackPath))
             {
-                var table = CsvTable.Load(GlobalConfigFallbackPath);
+                var table = ConfigCsvTable.Load(GlobalConfigFallbackPath);
                 result.Tables["globalConfig.csv"] = table;
                 ValidateBasicShape(table, result);
             }
@@ -326,6 +326,7 @@ namespace POPHero
                     battleWeight = ParseInt(row.Get("battleWeight"), 70),
                     shopWeight = ParseInt(row.Get("shopWeight"), 12),
                     workbenchWeight = ParseInt(row.Get("workbenchWeight"), 8),
+                    restWeight = ParseInt(row.Get("restWeight"), 10),
                     eventWeight = ParseInt(row.Get("eventWeight"), 10),
                     bossEnemyIndex = ParseInt(row.Get("bossEnemyIndex"), -1)
                 });
@@ -345,7 +346,7 @@ namespace POPHero
             }
         }
 
-        static void ValidateBasicShape(CsvTable table, TableImportResult result)
+        static void ValidateBasicShape(ConfigCsvTable table, TableImportResult result)
         {
             if (table.Rows.Count < 5)
             {
@@ -463,7 +464,7 @@ namespace POPHero
             }
         }
 
-        static void ValidateTokenLikeField(TableImportResult result, CsvRow row, string field, HashSet<string> tokens)
+        static void ValidateTokenLikeField(TableImportResult result, ConfigCsvRow row, string field, HashSet<string> tokens)
         {
             var value = row.Get(field);
             if (string.IsNullOrWhiteSpace(value))
@@ -527,6 +528,7 @@ namespace POPHero
                     Mathf.Max(0, ParseInt(row.Get("battleWeight"))) +
                     Mathf.Max(0, ParseInt(row.Get("shopWeight"))) +
                     Mathf.Max(0, ParseInt(row.Get("workbenchWeight"))) +
+                    Mathf.Max(0, ParseInt(row.Get("restWeight"), 10)) +
                     Mathf.Max(0, ParseInt(row.Get("eventWeight")));
                 if (totalWeight <= 0)
                     result.AddError($"{row.Table.Name}: row {row.LineNumber} node weights must not all be 0.");
@@ -539,7 +541,7 @@ namespace POPHero
             }
         }
 
-        static void RequireEnum<T>(TableImportResult result, CsvRow row, string field) where T : struct
+        static void RequireEnum<T>(TableImportResult result, ConfigCsvRow row, string field) where T : struct
         {
             if (!ConfigTableService.TryParseEnumKey(row.Get(field), out T _))
                 result.AddError($"{row.Table.Name}: row {row.LineNumber} {field} `{row.Get(field)}` is not a valid {typeof(T).Name}.");
@@ -556,69 +558,49 @@ namespace POPHero
                 Debug.Log($"[POPHero Config] Validation passed. Tables: {result.Tables.Count}");
         }
 
-        static T ParseEnum<T>(CsvRow row, string field, T fallback) where T : struct
+        static T ParseEnum<T>(ConfigCsvRow row, string field, T fallback) where T : struct
         {
-            return ConfigTableService.TryParseEnumKey(row.Get(field), out T value) ? value : fallback;
+            return ConfigTableCsvParsers.ParseEnum(row.Get(field), fallback);
         }
 
         static int ParseInt(string value, int fallback = 0)
         {
-            return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : fallback;
+            return ConfigTableCsvParsers.ParseInt(value, fallback);
         }
 
         static bool ParseBool(string value, bool fallback = false)
         {
-            if (bool.TryParse(value, out var parsed))
-                return parsed;
-
-            if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var intValue))
-                return intValue != 0;
-
-            return fallback;
+            return ConfigTableCsvParsers.ParseBool(value, fallback);
         }
 
         static float ParseFloat(string value, float fallback = 0f)
         {
-            return float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) ? parsed : fallback;
+            return ConfigTableCsvParsers.ParseFloat(value, fallback);
         }
 
         static RarityWeightSet ParseRarityWeights(string raw)
         {
-            if (string.IsNullOrWhiteSpace(raw))
-                return new RarityWeightSet();
-
-            var parts = raw.Split(new[] { '|', ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
-            return new RarityWeightSet
-            {
-                white = parts.Length > 0 ? ParseFloat(parts[0]) : 0f,
-                blue = parts.Length > 1 ? ParseFloat(parts[1]) : 0f,
-                purple = parts.Length > 2 ? ParseFloat(parts[2]) : 0f,
-                gold = parts.Length > 3 ? ParseFloat(parts[3]) : 0f
-            };
+            return ConfigTableCsvParsers.ParseRarityWeights(raw);
         }
 
-        static void ValidateBool(TableImportResult result, CsvRow row, string field)
+        static void ValidateBool(TableImportResult result, ConfigCsvRow row, string field)
         {
             if (string.IsNullOrWhiteSpace(row.Get(field)))
                 return;
 
-            if (bool.TryParse(row.Get(field), out _))
-                return;
-
-            if (int.TryParse(row.Get(field), NumberStyles.Integer, CultureInfo.InvariantCulture, out var intValue) &&
-                (intValue == 0 || intValue == 1))
+            if (ConfigTableCsvParsers.IsBoolLiteral(row.Get(field)))
                 return;
 
             result.AddError($"{row.Table.Name}: row {row.LineNumber} {field} `{row.Get(field)}` is not a valid bool.");
         }
 
-        static void ValidateNonNegative(TableImportResult result, CsvRow row, string field)
+        static void ValidateNonNegative(TableImportResult result, ConfigCsvRow row, string field)
         {
             if (!int.TryParse(row.Get(field), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) || value < 0)
                 result.AddError($"{row.Table.Name}: row {row.LineNumber} {field} must be >= 0.");
         }
 
-        static void ValidateLimit(TableImportResult result, CsvRow row, string field)
+        static void ValidateLimit(TableImportResult result, ConfigCsvRow row, string field)
         {
             if (!int.TryParse(row.Get(field), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) || value < -1)
                 result.AddError($"{row.Table.Name}: row {row.LineNumber} {field} must be -1 or >= 0.");
@@ -626,105 +608,16 @@ namespace POPHero
 
         sealed class TableImportResult
         {
-            public readonly Dictionary<string, CsvTable> Tables = new(StringComparer.OrdinalIgnoreCase);
+            public readonly Dictionary<string, ConfigCsvTable> Tables = new(StringComparer.OrdinalIgnoreCase);
             public readonly List<string> Errors = new();
             public readonly List<string> Warnings = new();
             public bool HasErrors => Errors.Count > 0;
             public void AddError(string message) => Errors.Add(message);
             public void AddWarning(string message) => Warnings.Add(message);
 
-            public IEnumerable<CsvRow> GetRows(string tableName)
+            public IEnumerable<ConfigCsvRow> GetRows(string tableName)
             {
-                return Tables.TryGetValue(tableName, out var table) ? table.DataRows : Array.Empty<CsvRow>();
-            }
-        }
-
-        sealed class CsvTable
-        {
-            public string Name;
-            public List<List<string>> Rows = new();
-            public List<string> Header => Rows.Count > 0 ? Rows[0] : new List<string>();
-            public List<CsvRow> DataRows = new();
-
-            public static CsvTable Load(string path)
-            {
-                var table = new CsvTable { Name = Path.GetFileName(path) };
-                var lines = CsvFileReader.ReadAllLinesWithRetry(path);
-                for (var i = 0; i < lines.Length; i++)
-                {
-                    var values = ParseCsvLine(lines[i]);
-                    if (i == 0 && values.Count > 0)
-                        values[0] = values[0].TrimStart('\uFEFF');
-                    table.Rows.Add(values);
-                }
-
-                if (table.Rows.Count >= 5)
-                {
-                    for (var i = 5; i < table.Rows.Count; i++)
-                    {
-                        var values = table.Rows[i];
-                        if (values.Count == 0 || values.All(string.IsNullOrWhiteSpace))
-                            continue;
-                        table.DataRows.Add(new CsvRow(table, i + 1, values));
-                    }
-                }
-
-                return table;
-            }
-
-            static List<string> ParseCsvLine(string line)
-            {
-                var values = new List<string>();
-                var current = new System.Text.StringBuilder();
-                var inQuotes = false;
-                for (var i = 0; i < line.Length; i++)
-                {
-                    var ch = line[i];
-                    if (ch == '"')
-                    {
-                        if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
-                        {
-                            current.Append('"');
-                            i++;
-                        }
-                        else
-                        {
-                            inQuotes = !inQuotes;
-                        }
-                    }
-                    else if (ch == ',' && !inQuotes)
-                    {
-                        values.Add(current.ToString());
-                        current.Clear();
-                    }
-                    else
-                    {
-                        current.Append(ch);
-                    }
-                }
-
-                values.Add(current.ToString());
-                return values;
-            }
-        }
-
-        sealed class CsvRow
-        {
-            public readonly CsvTable Table;
-            public readonly int LineNumber;
-            public readonly List<string> Values;
-
-            public CsvRow(CsvTable table, int lineNumber, List<string> values)
-            {
-                Table = table;
-                LineNumber = lineNumber;
-                Values = values;
-            }
-
-            public string Get(string field)
-            {
-                var index = Table.Header.FindIndex(header => string.Equals(header, field, StringComparison.OrdinalIgnoreCase));
-                return index >= 0 && index < Values.Count ? Values[index].Trim() : string.Empty;
+                return Tables.TryGetValue(tableName, out var table) ? table.DataRows : Array.Empty<ConfigCsvRow>();
             }
         }
     }

@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace POPHero
@@ -34,13 +36,69 @@ namespace POPHero
         }
     }
 
+    public readonly struct StickerEffectContext
+    {
+        public StickerEffectContext(PopHeroGame game, StickerInstance instance, BlockCardState card, StickerTriggerType triggerType, BoardBlock block, float multiplier)
+        {
+            Game = game;
+            Instance = instance;
+            Card = card;
+            TriggerType = triggerType;
+            Block = block;
+            Multiplier = multiplier;
+        }
+
+        public PopHeroGame Game { get; }
+        public StickerInstance Instance { get; }
+        public StickerData Data => Instance?.data;
+        public BlockCardState Card { get; }
+        public StickerTriggerType TriggerType { get; }
+        public BoardBlock Block { get; }
+        public float Multiplier { get; }
+
+        public int ScaleInt(float value)
+        {
+            return Mathf.Max(0, Mathf.RoundToInt(value * Multiplier));
+        }
+    }
+
+    public interface IStickerEffectHandler
+    {
+        string EffectId { get; }
+        void Execute(StickerEffectContext context);
+    }
+
+    sealed class DelegateStickerEffectHandler : IStickerEffectHandler
+    {
+        readonly Action<StickerEffectContext> execute;
+
+        public DelegateStickerEffectHandler(string effectId, Action<StickerEffectContext> execute)
+        {
+            EffectId = effectId;
+            this.execute = execute;
+        }
+
+        public string EffectId { get; }
+        public void Execute(StickerEffectContext context) => execute?.Invoke(context);
+    }
+
     public sealed class StickerEffectExecutor
     {
+        readonly Dictionary<string, IStickerEffectHandler> handlers = new(StringComparer.OrdinalIgnoreCase);
         readonly PopHeroGame game;
 
         public StickerEffectExecutor(PopHeroGame owner)
         {
             game = owner;
+            RegisterDefaultHandlers();
+        }
+
+        public void RegisterHandler(IStickerEffectHandler handler)
+        {
+            if (handler == null || string.IsNullOrWhiteSpace(handler.EffectId))
+                return;
+
+            handlers[handler.EffectId.Trim()] = handler;
         }
 
         public void Execute(StickerInstance instance, BlockCardState card, StickerTriggerType triggerType, BoardBlock block)
@@ -50,145 +108,174 @@ namespace POPHero
 
             var data = instance.data;
             var multiplier = game.ModManager.GetStickerPowerMultiplier(card, instance);
+            if (!handlers.TryGetValue(data.id, out var handler))
+                return;
 
-            switch (data.id)
-            {
-                case "impact_core":
-                    if (triggerType == StickerTriggerType.OnAttackBlockHit)
-                        game.RoundController.AddAttack(ScaleInt(data.valueA, multiplier));
-                    break;
-                case "echo_mark":
-                    if (triggerType == StickerTriggerType.OnAttackBlockHit)
-                    {
-                        if (game.RoundController.ConsumeToken($"echo:{card.id}", 1) > 0)
-                            game.RoundController.AddAttack(ScaleInt(data.valueA, multiplier));
-                        else
-                            game.RoundController.AddToken($"echo:{card.id}", 1);
-                    }
-                    break;
-                case "shatter_loop":
-                    if (triggerType == StickerTriggerType.OnAttackBlockHit && game.RoundController.GetBlockHitCount(card.id) >= 2)
-                    {
-                        game.RoundController.AddToken($"shatter:{card.id}", 1);
-                        game.RoundController.AddAttack(ScaleInt(data.valueA, multiplier));
-                    }
-                    break;
-                case "guard_furnace":
-                    if (triggerType == StickerTriggerType.OnShieldBlockHit)
-                        game.RoundController.AddShield(ScaleInt(data.valueA, multiplier));
-                    else if (triggerType == StickerTriggerType.OnRoundEnd)
-                        game.RoundController.AddAttack(Mathf.RoundToInt(game.RoundController.RoundShieldGain * data.valueB * multiplier));
-                    break;
-                case "prism_guard":
-                    if (triggerType == StickerTriggerType.OnRoundEnd && game.RoundController.HasRoundTag("touched_multiplier"))
-                        game.RoundController.AddAttack(Mathf.RoundToInt(game.RoundController.RoundShieldGain * data.valueA * multiplier));
-                    break;
-                case "mirror_plating":
-                    if (triggerType == StickerTriggerType.OnShieldBlockHit)
-                        game.RoundController.AddToken($"mirror:{card.id}", Mathf.Max(1, Mathf.RoundToInt(game.Player.CurrentShield * 0.5f)));
-                    else if (triggerType == StickerTriggerType.OnAttackBlockHit)
-                    {
-                        var mirrorBonus = game.RoundController.ConsumeToken($"mirror:{card.id}", 99);
-                        if (mirrorBonus > 0)
-                            game.RoundController.AddAttack(ScaleInt(mirrorBonus, multiplier));
-                    }
-                    break;
-                case "amp_seed":
-                    if (triggerType == StickerTriggerType.OnMultiplierBlockHit)
-                        game.RoundController.AddToken("amp_charge", Mathf.RoundToInt(data.valueA));
-                    break;
-                case "amp_burst":
-                    if (triggerType == StickerTriggerType.OnAttackBlockHit)
-                    {
-                        var consumed = game.RoundController.ConsumeToken("amp_charge", 99);
-                        if (consumed > 0)
-                            game.RoundController.AddAttack(ScaleInt(consumed * data.valueA, multiplier));
-                    }
-                    break;
-                case "twin_resonance":
-                    if (triggerType == StickerTriggerType.OnMultiplierBlockHit)
-                    {
-                        var currentHash = card.id.GetHashCode();
-                        var lastHash = game.RoundController.GetTokenCount("last_multiplier_card");
-                        if (lastHash != 0 && lastHash != currentHash)
-                            game.RoundController.MultiplyAttack(data.valueA);
-                        game.RoundController.SetToken("last_multiplier_card", currentHash);
-                    }
-                    break;
-                case "chain_ledger":
-                    if (triggerType == StickerTriggerType.OnRoundEnd && game.RoundController.ChainLength > 0)
-                        game.RoundController.AddAttack(ScaleInt(game.RoundController.ChainLength * data.valueA, multiplier));
-                    break;
-                case "ember_seed":
-                    if (triggerType == StickerTriggerType.OnAttackBlockHit)
-                        game.RoundController.AddToken("ember", 1);
-                    break;
-                case "ember_catcher":
-                    if (triggerType == StickerTriggerType.OnShieldBlockHit)
-                    {
-                        var embers = game.RoundController.ConsumeToken("ember", 99);
-                        if (embers > 0)
-                        {
-                            game.RoundController.AddShield(ScaleInt(embers * data.valueA, multiplier));
-                            game.RoundController.AddAttack(ScaleInt(embers * data.valueB, multiplier));
-                        }
-                    }
-                    break;
-                case "thorn_rack":
-                    if (triggerType == StickerTriggerType.OnShieldBlockHit)
-                        game.RoundController.AddEnemyCounterReduction(ScaleInt(data.valueA, multiplier));
-                    break;
-                case "spark_tape":
-                    if (triggerType == StickerTriggerType.OnMultiplierBlockHit)
-                        game.RoundController.AddToken("spark", 1);
-                    else if (triggerType == StickerTriggerType.OnShieldBlockHit)
-                    {
-                        var sparks = game.RoundController.ConsumeToken("spark", 99);
-                        if (sparks > 0)
-                            game.RoundController.AddShield(ScaleInt(sparks * data.valueA, multiplier));
-                    }
-                    else if (triggerType == StickerTriggerType.OnAttackBlockHit)
-                    {
-                        var sparks = game.RoundController.ConsumeToken("spark", 99);
-                        if (sparks > 0)
-                            game.RoundController.AddAttack(ScaleInt(sparks * data.valueB, multiplier));
-                    }
-                    break;
-                case "same_family_latch":
-                    if (triggerType == StickerTriggerType.OnBlockHit &&
-                        game.RoundController.RegisterOncePerRound($"same_family:{card.id}") &&
-                        game.BoardManager.GetInstalledFamilyCount(card, data.family) >= 2)
-                    {
-                        game.RoundController.AddAttack(ScaleInt(data.valueA, multiplier));
-                    }
-                    break;
-                case "breaker_note":
-                    if (triggerType == StickerTriggerType.OnAttackBlockHit && game.RoundController.HasRoundTag("touched_multiplier"))
-                        game.RoundController.AddAttack(ScaleInt(data.valueA, multiplier));
-                    break;
-                case "glass_ledger":
-                    if (triggerType == StickerTriggerType.OnRoundEnd && game.RoundController.UniqueFamilyCount > 0)
-                        game.RoundController.AddAttack(ScaleInt(game.RoundController.UniqueFamilyCount * data.valueA, multiplier));
-                    break;
-                case "frost_trace":
-                    if (triggerType == StickerTriggerType.OnShieldBlockHit)
-                        game.RoundController.AddToken("frost_trace", 1);
-                    else if (triggerType == StickerTriggerType.OnMultiplierBlockHit && game.RoundController.ConsumeToken("frost_trace", 1) > 0)
-                        game.RoundController.MultiplyAttack(data.valueA);
-                    break;
-                case "alloy_echo":
-                    if (triggerType == StickerTriggerType.OnBlockHit && game.RoundController.GetBlockHitCount(card.id) >= 3)
-                    {
-                        game.RoundController.AddAttack(ScaleInt(data.valueA, multiplier));
-                        game.RoundController.AddShield(ScaleInt(data.valueB, multiplier));
-                    }
-                    break;
-            }
+            handler.Execute(new StickerEffectContext(game, instance, card, triggerType, block, multiplier));
         }
 
-        static int ScaleInt(float value, float multiplier)
+        void RegisterDefaultHandlers()
         {
-            return Mathf.Max(0, Mathf.RoundToInt(value * multiplier));
+            Register("impact_core", context =>
+            {
+                if (context.TriggerType == StickerTriggerType.OnAttackBlockHit)
+                    context.Game.RoundController.AddAttack(context.ScaleInt(context.Data.valueA));
+            });
+            Register("echo_mark", context =>
+            {
+                if (context.TriggerType != StickerTriggerType.OnAttackBlockHit || context.Card == null)
+                    return;
+
+                if (context.Game.RoundController.ConsumeToken($"echo:{context.Card.id}", 1) > 0)
+                    context.Game.RoundController.AddAttack(context.ScaleInt(context.Data.valueA));
+                else
+                    context.Game.RoundController.AddToken($"echo:{context.Card.id}", 1);
+            });
+            Register("shatter_loop", context =>
+            {
+                if (context.TriggerType == StickerTriggerType.OnAttackBlockHit && context.Card != null && context.Game.RoundController.GetBlockHitCount(context.Card.id) >= 2)
+                {
+                    context.Game.RoundController.AddToken($"shatter:{context.Card.id}", 1);
+                    context.Game.RoundController.AddAttack(context.ScaleInt(context.Data.valueA));
+                }
+            });
+            Register("guard_furnace", context =>
+            {
+                if (context.TriggerType == StickerTriggerType.OnShieldBlockHit)
+                    context.Game.RoundController.AddShield(context.ScaleInt(context.Data.valueA));
+                else if (context.TriggerType == StickerTriggerType.OnRoundEnd)
+                    context.Game.RoundController.AddAttack(Mathf.RoundToInt(context.Game.RoundController.RoundShieldGain * context.Data.valueB * context.Multiplier));
+            });
+            Register("prism_guard", context =>
+            {
+                if (context.TriggerType == StickerTriggerType.OnRoundEnd && context.Game.RoundController.HasRoundTag("touched_multiplier"))
+                    context.Game.RoundController.AddAttack(Mathf.RoundToInt(context.Game.RoundController.RoundShieldGain * context.Data.valueA * context.Multiplier));
+            });
+            Register("mirror_plating", context =>
+            {
+                if (context.Card == null)
+                    return;
+
+                if (context.TriggerType == StickerTriggerType.OnShieldBlockHit)
+                    context.Game.RoundController.AddToken($"mirror:{context.Card.id}", Mathf.Max(1, Mathf.RoundToInt(context.Game.Player.CurrentShield * 0.5f)));
+                else if (context.TriggerType == StickerTriggerType.OnAttackBlockHit)
+                {
+                    var mirrorBonus = context.Game.RoundController.ConsumeToken($"mirror:{context.Card.id}", 99);
+                    if (mirrorBonus > 0)
+                        context.Game.RoundController.AddAttack(context.ScaleInt(mirrorBonus));
+                }
+            });
+            Register("amp_seed", context =>
+            {
+                if (context.TriggerType == StickerTriggerType.OnMultiplierBlockHit)
+                    context.Game.RoundController.AddToken("amp_charge", Mathf.RoundToInt(context.Data.valueA));
+            });
+            Register("amp_burst", context =>
+            {
+                if (context.TriggerType != StickerTriggerType.OnAttackBlockHit)
+                    return;
+
+                var consumed = context.Game.RoundController.ConsumeToken("amp_charge", 99);
+                if (consumed > 0)
+                    context.Game.RoundController.AddAttack(context.ScaleInt(consumed * context.Data.valueA));
+            });
+            Register("twin_resonance", context =>
+            {
+                if (context.TriggerType != StickerTriggerType.OnMultiplierBlockHit || context.Card == null)
+                    return;
+
+                var currentHash = context.Card.id.GetHashCode();
+                var lastHash = context.Game.RoundController.GetTokenCount("last_multiplier_card");
+                if (lastHash != 0 && lastHash != currentHash)
+                    context.Game.RoundController.MultiplyAttack(context.Data.valueA);
+                context.Game.RoundController.SetToken("last_multiplier_card", currentHash);
+            });
+            Register("chain_ledger", context =>
+            {
+                if (context.TriggerType == StickerTriggerType.OnRoundEnd && context.Game.RoundController.ChainLength > 0)
+                    context.Game.RoundController.AddAttack(context.ScaleInt(context.Game.RoundController.ChainLength * context.Data.valueA));
+            });
+            Register("ember_seed", context =>
+            {
+                if (context.TriggerType == StickerTriggerType.OnAttackBlockHit)
+                    context.Game.RoundController.AddToken("ember", 1);
+            });
+            Register("ember_catcher", context =>
+            {
+                if (context.TriggerType != StickerTriggerType.OnShieldBlockHit)
+                    return;
+
+                var embers = context.Game.RoundController.ConsumeToken("ember", 99);
+                if (embers > 0)
+                {
+                    context.Game.RoundController.AddShield(context.ScaleInt(embers * context.Data.valueA));
+                    context.Game.RoundController.AddAttack(context.ScaleInt(embers * context.Data.valueB));
+                }
+            });
+            Register("thorn_rack", context =>
+            {
+                if (context.TriggerType == StickerTriggerType.OnShieldBlockHit)
+                    context.Game.RoundController.AddEnemyCounterReduction(context.ScaleInt(context.Data.valueA));
+            });
+            Register("spark_tape", context =>
+            {
+                if (context.TriggerType == StickerTriggerType.OnMultiplierBlockHit)
+                {
+                    context.Game.RoundController.AddToken("spark", 1);
+                }
+                else if (context.TriggerType == StickerTriggerType.OnShieldBlockHit)
+                {
+                    var sparks = context.Game.RoundController.ConsumeToken("spark", 99);
+                    if (sparks > 0)
+                        context.Game.RoundController.AddShield(context.ScaleInt(sparks * context.Data.valueA));
+                }
+                else if (context.TriggerType == StickerTriggerType.OnAttackBlockHit)
+                {
+                    var sparks = context.Game.RoundController.ConsumeToken("spark", 99);
+                    if (sparks > 0)
+                        context.Game.RoundController.AddAttack(context.ScaleInt(sparks * context.Data.valueB));
+                }
+            });
+            Register("same_family_latch", context =>
+            {
+                if (context.TriggerType == StickerTriggerType.OnBlockHit &&
+                    context.Card != null &&
+                    context.Game.RoundController.RegisterOncePerRound($"same_family:{context.Card.id}") &&
+                    context.Game.BoardManager.GetInstalledFamilyCount(context.Card, context.Data.family) >= 2)
+                {
+                    context.Game.RoundController.AddAttack(context.ScaleInt(context.Data.valueA));
+                }
+            });
+            Register("breaker_note", context =>
+            {
+                if (context.TriggerType == StickerTriggerType.OnAttackBlockHit && context.Game.RoundController.HasRoundTag("touched_multiplier"))
+                    context.Game.RoundController.AddAttack(context.ScaleInt(context.Data.valueA));
+            });
+            Register("glass_ledger", context =>
+            {
+                if (context.TriggerType == StickerTriggerType.OnRoundEnd && context.Game.RoundController.UniqueFamilyCount > 0)
+                    context.Game.RoundController.AddAttack(context.ScaleInt(context.Game.RoundController.UniqueFamilyCount * context.Data.valueA));
+            });
+            Register("frost_trace", context =>
+            {
+                if (context.TriggerType == StickerTriggerType.OnShieldBlockHit)
+                    context.Game.RoundController.AddToken("frost_trace", 1);
+                else if (context.TriggerType == StickerTriggerType.OnMultiplierBlockHit && context.Game.RoundController.ConsumeToken("frost_trace", 1) > 0)
+                    context.Game.RoundController.MultiplyAttack(context.Data.valueA);
+            });
+            Register("alloy_echo", context =>
+            {
+                if (context.TriggerType == StickerTriggerType.OnBlockHit && context.Card != null && context.Game.RoundController.GetBlockHitCount(context.Card.id) >= 3)
+                {
+                    context.Game.RoundController.AddAttack(context.ScaleInt(context.Data.valueA));
+                    context.Game.RoundController.AddShield(context.ScaleInt(context.Data.valueB));
+                }
+            });
+        }
+
+        void Register(string effectId, Action<StickerEffectContext> execute)
+        {
+            RegisterHandler(new DelegateStickerEffectHandler(effectId, execute));
         }
     }
 }

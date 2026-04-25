@@ -140,6 +140,7 @@ namespace POPHero
                 battleWeight = Mathf.Max(0, source.battleWeight),
                 shopWeight = Mathf.Max(0, source.shopWeight),
                 workbenchWeight = Mathf.Max(0, source.workbenchWeight),
+                restWeight = Mathf.Max(0, source.restWeight),
                 eventWeight = Mathf.Max(0, source.eventWeight),
                 bossEnemyIndex = source.bossEnemyIndex
             };
@@ -212,8 +213,9 @@ namespace POPHero
             var battle = Mathf.Max(0, config.battleWeight);
             var shop = Mathf.Max(0, config.shopWeight);
             var workbench = Mathf.Max(0, config.workbenchWeight);
+            var rest = Mathf.Max(0, config.restWeight);
             var mapEvent = Mathf.Max(0, config.eventWeight);
-            var total = battle + shop + workbench + mapEvent;
+            var total = battle + shop + workbench + rest + mapEvent;
             if (total <= 0)
                 return MapNodeKind.Battle;
 
@@ -226,6 +228,9 @@ namespace POPHero
             roll -= shop;
             if (roll < workbench)
                 return MapNodeKind.Workbench;
+            roll -= workbench;
+            if (roll < rest)
+                return MapNodeKind.Rest;
 
             return MapNodeKind.Event;
         }
@@ -245,27 +250,50 @@ namespace POPHero
         void BuildCurrentEventChoices()
         {
             currentEventChoices.Clear();
-            currentEventChoices.Add(new MapEventChoiceState
+            currentEventChoices.AddRange(CreateDefaultEventChoices());
+        }
+
+        public static List<MapEventChoiceState> CreateDefaultEventChoices()
+        {
+            return new List<MapEventChoiceState>
             {
-                index = 0,
-                title = "旧货箱",
-                description = "打开路边补给箱，获得 12 金币。",
-                buttonText = "拿走金币"
-            });
-            currentEventChoices.Add(new MapEventChoiceState
-            {
-                index = 1,
-                title = "危险训练",
-                description = "受到 10 点伤害，随机解锁 1 个方块槽位。",
-                buttonText = "接受训练"
-            });
-            currentEventChoices.Add(new MapEventChoiceState
-            {
-                index = 2,
-                title = "临时工坊",
-                description = "进入一次免费方块操作，可以删除或替换方块。",
-                buttonText = "进入工坊"
-            });
+                new()
+                {
+                    index = 0,
+                    actionType = MapEventActionType.GainGold,
+                    title = "旧货箱",
+                    description = "打开路边补给箱，获得 12 金币。",
+                    buttonText = "拿走金币",
+                    intValue = 12
+                },
+                new()
+                {
+                    index = 1,
+                    actionType = MapEventActionType.TakeDamageUnlockSocket,
+                    title = "危险训练",
+                    description = "受到 10 点伤害，随机解锁 1 个方块槽位。",
+                    buttonText = "接受训练",
+                    intValue = 10
+                },
+                new()
+                {
+                    index = 2,
+                    actionType = MapEventActionType.OpenWorkbench,
+                    title = "临时工坊",
+                    description = "进入一次免费方块操作，可以删除或替换方块。",
+                    buttonText = "进入工坊",
+                    profileId = "map_workbench"
+                },
+                new()
+                {
+                    index = 3,
+                    actionType = MapEventActionType.Heal,
+                    title = "临时营火",
+                    description = "恢复 30% 最大生命，不会超过生命上限。",
+                    buttonText = "休息回血",
+                    healPercent = MapHealingRules.DefaultHealPercent
+                }
+            };
         }
 
         public static string GetNodeKindName(MapNodeKind kind)
@@ -275,6 +303,7 @@ namespace POPHero
                 MapNodeKind.Battle => "战斗",
                 MapNodeKind.Shop => "商店",
                 MapNodeKind.Workbench => "工坊",
+                MapNodeKind.Rest => "休息",
                 MapNodeKind.Event => "事件",
                 MapNodeKind.Boss => "Boss",
                 _ => "节点"

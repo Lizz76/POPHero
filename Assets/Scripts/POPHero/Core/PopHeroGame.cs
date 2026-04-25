@@ -154,9 +154,13 @@ namespace POPHero
         IModService modService;
         IShopService shopService;
         IBlockOperationService blockOperationService;
+        GameRuntimeContext runtimeContext;
+        EncounterDirector encounterDirector;
+        HudCommandDispatcher hudCommandDispatcher;
         GamePhaseStateMachine phaseStateMachine;
         GameSessionController gameSessionController;
         BattleFlowController battleFlowController;
+        BattlePresentationController battlePresentationController;
         IntermissionFlowController intermissionFlowController;
         MapFlowController mapFlowController;
         readonly List<WallAimPoint> wallAimPoints = new();
@@ -167,7 +171,6 @@ namespace POPHero
         IntermissionActionKind pendingIntermissionAction;
         int pendingIntermissionIndex = -1;
         bool isBattlePresentationPlaying;
-        Coroutine battlePresentationRoutine;
         Vector3 playerIdlePosition;
         Vector3 enemyMeleeAnchor;
         Vector3 enemyAttackImpactPosition;
@@ -182,6 +185,12 @@ namespace POPHero
         int suppressAimInputReleaseFrame = int.MaxValue;
         Vector2 initialLaunchPoint;
         bool loadoutReturnsToMap;
+        bool debugBattleReturnActive;
+        bool debugShopReturnActive;
+        bool debugBlockOperationsReturnActive;
+        RoundState debugBattleReturnState = RoundState.Map;
+        RoundState debugShopReturnState = RoundState.Map;
+        RoundState debugBlockOperationsReturnState = RoundState.Map;
 
         void Awake()
         {
@@ -211,9 +220,11 @@ namespace POPHero
             StartPrototype();
         }
 
+        bool IsBattlePresentationPlaying => battlePresentationController?.IsPlaying ?? isBattlePresentationPlaying;
+
         public bool CanSimulate()
         {
-            return !IsSettingsOpen && !suppressAimInputAfterUi && State != RoundState.GameOver && !isBattlePresentationPlaying;
+            return !IsSettingsOpen && !suppressAimInputAfterUi && State != RoundState.GameOver && !IsBattlePresentationPlaying;
         }
 
         public bool IsLaunchPointerAllowed(Vector2 screenPosition, int pointerId = -1)
@@ -416,9 +427,14 @@ namespace POPHero
             modService = new ModServiceFacade(modManager);
             shopService = new ShopServiceFacade(shopManager);
             blockOperationService = blockOperationManager;
+            runtimeContext = new GameRuntimeContext();
+            UpdateRuntimeContext();
+            encounterDirector = new EncounterDirector(runtimeContext);
+            hudCommandDispatcher = new HudCommandDispatcher(this);
             ConfigurePhaseStateMachine();
             gameSessionController = new GameSessionController(this);
             battleFlowController = new BattleFlowController(this);
+            battlePresentationController = new BattlePresentationController(this, PlayResolvePresentation, ClearAttackForegroundSorting);
             intermissionFlowController = new IntermissionFlowController(this);
             mapFlowController = new MapFlowController(this);
 
@@ -455,6 +471,23 @@ namespace POPHero
             return null;
         }
 
+        void UpdateRuntimeContext()
+        {
+            runtimeContext ??= new GameRuntimeContext();
+            runtimeContext.Config = config;
+            runtimeContext.Tables = Tables;
+            runtimeContext.Player = Player;
+            runtimeContext.Board = boardManager;
+            runtimeContext.Round = roundController;
+            runtimeContext.StickerCatalog = stickerCatalog;
+            runtimeContext.StickerInventory = stickerInventory;
+            runtimeContext.StickerEffectRunner = stickerEffectRunner;
+            runtimeContext.RewardChoices = rewardChoiceController;
+            runtimeContext.Mods = modManager;
+            runtimeContext.Shop = shopManager;
+            runtimeContext.CombatEvents = combatEventHub;
+        }
+
         void Update()
         {
             UpdateRunTimer();
@@ -482,11 +515,13 @@ namespace POPHero
         internal void StartPrototypeCore()
         {
             Player = new PlayerData(config.player.maxHp, config.player.currentHp, config.player.startShield, config.player.startGold);
+            UpdateRuntimeContext();
             Player.IncreaseInventoryCapacity(config.stickers.baseInventoryCapacity - Player.StickerInventoryCapacity);
             roundController.Initialize(this, initialLaunchPoint);
             boardManager.ResetBlockProgression();
             ballController.PlaceAt(CurrentLaunchPoint);
             enemyEncounterIndex = 0;
+            encounterDirector?.Reset();
             CurrentEnemyGroup = null;
             CurrentEnemy = null;
             CurrentEnemyEncounter = null;
@@ -496,6 +531,7 @@ namespace POPHero
             IntermissionMessage = string.Empty;
             runElapsedSeconds = 0f;
             loadoutReturnsToMap = false;
+            ClearDebugReturnState();
             ClearPendingIntermissionAction();
             blockOperationManager?.Close();
             runMapManager?.GenerateNewMap();
@@ -909,12 +945,8 @@ namespace POPHero
             ApplyEnemySnapshots(result, true);
             playerPresenter?.SetHpSnapshot(result.playerDisplayHpBeforeCounter, playerMaxHp);
             RefreshLaunchGeometry();
-            if (battlePresentationRoutine != null)
-            {
-                StopCoroutine(battlePresentationRoutine);
-                ClearAttackForegroundSorting();
-            }
-            battlePresentationRoutine = StartCoroutine(PlayResolvePresentation(result));
+            battlePresentationController ??= new BattlePresentationController(this, PlayResolvePresentation, ClearAttackForegroundSorting);
+            battlePresentationController.Play(result);
         }
 
         void HandleEnemyDefeated()
@@ -924,30 +956,19 @@ namespace POPHero
 
         internal void HandleEnemyDefeatedCore()
         {
-            var totalRewardGold = 0;
-            var defeatedEnemyCount = 0;
-            if (CurrentEnemyGroup != null)
-            {
-                var encounters = CurrentEnemyGroup.Encounters;
-                for (var index = 0; index < encounters.Count; index++)
-                {
-                    var encounter = encounters[index];
-                    if (encounter?.Enemy == null)
-                        continue;
+            var clearRewards = encounterDirector != null
+                ? encounterDirector.BuildClearRewardSummary()
+                : new EncounterClearRewardSummary(0, 0, 0);
+            var defeatedBoss = !debugBattleReturnActive && runMapManager?.CurrentNode?.kind == MapNodeKind.Boss;
 
-                    totalRewardGold += encounter.Enemy.RewardGold;
-                    defeatedEnemyCount += 1;
-                }
-            }
+            if (clearRewards.RewardGold > 0)
+                Player.AddGold(Mathf.RoundToInt(clearRewards.RewardGold * modManager.GetRewardGoldMultiplier()));
 
-            if (totalRewardGold > 0)
-            {
-                Player.AddGold(Mathf.RoundToInt(totalRewardGold * modManager.GetRewardGoldMultiplier()));
-                Player.RestoreToFullHealth();
-            }
+            if (defeatedBoss)
+                MapHealingRules.ApplyHeal(Player);
 
             playerPresenter?.Refresh(Player);
-            for (var killIndex = 0; killIndex < defeatedEnemyCount; killIndex++)
+            for (var killIndex = 0; killIndex < clearRewards.DefeatedEnemyCount; killIndex++)
                 Player.RegisterKillAndTryLevelUp();
 
             BeginBlockRewardDraft(false);
@@ -1042,6 +1063,9 @@ namespace POPHero
                 case MapNodeKind.Workbench:
                     OpenBlockOperations("map_workbench", RoundState.Map);
                     break;
+                case MapNodeKind.Rest:
+                    CompleteCurrentMapNodeAndReturnCore(ApplyMapHeal(MapHealingRules.DefaultHealPercent, "休息点"));
+                    break;
                 case MapNodeKind.Event:
                     ChangeState(RoundState.MapEvent);
                     break;
@@ -1058,25 +1082,46 @@ namespace POPHero
             if (State != RoundState.MapEvent || runMapManager?.CurrentNode == null)
                 return;
 
-            switch (index)
+            if (!TryFindCurrentMapEventChoice(index, out var choice))
             {
-                case 0:
-                    Player.AddGold(12);
-                    IntermissionMessage = "旧货箱里有 12 金币。";
-                    CompleteCurrentMapNodeAndReturnCore();
+                IntermissionMessage = "无效的事件选项。";
+                return;
+            }
+
+            ExecuteMapEventChoice(choice, true);
+        }
+
+        void ExecuteMapEventChoice(MapEventChoiceState choice, bool completeCurrentMapNode)
+        {
+            if (choice == null)
+            {
+                IntermissionMessage = "无效的事件选项。";
+                return;
+            }
+
+            switch (choice.actionType)
+            {
+                case MapEventActionType.GainGold:
+                    var gold = Mathf.Max(0, choice.intValue);
+                    Player.AddGold(gold);
+                    playerPresenter?.Refresh(Player);
+                    FinishMapEventChoice(gold > 0 ? $"旧货箱里有 {gold} 金币。" : "旧货箱里什么也没有。", completeCurrentMapNode);
                     break;
-                case 1:
-                    Player.ApplyDamage(10);
+                case MapEventActionType.TakeDamageUnlockSocket:
+                    var damage = Mathf.Max(0, choice.intValue);
+                    Player.ApplyDamage(damage);
                     boardManager.UnlockRandomSocket();
                     playerPresenter?.Refresh(Player);
-                    IntermissionMessage = "训练留下伤口，但一个方块槽位被打开了。";
                     if (Player.IsDead)
                         TriggerGameOver("训练过度，生命归零，本局结束。");
                     else
-                        CompleteCurrentMapNodeAndReturnCore();
+                        FinishMapEventChoice($"训练造成 {damage} 点伤害，但一个方块槽位被打开了。", completeCurrentMapNode);
                     break;
-                case 2:
-                    OpenBlockOperations("map_workbench", RoundState.Map);
+                case MapEventActionType.OpenWorkbench:
+                    OpenMapEventWorkbench(choice, completeCurrentMapNode);
+                    break;
+                case MapEventActionType.Heal:
+                    FinishMapEventChoice(ApplyMapHeal(choice.healPercent, choice.title), completeCurrentMapNode);
                     break;
                 default:
                     IntermissionMessage = "无效的事件选项。";
@@ -1084,7 +1129,62 @@ namespace POPHero
             }
         }
 
-        internal void CompleteCurrentMapNodeAndReturnCore()
+        void FinishMapEventChoice(string message, bool completeCurrentMapNode)
+        {
+            if (completeCurrentMapNode)
+            {
+                CompleteCurrentMapNodeAndReturnCore(message);
+                return;
+            }
+
+            IntermissionMessage = string.IsNullOrWhiteSpace(message) ? "GM 调试事件已执行。" : $"GM 调试：{message}";
+        }
+
+        void OpenMapEventWorkbench(MapEventChoiceState choice, bool completeCurrentMapNode)
+        {
+            var profileId = string.IsNullOrWhiteSpace(choice.profileId) ? "map_workbench" : choice.profileId;
+            if (completeCurrentMapNode)
+            {
+                OpenBlockOperations(profileId, RoundState.Map);
+                return;
+            }
+
+            OpenDebugBlockOperations(profileId, "临时工坊");
+        }
+
+        bool TryFindCurrentMapEventChoice(int index, out MapEventChoiceState choice)
+        {
+            choice = null;
+            var choices = runMapManager?.CurrentEventChoices;
+            if (choices == null)
+                return false;
+
+            for (var choiceIndex = 0; choiceIndex < choices.Count; choiceIndex++)
+            {
+                if (choices[choiceIndex].index == index)
+                {
+                    choice = choices[choiceIndex];
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        string ApplyMapHeal(float healPercent, string sourceName)
+        {
+            var label = string.IsNullOrWhiteSpace(sourceName) ? "治疗" : sourceName;
+            var healed = MapHealingRules.ApplyHeal(Player, healPercent);
+            playerPresenter?.Refresh(Player);
+
+            if (Player == null || Player.IsDead)
+                return $"{label}无法治疗已经倒下的玩家。";
+            return healed > 0
+                ? $"{label}恢复了 {healed} 点生命。"
+                : $"{label}没有恢复生命，当前生命已满。";
+        }
+
+        internal void CompleteCurrentMapNodeAndReturnCore(string overrideFeedback = null)
         {
             if (runMapManager == null)
                 return;
@@ -1096,7 +1196,9 @@ namespace POPHero
                 return;
             }
 
-            IntermissionMessage = runMapManager.LastFeedback;
+            IntermissionMessage = string.IsNullOrWhiteSpace(overrideFeedback)
+                ? runMapManager.LastFeedback
+                : overrideFeedback;
             if (completedBoss)
             {
                 TriggerGameOver("路线完成，Boss 已被击败。");
@@ -1104,8 +1206,12 @@ namespace POPHero
             }
 
             enemyController?.gameObject.SetActive(false);
+            supportEnemyController?.gameObject.SetActive(false);
+            encounterDirector?.Reset();
+            CurrentEnemyGroup = null;
             CurrentEnemy = null;
             CurrentEnemyEncounter = null;
+            currentEnemyEncounters.Clear();
             RemainingLaunchesForEnemy = 0;
             ballController?.StopImmediately();
             ChangeState(RoundState.Map);
@@ -1113,53 +1219,15 @@ namespace POPHero
 
         void SpawnEnemy(int index)
         {
-            CurrentEnemyGroup = BuildEnemyEncounterGroupForIndex(index);
+            UpdateRuntimeContext();
+            CurrentEnemyGroup = encounterDirector != null
+                ? encounterDirector.SpawnEncounter(index)
+                : null;
             RefreshEnemyTargetSelection();
             RemainingLaunchesForEnemy = MaxLaunchesPerEnemy;
             RefreshLaunchCounter();
             RefreshEnemyPresenters();
             ResetBattleActorPositions();
-        }
-
-        EnemyEncounterGroupState BuildEnemyEncounterGroupForIndex(int index)
-        {
-            var templates = config.enemies.templates;
-            var clampedIndex = Mathf.Clamp(index, 0, Mathf.Max(0, templates.Count - 1));
-            var template = templates[clampedIndex];
-            var overflow = Mathf.Max(0, index - (templates.Count - 1));
-            var primaryEncounter = BuildEncounterFromTemplate(template, overflow, EnemyEncounterSlot.Primary);
-            var supportEncounter = index >= 1 ? BuildFlyingSupportEncounter(overflow) : null;
-            return new EnemyEncounterGroupState(primaryEncounter, supportEncounter);
-        }
-
-        EnemyEncounterState BuildEncounterFromTemplate(EnemyTemplate template, int overflow, EnemyEncounterSlot slot)
-        {
-            if (template == null)
-                return null;
-
-            var hp = template.maxHp + overflow * config.enemies.endlessHpGrowth;
-            var rewardGold = template.rewardGold + overflow * config.enemies.endlessGoldGrowth;
-            var rewardHeal = template.rewardHeal + overflow * config.enemies.endlessHealGrowth;
-            var attackDamage = template.attackDamage + overflow * config.enemies.endlessAttackGrowth;
-            var baseName = string.IsNullOrWhiteSpace(template.displayName) ? "敌人" : template.displayName;
-            var name = overflow > 0 ? $"{baseName}+{overflow}" : baseName;
-            var initialDistanceSteps = template.behaviorType == EnemyBehaviorType.MeleeAdvance && template.initialDistanceStepsOverride >= 0
-                ? template.initialDistanceStepsOverride
-                : config.enemies.defaultInitialDistanceSteps;
-            if (template.behaviorType == EnemyBehaviorType.FlyingRangedOrigin)
-                initialDistanceSteps = 0;
-
-            var enemy = new EnemyData(name, hp, rewardGold, rewardHeal, attackDamage, template.color, template.behaviorType);
-            return new EnemyEncounterState(enemy, initialDistanceSteps, slot);
-        }
-
-        EnemyEncounterState BuildFlyingSupportEncounter(int overflow)
-        {
-            var template = config.enemies.flyingSupportTemplate;
-            if (template == null || template.behaviorType != EnemyBehaviorType.FlyingRangedOrigin)
-                return null;
-
-            return BuildEncounterFromTemplate(template, overflow, EnemyEncounterSlot.Support);
         }
 
         internal void RefreshEnemyTargetSelection()
@@ -1168,15 +1236,17 @@ namespace POPHero
             CurrentEnemyEncounter = null;
             CurrentEnemy = null;
 
-            if (CurrentEnemyGroup == null)
+            if (encounterDirector == null)
                 return;
 
-            var aliveEncounters = CurrentEnemyGroup.GetAliveEnemiesInTargetOrder();
+            encounterDirector.RefreshTargetSelection();
+            CurrentEnemyGroup = encounterDirector.CurrentEnemyGroup;
+            var aliveEncounters = encounterDirector.CurrentEnemyEncounters;
             for (var index = 0; index < aliveEncounters.Count; index++)
                 currentEnemyEncounters.Add(aliveEncounters[index]);
 
-            CurrentEnemyEncounter = currentEnemyEncounters.Count > 0 ? currentEnemyEncounters[0] : null;
-            CurrentEnemy = CurrentEnemyEncounter?.Enemy;
+            CurrentEnemyEncounter = encounterDirector.CurrentEnemyEncounter;
+            CurrentEnemy = encounterDirector.CurrentEnemy;
         }
 
         void RefreshEnemyPresenters()
@@ -1423,6 +1493,15 @@ namespace POPHero
             var returnState = blockOperationManager.Session.returnState;
             IntermissionMessage = blockOperationManager.Session.lastFeedback;
             blockOperationManager.Close();
+            if (debugBlockOperationsReturnActive)
+            {
+                var debugReturnState = debugBlockOperationsReturnState;
+                debugBlockOperationsReturnActive = false;
+                debugBlockOperationsReturnState = RoundState.Map;
+                ChangeState(debugReturnState);
+                return;
+            }
+
             if (returnState == RoundState.Map)
             {
                 CompleteCurrentMapNodeAndReturnCore();
@@ -1486,6 +1565,16 @@ namespace POPHero
                 return;
 
             shopManager.CloseShop();
+            if (debugShopReturnActive)
+            {
+                var debugReturnState = debugShopReturnState;
+                debugShopReturnActive = false;
+                debugShopReturnState = RoundState.Map;
+                IntermissionMessage = "GM 调试商店已关闭。";
+                ChangeState(debugReturnState);
+                return;
+            }
+
             loadoutReturnsToMap = runMapManager?.CurrentNode?.kind == MapNodeKind.Shop;
             ChangeState(RoundState.LoadoutManage);
         }
@@ -1671,103 +1760,8 @@ namespace POPHero
 
         public void ExecuteHudCommand(HudCommand command)
         {
-            switch (command.Type)
-            {
-                case HudCommandType.OpenSettings:
-                    OpenSettings();
-                    break;
-                case HudCommandType.CloseSettings:
-                    CloseSettings();
-                    break;
-                case HudCommandType.BackToMenu:
-                    BackToMenu();
-                    break;
-                case HudCommandType.QuitGame:
-                    QuitGame();
-                    break;
-                case HudCommandType.ToggleAimMode:
-                    ToggleAimMode();
-                    break;
-                case HudCommandType.DebugShuffleBoard:
-                    DebugShuffleBoard();
-                    break;
-                case HudCommandType.DebugAddGold:
-                    DebugAddGold(command.IntValue);
-                    break;
-                case HudCommandType.DebugKillEnemy:
-                    DebugKillEnemy();
-                    break;
-                case HudCommandType.DebugDamagePlayer:
-                    DebugDamagePlayer(command.IntValue);
-                    break;
-                case HudCommandType.TrySelectBlockReward:
-                    TrySelectBlockReward(command.IntValue);
-                    break;
-                case HudCommandType.SkipBlockReward:
-                    SkipBlockReward();
-                    break;
-                case HudCommandType.TrySelectReward:
-                    TrySelectReward(command.IntValue);
-                    break;
-                case HudCommandType.TryRerollRewardChoices:
-                    TryRerollRewardChoices();
-                    break;
-                case HudCommandType.SkipRewardChoices:
-                    SkipRewardChoices();
-                    break;
-                case HudCommandType.TryBuyShopItem:
-                    TryBuyShopItem(command.IntValue);
-                    break;
-                case HudCommandType.TryRerollShop:
-                    TryRerollShop();
-                    break;
-                case HudCommandType.OpenBlockOperations:
-                    var returnState = State;
-                    if (!string.IsNullOrWhiteSpace(command.SecondaryId) &&
-                        Enum.TryParse(command.SecondaryId, true, out RoundState parsedReturnState))
-                        returnState = parsedReturnState;
-                    OpenBlockOperations(command.PrimaryId, returnState);
-                    break;
-                case HudCommandType.CloseBlockOperations:
-                    CloseBlockOperations();
-                    break;
-                case HudCommandType.CloseShop:
-                    CloseShop();
-                    break;
-                case HudCommandType.FinishLoadout:
-                    FinishLoadout();
-                    break;
-                case HudCommandType.BeginStickerDrag:
-                    BeginStickerDrag(command.PrimaryId);
-                    break;
-                case HudCommandType.CancelStickerDrag:
-                    CancelStickerDrag();
-                    break;
-                case HudCommandType.ToggleModActivation:
-                    ToggleModActivation(command.PrimaryId);
-                    break;
-                case HudCommandType.TryRemoveBlock:
-                    TryRemoveBlock(command.PrimaryId);
-                    break;
-                case HudCommandType.TrySwapActiveReserve:
-                    TrySwapActiveReserve(command.PrimaryId, command.SecondaryId);
-                    break;
-                case HudCommandType.TryInstallDraggedSticker:
-                    if (TryInstallDraggedSticker(command.PrimaryId, command.IntValue, out var failReason))
-                        SetIntermissionMessage("Sticker installed.");
-                    else
-                        SetIntermissionMessage(failReason);
-                    break;
-                case HudCommandType.RemoveStickerFromCard:
-                    RemoveStickerFromCard(command.PrimaryId, command.IntValue);
-                    break;
-                case HudCommandType.SelectMapNode:
-                    SelectMapNode(command.PrimaryId);
-                    break;
-                case HudCommandType.ChooseMapEventOption:
-                    ChooseMapEventOption(command.IntValue);
-                    break;
-            }
+            hudCommandDispatcher ??= new HudCommandDispatcher(this);
+            hudCommandDispatcher.Execute(command);
         }
 
         public void DebugKillEnemy()
@@ -1799,18 +1793,190 @@ namespace POPHero
             playerPresenter?.Refresh(Player);
             playerPresenter?.PlayHitFeedback(amount >= 18);
             if (Player.IsDead)
-            TriggerGameOver("生命归零，本局结束。");
+                TriggerGameOver("生命归零，本局结束。");
+        }
+
+        public void DebugTriggerMapNode(string kindKey)
+        {
+            if (!CanRunGmEventDebugTrigger())
+                return;
+
+            if (!Enum.TryParse(kindKey, true, out MapNodeKind kind))
+            {
+                IntermissionMessage = "GM 调试：未知地图节点。";
+                canvasHud?.RefreshNow();
+                return;
+            }
+
+            switch (kind)
+            {
+                case MapNodeKind.Battle:
+                    StartDebugEncounter(Mathf.Max(0, enemyEncounterIndex), "普通战斗");
+                    break;
+                case MapNodeKind.Boss:
+                    StartDebugEncounter(ResolveDebugBossEnemyIndex(), "Boss 战");
+                    break;
+                case MapNodeKind.Shop:
+                    OpenDebugShop();
+                    break;
+                case MapNodeKind.Workbench:
+                    OpenDebugBlockOperations("map_workbench", "工坊");
+                    break;
+                case MapNodeKind.Rest:
+                    IntermissionMessage = $"GM 调试：{ApplyMapHeal(MapHealingRules.DefaultHealPercent, "休息点")}";
+                    break;
+                case MapNodeKind.Event:
+                    IntermissionMessage = "GM 调试：事件节点请直接点击下方路线事件选项。";
+                    break;
+            }
+
+            canvasHud?.RefreshNow();
+        }
+
+        public void DebugTriggerMapEventChoice(string actionKey)
+        {
+            if (!CanRunGmEventDebugTrigger())
+                return;
+
+            if (!Enum.TryParse(actionKey, true, out MapEventActionType actionType))
+            {
+                IntermissionMessage = "GM 调试：未知路线事件。";
+                canvasHud?.RefreshNow();
+                return;
+            }
+
+            var choices = RunMapManager.CreateDefaultEventChoices();
+            for (var index = 0; index < choices.Count; index++)
+            {
+                if (choices[index].actionType != actionType)
+                    continue;
+
+                ExecuteMapEventChoice(choices[index], false);
+                canvasHud?.RefreshNow();
+                return;
+            }
+
+            IntermissionMessage = "GM 调试：没有找到对应路线事件。";
+            canvasHud?.RefreshNow();
+        }
+
+        void StartDebugEncounter(int encounterIndex, string label)
+        {
+            ClearPendingIntermissionAction();
+            ClearDebugReturnState();
+            if (shopManager.InShop)
+                shopManager.CloseShop();
+            if (blockOperationManager.IsOpen)
+                blockOperationManager.Close();
+
+            debugBattleReturnActive = true;
+            debugBattleReturnState = RoundState.Map;
+            enemyEncounterIndex = Mathf.Max(0, encounterIndex);
+            SpawnEnemy(enemyEncounterIndex);
+            PrepareNextRound();
+            IntermissionMessage = $"GM 调试：已启动{label}。";
+        }
+
+        bool CanRunGmEventDebugTrigger()
+        {
+            if (State == RoundState.GameOver)
+                return false;
+
+            if (State == RoundState.BallFlying || State == RoundState.RoundResolve || IsBattlePresentationPlaying)
+            {
+                IntermissionMessage = "GM 调试：当前正在飞行或结算，稍后再触发事件。";
+                canvasHud?.RefreshNow();
+                return false;
+            }
+
+            return true;
+        }
+
+        void OpenDebugShop()
+        {
+            if (State == RoundState.Shop)
+            {
+                IntermissionMessage = "GM 调试：商店已经打开。";
+                return;
+            }
+
+            debugShopReturnState = GetSafeDebugReturnState();
+            debugShopReturnActive = true;
+            EnterShop();
+            IntermissionMessage = "GM 调试：已打开商店。关闭后回到调试前状态。";
+        }
+
+        void OpenDebugBlockOperations(string profileId, string label)
+        {
+            if (State == RoundState.BlockOperations)
+            {
+                IntermissionMessage = "GM 调试：工坊已经打开。";
+                return;
+            }
+
+            debugBlockOperationsReturnState = GetSafeDebugReturnState();
+            debugBlockOperationsReturnActive = true;
+            OpenBlockOperations(profileId, debugBlockOperationsReturnState);
+            if (State == RoundState.BlockOperations)
+                IntermissionMessage = $"GM 调试：已打开{label}。关闭后回到调试前状态。";
+        }
+
+        int ResolveDebugBossEnemyIndex()
+        {
+            var mapConfig = Tables?.GetRunMapConfig();
+            var templateCount = Mathf.Max(1, config?.enemies?.templates?.Count ?? 1);
+            if (mapConfig != null && mapConfig.bossEnemyIndex >= 0)
+                return Mathf.Clamp(mapConfig.bossEnemyIndex, 0, templateCount - 1);
+
+            return templateCount - 1;
+        }
+
+        RoundState GetSafeDebugReturnState()
+        {
+            return State switch
+            {
+                RoundState.GameOver => RoundState.Map,
+                RoundState.BallFlying => RoundState.Aim,
+                RoundState.RoundResolve => RoundState.Aim,
+                _ => State
+            };
+        }
+
+        void CompleteDebugBattleAndReturnCore()
+        {
+            debugBattleReturnActive = false;
+            boardManager.ClearRewardOptions();
+            enemyController?.gameObject.SetActive(false);
+            supportEnemyController?.gameObject.SetActive(false);
+            encounterDirector?.Reset();
+            CurrentEnemyGroup = null;
+            CurrentEnemy = null;
+            CurrentEnemyEncounter = null;
+            currentEnemyEncounters.Clear();
+            RemainingLaunchesForEnemy = 0;
+            ballController?.StopImmediately();
+            RefreshLaunchCounter();
+            IntermissionMessage = "GM 调试战斗结束，已返回地图。";
+            ChangeState(debugBattleReturnState);
+            debugBattleReturnState = RoundState.Map;
+        }
+
+        void ClearDebugReturnState()
+        {
+            debugBattleReturnActive = false;
+            debugShopReturnActive = false;
+            debugBlockOperationsReturnActive = false;
+            debugBattleReturnState = RoundState.Map;
+            debugShopReturnState = RoundState.Map;
+            debugBlockOperationsReturnState = RoundState.Map;
         }
 
         public void TriggerGameOver(string reason = null)
         {
             GameOverMessage = string.IsNullOrWhiteSpace(reason) ? "本局结束。" : reason;
             ClearPendingIntermissionAction();
-            if (battlePresentationRoutine != null)
-            {
-                StopCoroutine(battlePresentationRoutine);
-                battlePresentationRoutine = null;
-            }
+            ClearDebugReturnState();
+            battlePresentationController?.Stop();
             isBattlePresentationPlaying = false;
             ClearAttackForegroundSorting();
             ChangeState(RoundState.GameOver);
@@ -1912,7 +2078,7 @@ namespace POPHero
             ApplyEnemySnapshots(result, false);
 
             isBattlePresentationPlaying = false;
-            battlePresentationRoutine = null;
+            battlePresentationController?.MarkCompleted();
             CompleteResolvePresentation(result);
         }
 
@@ -2241,6 +2407,12 @@ namespace POPHero
                     ExecuteCloseShop();
                     break;
                 case IntermissionActionKind.CompleteMapNode:
+                    if (debugBattleReturnActive)
+                    {
+                        CompleteDebugBattleAndReturnCore();
+                        break;
+                    }
+
                     CompleteCurrentMapNodeAndReturnCore();
                     break;
                 case IntermissionActionKind.FinishLoadout:

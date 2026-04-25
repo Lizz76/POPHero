@@ -131,7 +131,7 @@ namespace POPHero
         void DrawCombatPanel()
         {
             var model = combatPanelPresenter.Build(game);
-            GUILayout.BeginArea(new Rect(16f, Screen.height - 220f, 780f, 204f), boxStyle);
+            GUILayout.BeginArea(new Rect(16f, Screen.height - 330f, 820f, 314f), boxStyle);
             GUILayout.Label("战斗与调试", titleStyle);
             GUILayout.Label(model.RoundAttackText, badgeStyle);
             GUILayout.Label(model.RoundShieldText, badgeStyle);
@@ -155,6 +155,32 @@ namespace POPHero
                 RunCommand(new HudCommand(HudCommandType.DebugKillEnemy));
             if (GUILayout.Button("玩家 -10 生命", buttonStyle, GUILayout.Width(130f)))
                 RunCommand(new HudCommand(HudCommandType.DebugDamagePlayer, 10));
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(6f);
+            GUILayout.Label("事件调试", badgeStyle);
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("普通战斗", buttonStyle, GUILayout.Width(110f)))
+                RunCommand(new HudCommand(HudCommandType.DebugTriggerMapNode, 0, MapNodeKind.Battle.ToString()));
+            if (GUILayout.Button("Boss 战", buttonStyle, GUILayout.Width(100f)))
+                RunCommand(new HudCommand(HudCommandType.DebugTriggerMapNode, 0, MapNodeKind.Boss.ToString()));
+            if (GUILayout.Button("商店", buttonStyle, GUILayout.Width(90f)))
+                RunCommand(new HudCommand(HudCommandType.DebugTriggerMapNode, 0, MapNodeKind.Shop.ToString()));
+            if (GUILayout.Button("工坊", buttonStyle, GUILayout.Width(90f)))
+                RunCommand(new HudCommand(HudCommandType.DebugTriggerMapNode, 0, MapNodeKind.Workbench.ToString()));
+            if (GUILayout.Button("休息回血", buttonStyle, GUILayout.Width(110f)))
+                RunCommand(new HudCommand(HudCommandType.DebugTriggerMapNode, 0, MapNodeKind.Rest.ToString()));
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("旧货箱", buttonStyle, GUILayout.Width(100f)))
+                RunCommand(new HudCommand(HudCommandType.DebugTriggerMapEventChoice, 0, MapEventActionType.GainGold.ToString()));
+            if (GUILayout.Button("危险训练", buttonStyle, GUILayout.Width(110f)))
+                RunCommand(new HudCommand(HudCommandType.DebugTriggerMapEventChoice, 0, MapEventActionType.TakeDamageUnlockSocket.ToString()));
+            if (GUILayout.Button("临时工坊", buttonStyle, GUILayout.Width(110f)))
+                RunCommand(new HudCommand(HudCommandType.DebugTriggerMapEventChoice, 0, MapEventActionType.OpenWorkbench.ToString()));
+            if (GUILayout.Button("临时营火", buttonStyle, GUILayout.Width(110f)))
+                RunCommand(new HudCommand(HudCommandType.DebugTriggerMapEventChoice, 0, MapEventActionType.Heal.ToString()));
             GUILayout.EndHorizontal();
             GUILayout.EndArea();
         }

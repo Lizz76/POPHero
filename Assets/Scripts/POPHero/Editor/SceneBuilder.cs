@@ -424,9 +424,9 @@ namespace POPHero.Editor
             if (canvasRoot == null)
                 return;
 
-            var deletePanel = canvasRoot.Find("ModalRoot/ShopModal/Window/Body/DeletePanel");
-            if (deletePanel != null)
-                deletePanel.gameObject.SetActive(false);
+            var modalRoot = canvasRoot.Find("ModalRoot") as RectTransform;
+            if (modalRoot != null && modalRoot.Find("BlockOperationsModal") == null)
+                BuildBlockOperationsModal(modalRoot);
 
             var footer = canvasRoot.Find("ModalRoot/ShopModal/Window/Footer") as RectTransform;
             if (footer == null || footer.Find("BlockOperationsButton") != null)
@@ -803,19 +803,72 @@ namespace POPHero.Editor
             var activeColumn = Panel("ActiveColumn", columns, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, 0f));
             ConfigureHorizontalChild(activeColumn, flexibleWidth: 1f);
             activeColumn.gameObject.AddComponent<Image>().color = new Color(0.14f, 0.17f, 0.22f, 0.75f);
+            ConfigureBlockOperationsColumn(activeColumn);
             Text("TitleText", activeColumn, 22, FontStyles.Bold, "涓婇樀鏂瑰潡", TextAlignmentOptions.Left);
             var activeScroll = ScrollArea("ScrollView", activeColumn);
-            activeScroll.GetComponent<VerticalLayoutGroup>().childControlHeight = true;
+            ConfigureBlockOperationsColumnTitle(activeColumn.Find("TitleText") as RectTransform);
+            ConfigureBlockOperationsScrollContent(activeScroll);
 
             var reserveColumn = Panel("ReserveColumn", columns, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, 0f));
             ConfigureHorizontalChild(reserveColumn, flexibleWidth: 1f);
             reserveColumn.gameObject.AddComponent<Image>().color = new Color(0.14f, 0.17f, 0.22f, 0.75f);
+            ConfigureBlockOperationsColumn(reserveColumn);
             Text("TitleText", reserveColumn, 22, FontStyles.Bold, "鑳屽寘鏂瑰潡", TextAlignmentOptions.Left);
             var reserveScroll = ScrollArea("ScrollView", reserveColumn);
-            reserveScroll.GetComponent<VerticalLayoutGroup>().childControlHeight = true;
+            ConfigureBlockOperationsColumnTitle(reserveColumn.Find("TitleText") as RectTransform);
+            ConfigureBlockOperationsScrollContent(reserveScroll);
 
             Footer(modal.window, ("CloseButton", "鍏抽棴"));
             modal.overlay.gameObject.SetActive(false);
+        }
+
+        static void ConfigureBlockOperationsColumn(RectTransform column)
+        {
+            var layout = AddVertical(column, 8, 12);
+            layout.childAlignment = TextAnchor.UpperLeft;
+            layout.childControlHeight = true;
+            layout.childControlWidth = true;
+            layout.childForceExpandHeight = false;
+            layout.childForceExpandWidth = true;
+        }
+
+        static void ConfigureBlockOperationsColumnTitle(RectTransform title)
+        {
+            if (title == null)
+                return;
+
+            var text = title.GetComponent<TMP_Text>();
+            if (text != null)
+            {
+                text.enableWordWrapping = false;
+                text.overflowMode = TextOverflowModes.Overflow;
+            }
+
+            var element = title.gameObject.AddComponent<LayoutElement>();
+            element.minHeight = 30f;
+            element.preferredHeight = 30f;
+            element.flexibleHeight = 0f;
+        }
+
+        static void ConfigureBlockOperationsScrollContent(RectTransform content)
+        {
+            var scroll = content.parent != null ? content.parent.parent as RectTransform : null;
+            var scrollElement = scroll != null ? scroll.GetComponent<LayoutElement>() : null;
+            if (scrollElement != null)
+            {
+                scrollElement.minHeight = 180f;
+                scrollElement.preferredHeight = 280f;
+                scrollElement.flexibleHeight = 1f;
+            }
+
+            var layout = content.GetComponent<VerticalLayoutGroup>();
+            if (layout != null)
+            {
+                layout.childControlHeight = true;
+                layout.childControlWidth = true;
+                layout.childForceExpandHeight = false;
+                layout.childForceExpandWidth = true;
+            }
         }
 
         static void BuildLoadoutModal(RectTransform modalRoot)

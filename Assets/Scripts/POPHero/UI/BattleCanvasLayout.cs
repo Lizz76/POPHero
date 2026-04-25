@@ -71,6 +71,7 @@ namespace POPHero
         RectTransform statusPanel;
         RectTransform combatPanel;
         RectTransform combatButtons;
+        RectTransform combatEventDebugScroll;
         RectTransform damagePanel;
         RectTransform blockPanel;
         RectTransform activeSection;
@@ -99,14 +100,6 @@ namespace POPHero
         RectTransform shopItemsPanel;
         RectTransform shopItemsScrollView;
         RectTransform shopItemsContent;
-        RectTransform shopDeletePanel;
-        RectTransform shopDeleteTitles;
-        RectTransform shopDeleteHint;
-        RectTransform shopDeleteColumns;
-        RectTransform shopDeleteActiveColumn;
-        RectTransform shopDeleteReserveColumn;
-        RectTransform shopDeleteActiveScroll;
-        RectTransform shopDeleteReserveScroll;
 
         RectTransform mapWindow;
         RectTransform mapHeader;
@@ -184,6 +177,7 @@ namespace POPHero
             statusPanel ??= FindRect("HudRoot/StatusPanel");
             combatPanel ??= FindRect("HudRoot/CombatPanel");
             combatButtons ??= FindRect("HudRoot/CombatPanel/Buttons");
+            combatEventDebugScroll ??= FindRect("HudRoot/CombatPanel/EventDebugScroll");
             damagePanel ??= FindRect("HudRoot/DamageCounterPanel");
             blockPanel ??= FindRect("HudRoot/BlockManagementPanel");
             activeSection ??= FindRect("HudRoot/BlockManagementPanel/ActiveSection");
@@ -212,18 +206,6 @@ namespace POPHero
             shopItemsPanel ??= FindRect("ModalRoot/ShopModal/Window/Body/ItemsPanel");
             shopItemsScrollView ??= FindRect("ModalRoot/ShopModal/Window/Body/ItemsPanel/ItemsScroll");
             shopItemsContent ??= FindRect("ModalRoot/ShopModal/Window/Body/ItemsPanel/ItemsScroll/Viewport/Content");
-            shopDeletePanel ??= FindRect("ModalRoot/ShopModal/Window/Body/DeletePanel");
-            shopDeleteTitles ??= FindRect("ModalRoot/ShopModal/Window/Body/DeletePanel/Titles");
-            shopDeleteHint ??= FindRect("ModalRoot/ShopModal/Window/Body/DeletePanel/HintText");
-            shopDeleteColumns ??= FindRect("ModalRoot/ShopModal/Window/Body/DeletePanel/Columns");
-            shopDeleteActiveColumn ??= FindRect("ModalRoot/ShopModal/Window/Body/DeletePanel/Columns/ActiveColumn");
-            shopDeleteReserveColumn ??= FindRect("ModalRoot/ShopModal/Window/Body/DeletePanel/Columns/ReserveColumn");
-            shopDeleteActiveScroll ??= FindRectAny(
-                "ModalRoot/ShopModal/Window/Body/DeletePanel/Columns/ActiveColumn/ActiveScroll",
-                "ModalRoot/ShopModal/Window/Body/DeletePanel/Columns/ActiveColumn/ActiveContent");
-            shopDeleteReserveScroll ??= FindRectAny(
-                "ModalRoot/ShopModal/Window/Body/DeletePanel/Columns/ReserveColumn/ReserveScroll",
-                "ModalRoot/ShopModal/Window/Body/DeletePanel/Columns/ReserveColumn/ReserveContent");
 
             mapWindow ??= FindRect("ModalRoot/MapModal/Window");
             mapHeader ??= FindRect("ModalRoot/MapModal/Window/Header");
@@ -377,6 +359,14 @@ namespace POPHero
                     grid.spacing = new Vector2(8f, 8f);
                 }
             }
+
+            if (combatEventDebugScroll != null)
+            {
+                var element = combatEventDebugScroll.GetComponent<LayoutElement>() ?? combatEventDebugScroll.gameObject.AddComponent<LayoutElement>();
+                element.minHeight = Mathf.Max(96f, preset.CombatHeight * 0.32f);
+                element.preferredHeight = Mathf.Max(126f, preset.CombatHeight * 0.42f);
+                element.flexibleHeight = 1f;
+            }
         }
 
         void ApplyDamagePanel(LayoutPreset preset)
@@ -467,18 +457,33 @@ namespace POPHero
             if (shopBody == null)
                 return;
 
-            DisableLayoutGroup(shopBody);
             var bodyHeight = Mathf.Max(360f, shopBody.rect.height);
             var itemsHeight = Mathf.Clamp(bodyHeight * 0.44f, 228f, 340f);
+            ApplyShopVerticalLayout(itemsHeight);
+        }
+
+        void ApplyShopVerticalLayout(float itemsHeight)
+        {
+            EnableVerticalLayoutGroup(shopWindow);
+            EnableVerticalLayoutGroup(shopHeader);
+            EnableVerticalLayoutGroup(shopBody);
 
             if (shopItemsPanel != null)
             {
-                DisableLayoutGroup(shopItemsPanel);
-                SetTopStretch(shopItemsPanel, 0f, 0f, 0f, itemsHeight);
+                var panelLayout = shopItemsPanel.GetComponent<LayoutElement>() ?? shopItemsPanel.gameObject.AddComponent<LayoutElement>();
+                panelLayout.minHeight = itemsHeight;
+                panelLayout.preferredHeight = itemsHeight;
+                panelLayout.flexibleHeight = 0f;
+                EnableVerticalLayoutGroup(shopItemsPanel);
             }
 
             if (shopItemsScrollView != null)
-                SetFill(shopItemsScrollView, 12f, 12f, 12f, 12f);
+            {
+                var scrollLayout = shopItemsScrollView.GetComponent<LayoutElement>() ?? shopItemsScrollView.gameObject.AddComponent<LayoutElement>();
+                scrollLayout.minHeight = Mathf.Max(120f, itemsHeight - 24f);
+                scrollLayout.preferredHeight = Mathf.Max(120f, itemsHeight - 24f);
+                scrollLayout.flexibleHeight = 1f;
+            }
         }
 
         void ApplyMapModal(LayoutPreset preset)
@@ -834,7 +839,7 @@ namespace POPHero
                     72f,
                     360f,
                     560f,
-                    236f,
+                    398f,
                     220f,
                     14f,
                     420f,
@@ -855,7 +860,7 @@ namespace POPHero
                     68f,
                     320f,
                     460f,
-                    214f,
+                    360f,
                     196f,
                     12f,
                     360f,
@@ -874,7 +879,7 @@ namespace POPHero
                 64f,
                 280f,
                 420f,
-                198f,
+                330f,
                 180f,
                 10f,
                 320f,
@@ -900,6 +905,22 @@ namespace POPHero
             var horizontal = rect.GetComponent<HorizontalLayoutGroup>();
             if (horizontal != null)
                 horizontal.enabled = false;
+        }
+
+        static void EnableVerticalLayoutGroup(RectTransform rect)
+        {
+            if (rect == null)
+                return;
+
+            var vertical = rect.GetComponent<VerticalLayoutGroup>();
+            if (vertical == null)
+                return;
+
+            vertical.enabled = true;
+            vertical.childControlWidth = true;
+            vertical.childControlHeight = true;
+            vertical.childForceExpandWidth = true;
+            vertical.childForceExpandHeight = false;
         }
 
         static void DisableContentFitter(RectTransform rect)

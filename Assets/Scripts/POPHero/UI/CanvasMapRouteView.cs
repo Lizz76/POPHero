@@ -314,6 +314,7 @@ namespace POPHero
                 MapNodeKind.Battle => visuals?.battleIconSprite,
                 MapNodeKind.Shop => visuals?.shopIconSprite,
                 MapNodeKind.Workbench => visuals?.workbenchIconSprite,
+                MapNodeKind.Rest => visuals?.eventIconSprite,
                 MapNodeKind.Event => visuals?.eventIconSprite,
                 MapNodeKind.Boss => visuals?.bossIconSprite,
                 _ => null
@@ -327,6 +328,7 @@ namespace POPHero
                 MapNodeKind.Battle => "ATK",
                 MapNodeKind.Shop => "$",
                 MapNodeKind.Workbench => "W",
+                MapNodeKind.Rest => "HP",
                 MapNodeKind.Event => "?",
                 MapNodeKind.Boss => "BOSS",
                 _ => "?"

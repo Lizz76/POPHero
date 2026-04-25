@@ -220,8 +220,17 @@ namespace POPHero
         Battle,
         Shop,
         Workbench,
+        Rest,
         Event,
         Boss
+    }
+
+    public enum MapEventActionType
+    {
+        GainGold,
+        TakeDamageUnlockSocket,
+        OpenWorkbench,
+        Heal
     }
 
     public enum MapNodeStatus
@@ -506,8 +515,12 @@ namespace POPHero
     public sealed class MapEventChoiceState
     {
         public int index;
+        public MapEventActionType actionType;
         public string title;
         public string description;
         public string buttonText;
+        public int intValue;
+        public float healPercent;
+        public string profileId;
     }
 }

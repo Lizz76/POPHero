@@ -643,6 +643,7 @@ namespace POPHero
                 : "路线终点。";
             return node.kind switch
             {
+                MapNodeKind.Rest => $"恢复 30% 最大生命。{nextText}",
                 MapNodeKind.Battle => $"进入一场普通战斗。{nextText}",
                 MapNodeKind.Shop => $"打开商店，随后进入背包整理。{nextText}",
                 MapNodeKind.Workbench => $"免费进行一次方块操作。{nextText}",
@@ -712,6 +713,7 @@ namespace POPHero
                 MapNodeKind.Battle => new Color(0.9f, 0.35f, 0.28f, 1f),
                 MapNodeKind.Shop => new Color(0.92f, 0.72f, 0.28f, 1f),
                 MapNodeKind.Workbench => new Color(0.36f, 0.62f, 0.95f, 1f),
+                MapNodeKind.Rest => new Color(0.32f, 0.78f, 0.58f, 1f),
                 MapNodeKind.Event => new Color(0.66f, 0.48f, 0.92f, 1f),
                 MapNodeKind.Boss => new Color(1f, 0.22f, 0.32f, 1f),
                 _ => Color.white

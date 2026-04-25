@@ -531,8 +531,8 @@ namespace POPHero
         {
             var root = CanvasUiFactory.Node("BlockOperationEntry", parent);
             var layoutElement = root.gameObject.AddComponent<LayoutElement>();
-            layoutElement.minHeight = 74f;
-            layoutElement.preferredHeight = 80f;
+            layoutElement.minHeight = 110f;
+            layoutElement.preferredHeight = 118f;
             layoutElement.flexibleWidth = 1f;
 
             var background = root.gameObject.AddComponent<Image>();
@@ -542,12 +542,16 @@ namespace POPHero
             layout.padding = new RectOffset(10, 10, 8, 8);
             layout.spacing = 10f;
             layout.childAlignment = TextAnchor.MiddleLeft;
-            layout.childForceExpandHeight = true;
+            layout.childControlHeight = true;
+            layout.childControlWidth = true;
+            layout.childForceExpandHeight = false;
             layout.childForceExpandWidth = false;
 
             var mainRoot = CanvasUiFactory.Node("MainRoot", root);
             var mainLayoutElement = mainRoot.gameObject.AddComponent<LayoutElement>();
             mainLayoutElement.flexibleWidth = 1f;
+            mainLayoutElement.minHeight = 94f;
+            mainLayoutElement.preferredHeight = 102f;
             var mainButton = mainRoot.gameObject.AddComponent<Button>();
             mainButton.transition = Selectable.Transition.None;
 
@@ -555,15 +559,26 @@ namespace POPHero
             mainLayout.spacing = 4f;
             mainLayout.childAlignment = TextAnchor.UpperLeft;
             mainLayout.childControlWidth = true;
-            mainLayout.childControlHeight = false;
+            mainLayout.childControlHeight = true;
             mainLayout.childForceExpandWidth = true;
             mainLayout.childForceExpandHeight = false;
 
             var title = CanvasUiFactory.Text("Title", mainRoot, 20, Color.white, TextAlignmentOptions.Left, FontStyles.Bold);
+            var titleLayout = title.rectTransform.gameObject.AddComponent<LayoutElement>();
+            titleLayout.minHeight = 24f;
+            titleLayout.preferredHeight = 26f;
+
             var meta = CanvasUiFactory.Text("Meta", mainRoot, 17, new Color(0.96f, 0.82f, 0.44f, 1f), TextAlignmentOptions.Left, FontStyles.Bold);
+            var metaLayout = meta.rectTransform.gameObject.AddComponent<LayoutElement>();
+            metaLayout.minHeight = 22f;
+            metaLayout.preferredHeight = 24f;
+
             var desc = CanvasUiFactory.Text("Description", mainRoot, 16, new Color(0.85f, 0.88f, 0.94f, 1f), TextAlignmentOptions.Left);
-            desc.enableWordWrapping = false;
-            desc.overflowMode = TextOverflowModes.Ellipsis;
+            desc.enableWordWrapping = true;
+            desc.overflowMode = TextOverflowModes.Overflow;
+            var descLayout = desc.rectTransform.gameObject.AddComponent<LayoutElement>();
+            descLayout.minHeight = 38f;
+            descLayout.preferredHeight = 42f;
 
             var sideButton = CanvasUiFactory.Button("SideButton", root, "删除", new Color(0.58f, 0.18f, 0.2f, 1f), Color.white, 18);
             var sideLayoutElement = sideButton.gameObject.AddComponent<LayoutElement>();

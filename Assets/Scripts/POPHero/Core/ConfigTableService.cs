@@ -325,6 +325,7 @@ namespace POPHero
                 battleWeight = 70,
                 shopWeight = 12,
                 workbenchWeight = 8,
+                restWeight = 10,
                 eventWeight = 10,
                 bossEnemyIndex = -1
             };

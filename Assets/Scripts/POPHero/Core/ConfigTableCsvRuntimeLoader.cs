@@ -64,19 +64,19 @@ namespace POPHero
             }
         }
 
-        static Dictionary<string, CsvTable> LoadTables(string sourceFolder)
+        static Dictionary<string, ConfigCsvTable> LoadTables(string sourceFolder)
         {
-            var tables = new Dictionary<string, CsvTable>(StringComparer.OrdinalIgnoreCase);
+            var tables = new Dictionary<string, ConfigCsvTable>(StringComparer.OrdinalIgnoreCase);
             foreach (var path in Directory.GetFiles(sourceFolder, "*.csv"))
             {
-                var table = CsvTable.Load(path);
+                var table = ConfigCsvTable.Load(path);
                 tables[table.Name] = table;
             }
 
             return tables;
         }
 
-        static void FillTableConfig(PopHeroTableConfig asset, IReadOnlyDictionary<string, CsvTable> tables)
+        static void FillTableConfig(PopHeroTableConfig asset, IReadOnlyDictionary<string, ConfigCsvTable> tables)
         {
             asset.globalConfig.Clear();
             asset.blockTypes.Clear();
@@ -271,146 +271,41 @@ namespace POPHero
                     battleWeight = ParseInt(row.Get("battleWeight"), 70),
                     shopWeight = ParseInt(row.Get("shopWeight"), 12),
                     workbenchWeight = ParseInt(row.Get("workbenchWeight"), 8),
+                    restWeight = ParseInt(row.Get("restWeight"), 10),
                     eventWeight = ParseInt(row.Get("eventWeight"), 10),
                     bossEnemyIndex = ParseInt(row.Get("bossEnemyIndex"), -1)
                 });
             }
         }
 
-        static IEnumerable<CsvRow> GetRows(IReadOnlyDictionary<string, CsvTable> tables, string tableName)
+        static IEnumerable<ConfigCsvRow> GetRows(IReadOnlyDictionary<string, ConfigCsvTable> tables, string tableName)
         {
-            return tables.TryGetValue(tableName, out var table) ? table.DataRows : Array.Empty<CsvRow>();
+            return tables.TryGetValue(tableName, out var table) ? table.DataRows : Array.Empty<ConfigCsvRow>();
         }
 
         static T ParseEnum<T>(string raw, T fallback) where T : struct
         {
-            return ConfigTableService.TryParseEnumKey(raw, out T value) ? value : fallback;
+            return ConfigTableCsvParsers.ParseEnum(raw, fallback);
         }
 
         static int ParseInt(string value, int fallback = 0)
         {
-            return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : fallback;
+            return ConfigTableCsvParsers.ParseInt(value, fallback);
         }
 
         static bool ParseBool(string value, bool fallback = false)
         {
-            if (bool.TryParse(value, out var parsed))
-                return parsed;
-
-            if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var intValue))
-                return intValue != 0;
-
-            return fallback;
+            return ConfigTableCsvParsers.ParseBool(value, fallback);
         }
 
         static float ParseFloat(string value, float fallback = 0f)
         {
-            return float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) ? parsed : fallback;
+            return ConfigTableCsvParsers.ParseFloat(value, fallback);
         }
 
         static RarityWeightSet ParseRarityWeights(string raw)
         {
-            if (string.IsNullOrWhiteSpace(raw))
-                return new RarityWeightSet();
-
-            var parts = raw.Split(new[] { '|', ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
-            return new RarityWeightSet
-            {
-                white = parts.Length > 0 ? ParseFloat(parts[0]) : 0f,
-                blue = parts.Length > 1 ? ParseFloat(parts[1]) : 0f,
-                purple = parts.Length > 2 ? ParseFloat(parts[2]) : 0f,
-                gold = parts.Length > 3 ? ParseFloat(parts[3]) : 0f
-            };
-        }
-
-        sealed class CsvTable
-        {
-            public string Name;
-            public readonly List<List<string>> Rows = new();
-            public List<string> Header => Rows.Count > 0 ? Rows[0] : new List<string>();
-            public readonly List<CsvRow> DataRows = new();
-
-            public static CsvTable Load(string path)
-            {
-                var table = new CsvTable { Name = Path.GetFileName(path) };
-                var lines = CsvFileReader.ReadAllLinesWithRetry(path);
-                for (var i = 0; i < lines.Length; i++)
-                {
-                    var values = ParseCsvLine(lines[i]);
-                    if (i == 0 && values.Count > 0)
-                        values[0] = values[0].TrimStart('\uFEFF');
-                    table.Rows.Add(values);
-                }
-
-                if (table.Rows.Count >= 5)
-                {
-                    for (var i = 5; i < table.Rows.Count; i++)
-                    {
-                        var values = table.Rows[i];
-                        if (values.Count == 0 || values.All(string.IsNullOrWhiteSpace))
-                            continue;
-                        table.DataRows.Add(new CsvRow(table, i + 1, values));
-                    }
-                }
-
-                return table;
-            }
-
-            static List<string> ParseCsvLine(string line)
-            {
-                var values = new List<string>();
-                var current = new StringBuilder();
-                var inQuotes = false;
-                for (var i = 0; i < line.Length; i++)
-                {
-                    var ch = line[i];
-                    if (ch == '"')
-                    {
-                        if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
-                        {
-                            current.Append('"');
-                            i++;
-                        }
-                        else
-                        {
-                            inQuotes = !inQuotes;
-                        }
-                    }
-                    else if (ch == ',' && !inQuotes)
-                    {
-                        values.Add(current.ToString());
-                        current.Clear();
-                    }
-                    else
-                    {
-                        current.Append(ch);
-                    }
-                }
-
-                values.Add(current.ToString());
-                return values;
-            }
-        }
-
-        sealed class CsvRow
-        {
-            readonly CsvTable table;
-            readonly List<string> values;
-
-            public CsvRow(CsvTable table, int lineNumber, List<string> values)
-            {
-                this.table = table;
-                LineNumber = lineNumber;
-                this.values = values;
-            }
-
-            public int LineNumber { get; }
-
-            public string Get(string field)
-            {
-                var index = table.Header.FindIndex(header => string.Equals(header, field, StringComparison.OrdinalIgnoreCase));
-                return index >= 0 && index < values.Count ? values[index].Trim() : string.Empty;
-            }
+            return ConfigTableCsvParsers.ParseRarityWeights(raw);
         }
     }
 }

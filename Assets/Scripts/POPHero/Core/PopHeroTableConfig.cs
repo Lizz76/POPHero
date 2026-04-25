@@ -189,6 +189,7 @@ namespace POPHero
         public int battleWeight = 70;
         public int shopWeight = 12;
         public int workbenchWeight = 8;
+        public int restWeight = 10;
         public int eventWeight = 10;
         public int bossEnemyIndex = -1;
     }

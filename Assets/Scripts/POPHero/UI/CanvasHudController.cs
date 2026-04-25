@@ -59,6 +59,7 @@ namespace POPHero
         TMP_Text combatHits;
         TMP_Text combatPreview;
         TMP_Text combatMessage;
+        TMP_Text gmEventDebugTitle;
 
         TMP_Text blockHeader;
         TMP_Text blockHint;
@@ -137,6 +138,7 @@ namespace POPHero
         RectTransform blockRewardContent;
         RectTransform rewardContent;
         RectTransform shopItemsContent;
+        RectTransform gmEventDebugContent;
         RectTransform mapEventOptionsContent;
         RectTransform blockOperationsActiveContent;
         RectTransform blockOperationsReserveContent;
@@ -174,6 +176,7 @@ namespace POPHero
         readonly List<CanvasStickerCellView> inventoryStickerCells = new();
         readonly List<CanvasListEntryView> activeModEntries = new();
         readonly List<CanvasListEntryView> reserveModEntries = new();
+        readonly List<CanvasListEntryView> gmEventDebugEntries = new();
 
         GameObject combatPanelObject;
         string tooltipTitleValue;
@@ -186,6 +189,7 @@ namespace POPHero
         string selectedReserveId;
         string selectedBlockOperationActiveId;
         string selectedBlockOperationReserveId;
+        readonly List<CanvasHudPanelController> panelControllers = new();
         bool gmPanelOpen;
         bool initialized;
 
@@ -200,6 +204,7 @@ namespace POPHero
             ApplyRuntimeFont();
             ValidateBindings();
             BindButtons();
+            ConfigurePanelControllers();
             initialized = true;
             gameObject.SetActive(true);
             ForceRefresh();
@@ -210,15 +215,7 @@ namespace POPHero
             if (!initialized || game == null)
                 return;
 
-            SafeRefresh("status", RefreshStatus);
-            SafeRefresh("topbar", RefreshTopStatusBar);
-            SafeRefresh("combat", RefreshCombat);
-            SafeRefresh("blocks", RefreshBlocks);
-            SafeRefresh("damage", RefreshDamage);
-            SafeRefresh("modals", RefreshModals);
-            SafeRefresh("layers", RefreshInteractionLayers);
-            SafeRefresh("drag", RefreshDragPanel);
-            SafeRefresh("tooltip", RefreshTooltip);
+            RefreshPanelControllers();
         }
 
         public void RefreshNow()
@@ -254,27 +251,27 @@ namespace POPHero
                 selectedBlockOperationReserveId = null;
             }
 
-            SafeRefresh("status", RefreshStatus);
-            SafeRefresh("topbar", RefreshTopStatusBar);
-            SafeRefresh("combat", RefreshCombat);
-            SafeRefresh("blocks", RefreshBlocks);
-            SafeRefresh("damage", RefreshDamage);
-            SafeRefresh("modals", RefreshModals);
-            SafeRefresh("layers", RefreshInteractionLayers);
-            SafeRefresh("drag", RefreshDragPanel);
-            SafeRefresh("tooltip", RefreshTooltip);
+            RefreshPanelControllers();
         }
 
-        void SafeRefresh(string area, Action action)
+        void ConfigurePanelControllers()
         {
-            try
-            {
-                action?.Invoke();
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[POPHero] Canvas HUD refresh failed in {area}: {ex.Message}");
-            }
+            panelControllers.Clear();
+            panelControllers.Add(new CanvasHudPanelController("status", RefreshStatus));
+            panelControllers.Add(new CanvasHudPanelController("topbar", RefreshTopStatusBar));
+            panelControllers.Add(new CanvasHudPanelController("combat", RefreshCombat));
+            panelControllers.Add(new CanvasHudPanelController("blocks", RefreshBlocks));
+            panelControllers.Add(new CanvasHudPanelController("damage", RefreshDamage));
+            panelControllers.Add(new CanvasHudPanelController("modals", RefreshModals));
+            panelControllers.Add(new CanvasHudPanelController("layers", RefreshInteractionLayers));
+            panelControllers.Add(new CanvasHudPanelController("drag", RefreshDragPanel));
+            panelControllers.Add(new CanvasHudPanelController("tooltip", RefreshTooltip));
+        }
+
+        void RefreshPanelControllers()
+        {
+            for (var index = 0; index < panelControllers.Count; index++)
+                panelControllers[index].Refresh();
         }
 
         public void SetTooltip(string title, string body, Color color)
@@ -309,7 +306,8 @@ namespace POPHero
         void BindScene()
         {
             EnsureRuntimeMapUi();
-            EnsureRuntimeBlockOperationsUi();
+            PrepareSceneAuthoredBlockOperationsUi();
+            EnsureRuntimeGmEventDebugUi();
             GetComponent<BattleCanvasLayout>()?.RefreshLayout();
 
             statusPanelObject = GOptional("HudRoot/StatusPanel");
@@ -354,6 +352,8 @@ namespace POPHero
             combatHits = T("HudRoot/CombatPanel/RoundHitText");
             combatPreview = T("HudRoot/CombatPanel/PreviewText");
             combatMessage = T("HudRoot/CombatPanel/MessageText");
+            gmEventDebugTitle = TOptional("HudRoot/CombatPanel/EventDebugTitleText");
+            gmEventDebugContent = ROptional("HudRoot/CombatPanel/EventDebugScroll/Viewport/Content");
 
             toggleAimButton = B("HudRoot/CombatPanel/Buttons/ToggleAimButton");
             shuffleButton = B("HudRoot/CombatPanel/Buttons/ShuffleButton");
@@ -568,6 +568,46 @@ namespace POPHero
             SetButtonLabel(addGoldButton, "金币 +25");
             SetButtonLabel(killEnemyButton, "秒杀敌人");
             SetButtonLabel(damagePlayerButton, "主角 -10 血");
+            RefreshGmEventDebug();
+        }
+
+        void RefreshGmEventDebug()
+        {
+            Set(gmEventDebugTitle, "事件调试（点击即触发）");
+            if (gmEventDebugContent == null)
+                return;
+
+            EnsureEntries(gmEventDebugEntries, gmEventDebugContent, 9);
+            ConfigureGmEventDebugEntry(0, "普通战斗", "节点", "启动当前进度普通遭遇", new Color(0.9f, 0.35f, 0.28f, 1f),
+                () => Run(new HudCommand(HudCommandType.DebugTriggerMapNode, 0, MapNodeKind.Battle.ToString())));
+            ConfigureGmEventDebugEntry(1, "Boss 战", "节点", "启动配置 Boss 遭遇", new Color(1f, 0.22f, 0.32f, 1f),
+                () => Run(new HudCommand(HudCommandType.DebugTriggerMapNode, 0, MapNodeKind.Boss.ToString())));
+            ConfigureGmEventDebugEntry(2, "商店", "节点", "打开商店，关闭后回到当前状态", new Color(0.92f, 0.72f, 0.28f, 1f),
+                () => Run(new HudCommand(HudCommandType.DebugTriggerMapNode, 0, MapNodeKind.Shop.ToString())));
+            ConfigureGmEventDebugEntry(3, "工坊", "节点", "打开地图工坊，关闭后回到当前状态", new Color(0.36f, 0.62f, 0.95f, 1f),
+                () => Run(new HudCommand(HudCommandType.DebugTriggerMapNode, 0, MapNodeKind.Workbench.ToString())));
+            ConfigureGmEventDebugEntry(4, "休息回血", "节点", "立即恢复 30% 最大生命", new Color(0.32f, 0.78f, 0.58f, 1f),
+                () => Run(new HudCommand(HudCommandType.DebugTriggerMapNode, 0, MapNodeKind.Rest.ToString())));
+            ConfigureGmEventDebugEntry(5, "旧货箱", "路线事件", "获得 12 金币", new Color(1f, 0.82f, 0.34f, 1f),
+                () => Run(new HudCommand(HudCommandType.DebugTriggerMapEventChoice, 0, MapEventActionType.GainGold.ToString())));
+            ConfigureGmEventDebugEntry(6, "危险训练", "路线事件", "受 10 伤害，解锁 1 个槽位", new Color(1f, 0.46f, 0.38f, 1f),
+                () => Run(new HudCommand(HudCommandType.DebugTriggerMapEventChoice, 0, MapEventActionType.TakeDamageUnlockSocket.ToString())));
+            ConfigureGmEventDebugEntry(7, "临时工坊", "路线事件", "打开一次免费方块操作", new Color(0.58f, 0.74f, 1f, 1f),
+                () => Run(new HudCommand(HudCommandType.DebugTriggerMapEventChoice, 0, MapEventActionType.OpenWorkbench.ToString())));
+            ConfigureGmEventDebugEntry(8, "临时营火", "路线事件", "恢复 30% 最大生命", new Color(0.45f, 0.92f, 0.68f, 1f),
+                () => Run(new HudCommand(HudCommandType.DebugTriggerMapEventChoice, 0, MapEventActionType.Heal.ToString())));
+        }
+
+        void ConfigureGmEventDebugEntry(int index, string title, string tag, string desc, Color accent, Action action)
+        {
+            if (index < 0 || index >= gmEventDebugEntries.Count)
+                return;
+
+            var view = gmEventDebugEntries[index];
+            view.gameObject.SetActive(true);
+            view.Set(title, tag, desc, accent, action);
+            view.SetInteractable(game != null && game.State != RoundState.GameOver);
+            view.SetTooltip(title, desc, accent, this);
         }
 
         void HandleGmHotkey()
@@ -1274,6 +1314,28 @@ namespace POPHero
             return node == null ? null : node.GetComponent<Button>();
         }
 
+        void EnsureRuntimeGmEventDebugUi()
+        {
+            var combatPanel = ROptional("HudRoot/CombatPanel");
+            if (combatPanel == null)
+                return;
+
+            if (combatPanel.Find("EventDebugTitleText") == null)
+            {
+                var title = CanvasUiFactory.Text("EventDebugTitleText", combatPanel, 18, new Color(0.86f, 0.92f, 1f, 1f), TextAlignmentOptions.Left, FontStyles.Bold);
+                title.rectTransform.gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
+            }
+
+            if (combatPanel.Find("EventDebugScroll") != null)
+                return;
+
+            var scroll = CreateScrollArea("EventDebugScroll", combatPanel);
+            var layout = scroll.gameObject.AddComponent<LayoutElement>();
+            layout.minHeight = 126f;
+            layout.preferredHeight = 176f;
+            layout.flexibleHeight = 1f;
+        }
+
         void EnsureRuntimeMapUi()
         {
             var modalRoot = ROptional("ModalRoot");
@@ -1395,112 +1457,129 @@ namespace POPHero
             SetFill(scroll, 0f, 0f, 0f, 0f);
         }
 
-        void EnsureRuntimeBlockOperationsUi()
+        void PrepareSceneAuthoredBlockOperationsUi()
         {
             var modalRoot = ROptional("ModalRoot");
             if (modalRoot == null)
                 return;
 
-            var legacyDeletePanel = modalRoot.Find("ShopModal/Window/Body/DeletePanel");
-            if (legacyDeletePanel != null)
-                legacyDeletePanel.gameObject.SetActive(false);
-
-            EnsureShopBlockOperationsButton(modalRoot);
-            EnsureBlockOperationsModalRuntime(modalRoot);
-        }
-
-        void EnsureShopBlockOperationsButton(RectTransform modalRoot)
-        {
-            var footer = modalRoot.Find("ShopModal/Window/Footer") as RectTransform;
-            if (footer == null)
-                return;
-
-            if (footer.Find("BlockOperationsButton") == null)
+            var shopFooter = modalRoot.Find("ShopModal/Window/Footer") as RectTransform;
+            if (shopFooter == null)
             {
-                var button = CanvasUiFactory.Button(
-                    "BlockOperationsButton",
-                    footer,
-                    "方块操作",
-                    new Color(0.16f, 0.23f, 0.62f, 0.96f),
-                    Color.white,
-                    20);
-                button.transform.SetSiblingIndex(Mathf.Max(0, footer.childCount - 1));
+                Debug.LogError("[POPHero] Shop footer is missing. Block operations button must be authored in the Battle scene.");
+            }
+            else if (shopFooter.Find("BlockOperationsButton") == null)
+            {
+                Debug.LogError("[POPHero] BlockOperationsButton is missing from ShopModal. Add it to the Battle scene instead of relying on runtime generation.");
+            }
+            else
+            {
+                LayoutFooterButtons(shopFooter, 160f, 44f, 10f);
             }
 
-            LayoutFooterButtons(footer, 160f, 44f, 10f);
+            var blockOperationsModal = modalRoot.Find("BlockOperationsModal") as RectTransform;
+            if (blockOperationsModal == null)
+            {
+                Debug.LogError("[POPHero] BlockOperationsModal is missing from ModalRoot. The block operations panel is scene-authored now; rebuild or repair the Battle scene.");
+                return;
+            }
+
+            var blockOperationsFooter = blockOperationsModal.Find("Window/Footer") as RectTransform;
+            if (blockOperationsFooter == null)
+                Debug.LogError("[POPHero] BlockOperationsModal footer is missing. Close button binding may fail.");
+            else
+                LayoutFooterButtons(blockOperationsFooter, 200f, 44f, 10f);
+
+            ConfigureBlockOperationsLayout(blockOperationsModal);
         }
 
-        void EnsureBlockOperationsModalRuntime(RectTransform modalRoot)
+        static void ConfigureBlockOperationsLayout(RectTransform modal)
         {
-            if (modalRoot.Find("BlockOperationsModal") != null)
+            ConfigureBlockOperationsColumn(modal, "Window/Body/Columns/ActiveColumn");
+            ConfigureBlockOperationsColumn(modal, "Window/Body/Columns/ReserveColumn");
+        }
+
+        static void ConfigureBlockOperationsColumn(RectTransform modal, string columnPath)
+        {
+            var column = modal.Find(columnPath) as RectTransform;
+            if (column == null)
+            {
+                Debug.LogError($"[POPHero] BlockOperationsModal missing column: {columnPath}");
                 return;
+            }
 
-            var modal = CanvasUiFactory.Node("BlockOperationsModal", modalRoot);
-            Stretch(modal);
-            var overlay = modal.gameObject.AddComponent<Image>();
-            overlay.color = new Color(0f, 0f, 0f, 0.62f);
-            modal.gameObject.SetActive(false);
-            modal.SetAsLastSibling();
+            var layout = column.GetComponent<VerticalLayoutGroup>() ?? column.gameObject.AddComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(12, 12, 12, 12);
+            layout.spacing = 8f;
+            layout.childAlignment = TextAnchor.UpperLeft;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
 
-            var window = CanvasUiFactory.Node("Window", modal);
-            window.anchorMin = new Vector2(0.5f, 0.5f);
-            window.anchorMax = new Vector2(0.5f, 0.5f);
-            window.pivot = new Vector2(0.5f, 0.5f);
-            window.sizeDelta = new Vector2(1180f, 760f);
-            var windowImage = window.gameObject.AddComponent<Image>();
-            windowImage.color = new Color(0.09f, 0.11f, 0.16f, 0.98f);
+            var title = column.Find("TitleText") as RectTransform;
+            if (title == null)
+                Debug.LogError($"[POPHero] BlockOperationsModal missing title in column: {columnPath}");
+            else
+            {
+                var titleLayout = title.GetComponent<LayoutElement>() ?? title.gameObject.AddComponent<LayoutElement>();
+                titleLayout.minHeight = 30f;
+                titleLayout.preferredHeight = 30f;
+                titleLayout.flexibleHeight = 0f;
+            }
 
-            var header = CanvasUiFactory.Node("Header", window);
-            SetTopStretch(header, 18f, 18f, 18f, 104f);
-            var title = CanvasUiFactory.Text("TitleText", header, 34, Color.white, TextAlignmentOptions.Center, FontStyles.Bold);
-            SetTopStretch(title.rectTransform, 12f, 12f, 8f, 38f);
-            var subtitle = CanvasUiFactory.Text("SubtitleText", header, 18, new Color(0.82f, 0.86f, 0.94f, 1f), TextAlignmentOptions.Center);
-            SetTopStretch(subtitle.rectTransform, 12f, 12f, 48f, 30f);
+            var scroll = column.Find("ScrollView") as RectTransform;
+            if (scroll == null)
+            {
+                Debug.LogError($"[POPHero] BlockOperationsModal missing ScrollView in column: {columnPath}");
+                return;
+            }
 
-            var body = CanvasUiFactory.Node("Body", window);
-            SetFill(body, 18f, 18f, 134f, 102f);
+            var scrollLayout = scroll.GetComponent<LayoutElement>() ?? scroll.gameObject.AddComponent<LayoutElement>();
+            scrollLayout.minHeight = 180f;
+            scrollLayout.preferredHeight = 280f;
+            scrollLayout.flexibleHeight = 1f;
 
-            var hint = CanvasUiFactory.Text("HintText", body, 18, new Color(0.9f, 0.92f, 0.97f, 1f), TextAlignmentOptions.TopLeft);
-            SetTopStretch(hint.rectTransform, 12f, 12f, 12f, 44f);
-            var feedback = CanvasUiFactory.Text("FeedbackText", body, 16, new Color(0.72f, 0.86f, 1f, 1f), TextAlignmentOptions.TopLeft);
-            SetTopStretch(feedback.rectTransform, 12f, 12f, 66f, 32f);
+            var scrollRect = scroll.GetComponent<ScrollRect>() ?? scroll.gameObject.AddComponent<ScrollRect>();
+            scrollRect.horizontal = false;
+            scrollRect.vertical = true;
+            scrollRect.movementType = ScrollRect.MovementType.Clamped;
+            scrollRect.scrollSensitivity = 28f;
 
-            var statusRow = CanvasUiFactory.Node("StatusRow", body);
-            SetTopStretch(statusRow, 12f, 12f, 108f, 28f);
-            var deleteStatus = CanvasUiFactory.Text("DeleteStatusText", statusRow, 16, new Color(1f, 0.9f, 0.62f, 1f), TextAlignmentOptions.Left, FontStyles.Bold);
-            SetLeftStretch(deleteStatus.rectTransform, 0f, 6f, 0f, 0f, 0.5f);
-            var swapStatus = CanvasUiFactory.Text("SwapStatusText", statusRow, 16, new Color(0.82f, 0.96f, 1f, 1f), TextAlignmentOptions.Right, FontStyles.Bold);
-            SetRightStretch(swapStatus.rectTransform, 6f, 0f, 0f, 0f, 0.5f);
+            var viewport = scroll.Find("Viewport") as RectTransform;
+            var content = viewport != null ? viewport.Find("Content") as RectTransform : null;
+            if (viewport == null || content == null)
+            {
+                Debug.LogError($"[POPHero] BlockOperationsModal ScrollView must contain Viewport/Content: {columnPath}");
+                return;
+            }
 
-            var columns = CanvasUiFactory.Node("Columns", body);
-            SetFill(columns, 12f, 12f, 148f, 12f);
+            Stretch(viewport);
+            ConfigureVerticalScrollContent(content);
+            scrollRect.viewport = viewport;
+            scrollRect.content = content;
+        }
 
-            var activeColumn = CanvasUiFactory.Node("ActiveColumn", columns);
-            SetLeftStretch(activeColumn, 0f, 6f, 0f, 0f, 0.5f);
-            activeColumn.gameObject.AddComponent<Image>().color = new Color(0.14f, 0.17f, 0.22f, 0.86f);
-            var activeColumnTitle = CanvasUiFactory.Text("TitleText", activeColumn, 22, Color.white, TextAlignmentOptions.Left, FontStyles.Bold);
-            SetTopStretch(activeColumnTitle.rectTransform, 12f, 12f, 8f, 28f);
-            var activeScroll = CreateScrollArea("ScrollView", activeColumn);
-            SetFill(activeScroll, 12f, 12f, 44f, 12f);
+        static void ConfigureVerticalScrollContent(RectTransform content)
+        {
+            content.anchorMin = new Vector2(0f, 1f);
+            content.anchorMax = new Vector2(1f, 1f);
+            content.pivot = new Vector2(0.5f, 1f);
+            content.anchoredPosition = Vector2.zero;
+            content.sizeDelta = Vector2.zero;
 
-            var reserveColumn = CanvasUiFactory.Node("ReserveColumn", columns);
-            SetRightStretch(reserveColumn, 6f, 0f, 0f, 0f, 0.5f);
-            reserveColumn.gameObject.AddComponent<Image>().color = new Color(0.14f, 0.17f, 0.22f, 0.86f);
-            var reserveColumnTitle = CanvasUiFactory.Text("TitleText", reserveColumn, 22, Color.white, TextAlignmentOptions.Left, FontStyles.Bold);
-            SetTopStretch(reserveColumnTitle.rectTransform, 12f, 12f, 8f, 28f);
-            var reserveScroll = CreateScrollArea("ScrollView", reserveColumn);
-            SetFill(reserveScroll, 12f, 12f, 44f, 12f);
+            var layout = content.GetComponent<VerticalLayoutGroup>() ?? content.gameObject.AddComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(12, 12, 12, 12);
+            layout.spacing = 8f;
+            layout.childAlignment = TextAnchor.UpperCenter;
+            layout.childControlHeight = true;
+            layout.childControlWidth = true;
+            layout.childForceExpandHeight = false;
+            layout.childForceExpandWidth = true;
 
-            var footer = CanvasUiFactory.Node("Footer", window);
-            SetBottomStretch(footer, 18f, 18f, 18f, 72f);
-            CanvasUiFactory.Button(
-                "CloseButton",
-                footer,
-                "关闭",
-                new Color(0.16f, 0.23f, 0.62f, 0.96f),
-                Color.white,
-                20);
-            LayoutFooterButtons(footer, 200f, 44f, 10f);
+            var fitter = content.GetComponent<ContentSizeFitter>() ?? content.gameObject.AddComponent<ContentSizeFitter>();
+            fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
         }
 
         static RectTransform CreateScrollArea(string name, Transform parent)
