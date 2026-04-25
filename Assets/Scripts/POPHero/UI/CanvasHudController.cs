@@ -84,6 +84,12 @@ namespace POPHero
         TMP_Text shopSubtitle;
         TMP_Text shopGold;
         TMP_Text shopFeedback;
+        TMP_Text mapTitle;
+        TMP_Text mapSubtitle;
+        TMP_Text mapFeedback;
+        CanvasMapRouteView mapRouteView;
+        TMP_Text mapEventTitle;
+        TMP_Text mapEventSubtitle;
         TMP_Text blockOperationsTitle;
         TMP_Text blockOperationsSubtitle;
         TMP_Text blockOperationsHint;
@@ -131,6 +137,7 @@ namespace POPHero
         RectTransform blockRewardContent;
         RectTransform rewardContent;
         RectTransform shopItemsContent;
+        RectTransform mapEventOptionsContent;
         RectTransform blockOperationsActiveContent;
         RectTransform blockOperationsReserveContent;
         RectTransform inventoryContent;
@@ -142,6 +149,8 @@ namespace POPHero
         GameObject blockRewardModal;
         GameObject rewardModal;
         GameObject shopModal;
+        GameObject mapModal;
+        GameObject mapEventModal;
         GameObject blockOperationsModal;
         GameObject loadoutModal;
         GameObject gameOverModal;
@@ -159,6 +168,7 @@ namespace POPHero
         readonly List<CanvasCardView> blockRewardCards = new();
         readonly List<CanvasCardView> rewardCards = new();
         readonly List<CanvasCardView> shopCards = new();
+        readonly List<CanvasCardView> mapEventCards = new();
         readonly List<CanvasBlockOperationEntryView> blockOperationActiveEntries = new();
         readonly List<CanvasBlockOperationEntryView> blockOperationReserveEntries = new();
         readonly List<CanvasStickerCellView> inventoryStickerCells = new();
@@ -298,7 +308,9 @@ namespace POPHero
 
         void BindScene()
         {
+            EnsureRuntimeMapUi();
             EnsureRuntimeBlockOperationsUi();
+            GetComponent<BattleCanvasLayout>()?.RefreshLayout();
 
             statusPanelObject = GOptional("HudRoot/StatusPanel");
             topStatusBar = ROptional("HudRoot/TopStatusBar");
@@ -397,6 +409,18 @@ namespace POPHero
             shopRerollButton = B("ModalRoot/ShopModal/Window/Footer/RerollButton");
             shopBlockOperationsButton = BOptional("ModalRoot/ShopModal/Window/Footer/BlockOperationsButton");
             shopCloseButton = B("ModalRoot/ShopModal/Window/Footer/CloseButton");
+
+            mapModal = GOptional("ModalRoot/MapModal");
+            mapTitle = TOptional("ModalRoot/MapModal/Window/Header/TitleText");
+            mapSubtitle = TOptional("ModalRoot/MapModal/Window/Header/SubtitleText");
+            mapFeedback = TOptional("ModalRoot/MapModal/Window/Header/FeedbackText");
+            var routeRoot = ROptional("ModalRoot/MapModal/Window/Body/RouteView");
+            mapRouteView = routeRoot != null ? routeRoot.GetComponent<CanvasMapRouteView>() : null;
+
+            mapEventModal = GOptional("ModalRoot/MapEventModal");
+            mapEventTitle = TOptional("ModalRoot/MapEventModal/Window/Header/TitleText");
+            mapEventSubtitle = TOptional("ModalRoot/MapEventModal/Window/Header/SubtitleText");
+            mapEventOptionsContent = ROptional("ModalRoot/MapEventModal/Window/Body/ScrollView/Viewport/Content");
 
             blockOperationsModal = GOptional("ModalRoot/BlockOperationsModal");
             blockOperationsTitle = TOptional("ModalRoot/BlockOperationsModal/Window/Header/TitleText");
@@ -603,6 +627,8 @@ namespace POPHero
         void RefreshModals()
         {
             var state = game.State;
+            SetActive(mapModal, state == RoundState.Map);
+            SetActive(mapEventModal, state == RoundState.MapEvent);
             SetActive(blockRewardModal, state == RoundState.BlockRewardChoose);
             SetActive(rewardModal, state == RoundState.RewardChoose);
             SetActive(shopModal, state == RoundState.Shop);
@@ -610,6 +636,14 @@ namespace POPHero
             SetActive(loadoutModal, state == RoundState.LoadoutManage);
             SetActive(gameOverModal, state == RoundState.GameOver);
             SetActive(settingsModal, game != null && game.IsSettingsOpen);
+
+            if (state == RoundState.Map)
+                RefreshMap();
+
+            if (state == RoundState.MapEvent)
+                RefreshMapEvent();
+            else
+                HideExtra(mapEventCards, 0);
 
             if (state == RoundState.BlockRewardChoose)
                 RefreshBlockReward();
@@ -792,6 +826,40 @@ namespace POPHero
                   view.SetInteractable(!item.Purchased);
                   var capturedIndex = item.Index;
                   view.SetAction(() => Run(new HudCommand(HudCommandType.TryBuyShopItem, capturedIndex)));
+            }
+        }
+
+        void RefreshMap()
+        {
+            var model = intermissionPresenter.BuildMapPanel(game);
+            Set(mapTitle, model.TitleText);
+            Set(mapSubtitle, model.SubtitleText);
+            Set(mapFeedback, model.FeedbackText);
+            mapRouteView?.Set(
+                model,
+                game?.Config?.hud?.map,
+                nodeId => Run(new HudCommand(HudCommandType.SelectMapNode, 0, nodeId)));
+        }
+
+        void RefreshMapEvent()
+        {
+            var model = intermissionPresenter.BuildMapEventPanel(game);
+            Set(mapEventTitle, model.TitleText);
+            Set(mapEventSubtitle, model.SubtitleText);
+            if (mapEventOptionsContent == null)
+                return;
+
+            EnsureCards(mapEventCards, mapEventOptionsContent, model.Options.Count);
+            ApplyMapEventCardLayout(mapEventOptionsContent);
+            for (var index = 0; index < model.Options.Count; index++)
+            {
+                var option = model.Options[index];
+                var view = mapEventCards[index];
+                view.gameObject.SetActive(true);
+                view.Set(option.Title, "路线事件", string.Empty, option.Description, option.ButtonText, new Color(0.66f, 0.48f, 0.92f, 1f));
+                view.SetInteractable(true);
+                var capturedIndex = option.Index;
+                view.SetAction(() => Run(new HudCommand(HudCommandType.ChooseMapEventOption, capturedIndex)));
             }
         }
 
@@ -1206,6 +1274,127 @@ namespace POPHero
             return node == null ? null : node.GetComponent<Button>();
         }
 
+        void EnsureRuntimeMapUi()
+        {
+            var modalRoot = ROptional("ModalRoot");
+            if (modalRoot == null)
+                return;
+
+            EnsureMapModalRuntime(modalRoot);
+            EnsureMapEventModalRuntime(modalRoot);
+        }
+
+        void EnsureMapModalRuntime(RectTransform modalRoot)
+        {
+            var existing = modalRoot.Find("MapModal") as RectTransform;
+            if (existing != null)
+            {
+                var existingWindow = existing.Find("Window") as RectTransform;
+                if (existingWindow != null)
+                    EnsureMapRouteViewRuntime(existingWindow);
+                return;
+            }
+
+            var modal = CanvasUiFactory.Node("MapModal", modalRoot);
+            Stretch(modal);
+            modal.gameObject.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.58f);
+            modal.gameObject.SetActive(false);
+            modal.SetAsLastSibling();
+
+            var window = CanvasUiFactory.Node("Window", modal);
+            window.anchorMin = new Vector2(0.5f, 0.5f);
+            window.anchorMax = new Vector2(0.5f, 0.5f);
+            window.pivot = new Vector2(0.5f, 0.5f);
+            window.sizeDelta = new Vector2(1220f, 780f);
+            window.gameObject.AddComponent<Image>().color = new Color(0.08f, 0.1f, 0.15f, 0.98f);
+
+            var header = CanvasUiFactory.Node("Header", window);
+            SetTopStretch(header, 20f, 20f, 18f, 112f);
+            var title = CanvasUiFactory.Text("TitleText", header, 36, Color.white, TextAlignmentOptions.Center, FontStyles.Bold);
+            SetTopStretch(title.rectTransform, 12f, 12f, 4f, 42f);
+            var subtitle = CanvasUiFactory.Text("SubtitleText", header, 18, new Color(0.82f, 0.86f, 0.94f, 1f), TextAlignmentOptions.Center);
+            SetTopStretch(subtitle.rectTransform, 12f, 12f, 48f, 28f);
+            var feedback = CanvasUiFactory.Text("FeedbackText", header, 17, new Color(0.76f, 0.9f, 1f, 1f), TextAlignmentOptions.Center, FontStyles.Bold);
+            SetTopStretch(feedback.rectTransform, 12f, 12f, 80f, 26f);
+
+            var body = CanvasUiFactory.Node("Body", window);
+            SetFill(body, 20f, 20f, 138f, 20f);
+
+            EnsureMapRouteViewRuntime(window);
+        }
+
+        void EnsureMapRouteViewRuntime(RectTransform window)
+        {
+            var body = window.Find("Body") as RectTransform;
+            if (body == null)
+            {
+                body = CanvasUiFactory.Node("Body", window);
+                SetFill(body, 20f, 20f, 138f, 20f);
+            }
+
+            var legacyNodes = body.Find("NodesPanel");
+            if (legacyNodes != null)
+                legacyNodes.gameObject.SetActive(false);
+            var legacyConnections = body.Find("ConnectionsPanel");
+            if (legacyConnections != null)
+                legacyConnections.gameObject.SetActive(false);
+
+            if (body.Find("RouteView") == null)
+                CanvasMapRouteView.Create(body);
+        }
+
+        void EnsureMapEventModalRuntime(RectTransform modalRoot)
+        {
+            var existing = modalRoot.Find("MapEventModal") as RectTransform;
+            if (existing != null)
+            {
+                var existingWindow = existing.Find("Window") as RectTransform;
+                if (existingWindow != null)
+                    EnsureMapEventOptionsRuntime(existingWindow);
+                return;
+            }
+
+            var modal = CanvasUiFactory.Node("MapEventModal", modalRoot);
+            Stretch(modal);
+            modal.gameObject.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.62f);
+            modal.gameObject.SetActive(false);
+            modal.SetAsLastSibling();
+
+            var window = CanvasUiFactory.Node("Window", modal);
+            window.anchorMin = new Vector2(0.5f, 0.5f);
+            window.anchorMax = new Vector2(0.5f, 0.5f);
+            window.pivot = new Vector2(0.5f, 0.5f);
+            window.sizeDelta = new Vector2(960f, 640f);
+            window.gameObject.AddComponent<Image>().color = new Color(0.09f, 0.1f, 0.16f, 0.98f);
+
+            var header = CanvasUiFactory.Node("Header", window);
+            SetTopStretch(header, 20f, 20f, 18f, 96f);
+            var title = CanvasUiFactory.Text("TitleText", header, 34, Color.white, TextAlignmentOptions.Center, FontStyles.Bold);
+            SetTopStretch(title.rectTransform, 12f, 12f, 8f, 38f);
+            var subtitle = CanvasUiFactory.Text("SubtitleText", header, 18, new Color(0.82f, 0.86f, 0.94f, 1f), TextAlignmentOptions.Center);
+            SetTopStretch(subtitle.rectTransform, 12f, 12f, 50f, 30f);
+
+            var body = CanvasUiFactory.Node("Body", window);
+            SetFill(body, 20f, 20f, 124f, 20f);
+            EnsureMapEventOptionsRuntime(window);
+        }
+
+        void EnsureMapEventOptionsRuntime(RectTransform window)
+        {
+            var body = window.Find("Body") as RectTransform;
+            if (body == null)
+            {
+                body = CanvasUiFactory.Node("Body", window);
+                SetFill(body, 20f, 20f, 124f, 20f);
+            }
+
+            if (body.Find("ScrollView") != null)
+                return;
+
+            var scroll = CreateHorizontalOptionsArea("ScrollView", body);
+            SetFill(scroll, 0f, 0f, 0f, 0f);
+        }
+
         void EnsureRuntimeBlockOperationsUi()
         {
             var modalRoot = ROptional("ModalRoot");
@@ -1351,6 +1540,49 @@ namespace POPHero
             var fitter = content.gameObject.AddComponent<ContentSizeFitter>();
             fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            scrollRect.viewport = viewport;
+            scrollRect.content = content;
+            return scroll;
+        }
+
+        static RectTransform CreateHorizontalOptionsArea(string name, Transform parent)
+        {
+            var scroll = CanvasUiFactory.Node(name, parent);
+            scroll.gameObject.AddComponent<Image>().color = new Color(0.08f, 0.1f, 0.15f, 0.9f);
+
+            var scrollRect = scroll.gameObject.AddComponent<ScrollRect>();
+            scrollRect.horizontal = true;
+            scrollRect.vertical = false;
+            scrollRect.movementType = ScrollRect.MovementType.Clamped;
+            scrollRect.scrollSensitivity = 28f;
+
+            var viewport = CanvasUiFactory.Node("Viewport", scroll);
+            Stretch(viewport);
+            var viewportImage = viewport.gameObject.AddComponent<Image>();
+            viewportImage.color = new Color(1f, 1f, 1f, 0.01f);
+            var mask = viewport.gameObject.AddComponent<Mask>();
+            mask.showMaskGraphic = false;
+
+            var content = CanvasUiFactory.Node("Content", viewport);
+            content.anchorMin = new Vector2(0f, 0f);
+            content.anchorMax = new Vector2(0f, 1f);
+            content.pivot = new Vector2(0f, 0.5f);
+            content.anchoredPosition = Vector2.zero;
+            content.sizeDelta = Vector2.zero;
+
+            var layout = content.gameObject.AddComponent<HorizontalLayoutGroup>();
+            layout.padding = new RectOffset(18, 18, 18, 18);
+            layout.spacing = 14f;
+            layout.childAlignment = TextAnchor.MiddleLeft;
+            layout.childControlHeight = true;
+            layout.childControlWidth = false;
+            layout.childForceExpandHeight = true;
+            layout.childForceExpandWidth = false;
+
+            var fitter = content.gameObject.AddComponent<ContentSizeFitter>();
+            fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+            fitter.verticalFit = ContentSizeFitter.FitMode.Unconstrained;
 
             scrollRect.viewport = viewport;
             scrollRect.content = content;
@@ -1645,6 +1877,31 @@ namespace POPHero
             while (cards.Count < count)
                 cards.Add(CanvasCardView.Create(root));
             HideExtra(cards, count);
+        }
+
+        static void ApplyMapEventCardLayout(RectTransform root)
+        {
+            if (root == null)
+                return;
+
+            var viewport = root.parent as RectTransform;
+            var scroll = viewport != null ? viewport.parent as RectTransform : null;
+            var width = scroll != null ? scroll.rect.width : root.rect.width;
+            var height = scroll != null ? scroll.rect.height : root.rect.height;
+            var cardWidth = Mathf.Clamp((Mathf.Max(720f, width) - 64f) / 3f, 240f, 320f);
+            var cardHeight = Mathf.Max(240f, height - 36f);
+
+            for (var index = 0; index < root.childCount; index++)
+            {
+                if (root.GetChild(index) is not RectTransform child)
+                    continue;
+
+                var layout = child.GetComponent<LayoutElement>() ?? child.gameObject.AddComponent<LayoutElement>();
+                layout.preferredWidth = cardWidth;
+                layout.minWidth = Mathf.Min(220f, cardWidth);
+                layout.preferredHeight = cardHeight;
+                layout.minHeight = Mathf.Min(220f, cardHeight);
+            }
         }
 
         void EnsureEntries(List<CanvasListEntryView> entries, RectTransform root, int count)

@@ -21,6 +21,7 @@ namespace POPHero
                 Vector2 blockRewardSize,
                 Vector2 rewardSize,
                 Vector2 shopSize,
+                Vector2 mapSize,
                 Vector2 loadoutSize,
                 Vector2 gameOverSize)
             {
@@ -37,6 +38,7 @@ namespace POPHero
                 BlockRewardSize = blockRewardSize;
                 RewardSize = rewardSize;
                 ShopSize = shopSize;
+                MapSize = mapSize;
                 LoadoutSize = loadoutSize;
                 GameOverSize = gameOverSize;
             }
@@ -54,6 +56,7 @@ namespace POPHero
             public Vector2 BlockRewardSize { get; }
             public Vector2 RewardSize { get; }
             public Vector2 ShopSize { get; }
+            public Vector2 MapSize { get; }
             public Vector2 LoadoutSize { get; }
             public Vector2 GameOverSize { get; }
         }
@@ -105,6 +108,17 @@ namespace POPHero
         RectTransform shopDeleteActiveScroll;
         RectTransform shopDeleteReserveScroll;
 
+        RectTransform mapWindow;
+        RectTransform mapHeader;
+        RectTransform mapBody;
+        RectTransform mapRouteView;
+
+        RectTransform mapEventWindow;
+        RectTransform mapEventHeader;
+        RectTransform mapEventBody;
+        RectTransform mapEventScrollView;
+        RectTransform mapEventOptionsContent;
+
         RectTransform blockOperationsWindow;
         RectTransform blockOperationsHeader;
         RectTransform blockOperationsBody;
@@ -148,6 +162,12 @@ namespace POPHero
 
         void OnRectTransformDimensionsChange()
         {
+            ApplyLayout();
+        }
+
+        public void RefreshLayout()
+        {
+            EnsureRefs();
             ApplyLayout();
         }
 
@@ -205,6 +225,17 @@ namespace POPHero
                 "ModalRoot/ShopModal/Window/Body/DeletePanel/Columns/ReserveColumn/ReserveScroll",
                 "ModalRoot/ShopModal/Window/Body/DeletePanel/Columns/ReserveColumn/ReserveContent");
 
+            mapWindow ??= FindRect("ModalRoot/MapModal/Window");
+            mapHeader ??= FindRect("ModalRoot/MapModal/Window/Header");
+            mapBody ??= FindRect("ModalRoot/MapModal/Window/Body");
+            mapRouteView ??= FindRect("ModalRoot/MapModal/Window/Body/RouteView");
+
+            mapEventWindow ??= FindRect("ModalRoot/MapEventModal/Window");
+            mapEventHeader ??= FindRect("ModalRoot/MapEventModal/Window/Header");
+            mapEventBody ??= FindRect("ModalRoot/MapEventModal/Window/Body");
+            mapEventScrollView ??= FindRect("ModalRoot/MapEventModal/Window/Body/ScrollView");
+            mapEventOptionsContent ??= FindRect("ModalRoot/MapEventModal/Window/Body/ScrollView/Viewport/Content");
+
             blockOperationsWindow ??= FindRect("ModalRoot/BlockOperationsModal/Window");
             blockOperationsHeader ??= FindRect("ModalRoot/BlockOperationsModal/Window/Header");
             blockOperationsBody ??= FindRect("ModalRoot/BlockOperationsModal/Window/Body");
@@ -258,6 +289,8 @@ namespace POPHero
             ApplyBlockRewardModal(preset);
             ApplyRewardModal(preset);
             ApplyShopModal(preset);
+            ApplyMapModal(preset);
+            ApplyMapEventModal(preset);
             ApplyBlockOperationsModal(preset);
             ApplyLoadoutModal(preset);
             ApplyGameOverModal(preset);
@@ -448,6 +481,29 @@ namespace POPHero
                 SetFill(shopItemsScrollView, 12f, 12f, 12f, 12f);
         }
 
+        void ApplyMapModal(LayoutPreset preset)
+        {
+            ApplyModalWindow(mapWindow, preset.MapSize);
+            ApplyStandardModalChrome(mapWindow, mapHeader, mapBody, null, 112f, 0f);
+
+            if (mapBody != null)
+                DisableLayoutGroup(mapBody);
+            if (mapRouteView != null)
+                SetFill(mapRouteView, 0f, 0f, 0f, 0f);
+        }
+
+        void ApplyMapEventModal(LayoutPreset preset)
+        {
+            ApplyModalWindow(mapEventWindow, preset.RewardSize);
+            ApplyStandardModalChrome(mapEventWindow, mapEventHeader, mapEventBody, null, 96f, 0f);
+
+            if (mapEventBody != null)
+                DisableLayoutGroup(mapEventBody);
+            if (mapEventScrollView != null)
+                SetFill(mapEventScrollView, 0f, 0f, 0f, 0f);
+            ApplyMapEventOptionsGrid();
+        }
+
         void ApplyBlockOperationsModal(LayoutPreset preset)
         {
             ApplyModalWindow(blockOperationsWindow, preset.ShopSize);
@@ -568,6 +624,37 @@ namespace POPHero
             ApplyGrid(blockRewardContent, canvasRoot.rect.width >= 1600f ? 3 : 2, blockRewardWindow != null ? blockRewardWindow.rect.width : preset.BlockRewardSize.x, 236f);
             ApplyGrid(rewardContent, canvasRoot.rect.width >= 1600f ? 3 : 2, rewardWindow != null ? rewardWindow.rect.width : preset.RewardSize.x, 236f);
             ApplyGrid(shopItemsContent, canvasRoot.rect.width >= 1700f ? 3 : 2, shopWindow != null ? shopWindow.rect.width : preset.ShopSize.x, 206f);
+        }
+
+        void ApplyMapEventOptionsGrid()
+        {
+            if (mapEventOptionsContent == null)
+                return;
+
+            var horizontal = mapEventOptionsContent.GetComponent<HorizontalLayoutGroup>();
+            if (horizontal != null)
+            {
+                horizontal.spacing = 14f;
+                horizontal.padding = new RectOffset(18, 18, 18, 18);
+                horizontal.childForceExpandHeight = true;
+                horizontal.childForceExpandWidth = false;
+            }
+
+            var containerWidth = mapEventScrollView != null ? mapEventScrollView.rect.width : mapEventOptionsContent.rect.width;
+            var containerHeight = mapEventScrollView != null ? mapEventScrollView.rect.height : mapEventOptionsContent.rect.height;
+            var cardWidth = Mathf.Clamp((Mathf.Max(720f, containerWidth) - 36f - 28f) / 3f, 240f, 320f);
+            var cardHeight = Mathf.Max(240f, containerHeight - 36f);
+
+            for (var index = 0; index < mapEventOptionsContent.childCount; index++)
+            {
+                if (mapEventOptionsContent.GetChild(index) is not RectTransform child)
+                    continue;
+                var layout = child.GetComponent<LayoutElement>() ?? child.gameObject.AddComponent<LayoutElement>();
+                layout.preferredWidth = cardWidth;
+                layout.minWidth = Mathf.Min(220f, cardWidth);
+                layout.preferredHeight = cardHeight;
+                layout.minHeight = Mathf.Min(220f, cardHeight);
+            }
         }
 
         static void ApplyGrid(RectTransform root, int columns, float containerWidth, float cellHeight)
@@ -756,6 +843,7 @@ namespace POPHero
                     new Vector2(1080f, 620f),
                     new Vector2(1080f, 620f),
                     new Vector2(1180f, 760f),
+                    new Vector2(1240f, 780f),
                     new Vector2(1220f, 760f),
                     new Vector2(720f, 340f));
             }
@@ -776,6 +864,7 @@ namespace POPHero
                     new Vector2(960f, 560f),
                     new Vector2(960f, 560f),
                     new Vector2(1040f, 700f),
+                    new Vector2(1120f, 720f),
                     new Vector2(1100f, 700f),
                     new Vector2(660f, 320f));
             }
@@ -794,6 +883,7 @@ namespace POPHero
                 new Vector2(900f, 520f),
                 new Vector2(900f, 520f),
                 new Vector2(980f, 660f),
+                new Vector2(1000f, 660f),
                 new Vector2(1040f, 660f),
                 new Vector2(620f, 300f));
         }

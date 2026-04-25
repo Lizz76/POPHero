@@ -22,7 +22,8 @@ namespace POPHero
             "mod.csv",
             "growthReward.csv",
             "shop.csv",
-            "blockOperation.csv"
+            "blockOperation.csv",
+            "mapConfig.csv"
         };
 
         public static bool TryLoadFromProjectCsv(out PopHeroTableConfig tableConfig, out string sourceFolder, out string error)
@@ -88,6 +89,7 @@ namespace POPHero
             asset.growthRewards.Clear();
             asset.shopSlots.Clear();
             asset.blockOperationProfiles.Clear();
+            asset.mapConfigs.Clear();
 
             foreach (var row in GetRows(tables, "globalConfig.csv"))
             {
@@ -254,6 +256,23 @@ namespace POPHero
                     allowSwap = ParseBool(row.Get("allowSwap")),
                     swapCostGold = ParseInt(row.Get("swapCostGold")),
                     maxSwapCount = ParseInt(row.Get("maxSwapCount"), -1)
+                });
+            }
+
+            foreach (var row in GetRows(tables, "mapConfig.csv"))
+            {
+                asset.mapConfigs.Add(new MapConfigDef
+                {
+                    id = row.Get("id"),
+                    floorCount = ParseInt(row.Get("floorCount"), 7),
+                    minNodesPerFloor = ParseInt(row.Get("minNodesPerFloor"), 2),
+                    maxNodesPerFloor = ParseInt(row.Get("maxNodesPerFloor"), 3),
+                    extraConnectionChance = ParseFloat(row.Get("extraConnectionChance"), 0.35f),
+                    battleWeight = ParseInt(row.Get("battleWeight"), 70),
+                    shopWeight = ParseInt(row.Get("shopWeight"), 12),
+                    workbenchWeight = ParseInt(row.Get("workbenchWeight"), 8),
+                    eventWeight = ParseInt(row.Get("eventWeight"), 10),
+                    bossEnemyIndex = ParseInt(row.Get("bossEnemyIndex"), -1)
                 });
             }
         }

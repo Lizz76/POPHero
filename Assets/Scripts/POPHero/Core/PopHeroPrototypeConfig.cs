@@ -116,6 +116,7 @@ namespace POPHero
     public class HudSettings
     {
         public TopStatusBarVisualSettings topStatusBar = new();
+        public MapVisualSettings map = new();
     }
 
     [Serializable]
@@ -127,6 +128,34 @@ namespace POPHero
         public Sprite progressIconSprite;
         public Sprite timerIconSprite;
         public Sprite settingsIconSprite;
+    }
+
+    [Serializable]
+    public class MapVisualSettings
+    {
+        [Header("Route Art")]
+        public Sprite backgroundSprite;
+        public Sprite nodeBackgroundSprite;
+        public Sprite selectableGlowSprite;
+        public Sprite completedMarkSprite;
+        public Sprite lockedMarkSprite;
+        public Sprite edgeSprite;
+
+        [Header("Node Icons")]
+        public Sprite battleIconSprite;
+        public Sprite shopIconSprite;
+        public Sprite workbenchIconSprite;
+        public Sprite eventIconSprite;
+        public Sprite bossIconSprite;
+
+        [Header("Route Colors")]
+        public Color backgroundTint = new(0.06f, 0.08f, 0.13f, 0.96f);
+        public Color lockedNodeColor = new(0.33f, 0.36f, 0.43f, 1f);
+        public Color completedNodeColor = new(0.34f, 0.68f, 0.45f, 1f);
+        public Color lockedEdgeColor = new(0.23f, 0.26f, 0.32f, 0.72f);
+        public Color completedEdgeColor = new(0.34f, 0.68f, 0.45f, 0.88f);
+        public Color availableEdgeColor = new(0.72f, 0.86f, 1f, 0.96f);
+        public Color currentEdgeColor = new(1f, 0.88f, 0.38f, 1f);
     }
 
     [Serializable]

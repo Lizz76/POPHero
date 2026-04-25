@@ -31,6 +31,7 @@ namespace POPHero
         public IReadOnlyList<ShopSlotDef> ShopSlots => tableConfig != null ? tableConfig.shopSlots : Array.Empty<ShopSlotDef>();
         public IReadOnlyList<EnemyDef> EnemyDefs => tableConfig != null ? tableConfig.enemies : Array.Empty<EnemyDef>();
         public IReadOnlyList<BlockOperationProfileDef> BlockOperationProfiles => tableConfig != null ? tableConfig.blockOperationProfiles : Array.Empty<BlockOperationProfileDef>();
+        public IReadOnlyList<MapConfigDef> MapConfigs => tableConfig != null ? tableConfig.mapConfigs : Array.Empty<MapConfigDef>();
 
         void RebuildIndexes()
         {
@@ -307,6 +308,26 @@ namespace POPHero
         {
             definition = null;
             return !string.IsNullOrWhiteSpace(profileId) && blockOperationProfilesById.TryGetValue(profileId.Trim(), out definition);
+        }
+
+        public MapConfigDef GetRunMapConfig()
+        {
+            if (tableConfig != null && tableConfig.mapConfigs.Count > 0)
+                return tableConfig.mapConfigs[0];
+
+            return new MapConfigDef
+            {
+                id = "runtime_default",
+                floorCount = 7,
+                minNodesPerFloor = 2,
+                maxNodesPerFloor = 3,
+                extraConnectionChance = 0.35f,
+                battleWeight = 70,
+                shopWeight = 12,
+                workbenchWeight = 8,
+                eventWeight = 10,
+                bossEnemyIndex = -1
+            };
         }
 
         static string BuildBlockRarityKey(BoardBlockType blockType, BlockRarity rarity)

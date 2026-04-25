@@ -144,6 +144,7 @@ namespace POPHero
             asset.growthRewards.Clear();
             asset.shopSlots.Clear();
             asset.blockOperationProfiles.Clear();
+            asset.mapConfigs.Clear();
 
             foreach (var row in result.GetRows("globalConfig.csv"))
             {
@@ -312,6 +313,23 @@ namespace POPHero
                     maxSwapCount = ParseInt(row.Get("maxSwapCount"), -1)
                 });
             }
+
+            foreach (var row in result.GetRows("mapConfig.csv"))
+            {
+                asset.mapConfigs.Add(new MapConfigDef
+                {
+                    id = row.Get("id"),
+                    floorCount = ParseInt(row.Get("floorCount"), 7),
+                    minNodesPerFloor = ParseInt(row.Get("minNodesPerFloor"), 2),
+                    maxNodesPerFloor = ParseInt(row.Get("maxNodesPerFloor"), 3),
+                    extraConnectionChance = ParseFloat(row.Get("extraConnectionChance"), 0.35f),
+                    battleWeight = ParseInt(row.Get("battleWeight"), 70),
+                    shopWeight = ParseInt(row.Get("shopWeight"), 12),
+                    workbenchWeight = ParseInt(row.Get("workbenchWeight"), 8),
+                    eventWeight = ParseInt(row.Get("eventWeight"), 10),
+                    bossEnemyIndex = ParseInt(row.Get("bossEnemyIndex"), -1)
+                });
+            }
         }
 
         static void ValidateRequiredTables(TableImportResult result)
@@ -319,7 +337,7 @@ namespace POPHero
             foreach (var required in new[]
                      {
                          "globalConfig.csv", "blockType.csv", "blockRarity.csv", "blockRewardStage.csv",
-                         "enemy.csv", "sticker.csv", "stickerToken.csv", "mod.csv", "growthReward.csv", "shop.csv", "blockOperation.csv"
+                         "enemy.csv", "sticker.csv", "stickerToken.csv", "mod.csv", "growthReward.csv", "shop.csv", "blockOperation.csv", "mapConfig.csv"
                      })
             {
                 if (!result.Tables.ContainsKey(required))
@@ -361,6 +379,7 @@ namespace POPHero
             ValidateStickerReferences(result);
             ValidateShop(result);
             ValidateBlockOperations(result);
+            ValidateMapConfig(result);
         }
 
         static void ValidateEnums(TableImportResult result)
@@ -488,6 +507,35 @@ namespace POPHero
                 ValidateNonNegative(result, row, "swapCostGold");
                 ValidateLimit(result, row, "maxDeleteCount");
                 ValidateLimit(result, row, "maxSwapCount");
+            }
+        }
+
+        static void ValidateMapConfig(TableImportResult result)
+        {
+            var enemyCount = result.GetRows("enemy.csv").Count();
+            foreach (var row in result.GetRows("mapConfig.csv"))
+            {
+                var floorCount = ParseInt(row.Get("floorCount"));
+                var minNodes = ParseInt(row.Get("minNodesPerFloor"));
+                var maxNodes = ParseInt(row.Get("maxNodesPerFloor"));
+                if (floorCount < 2)
+                    result.AddError($"{row.Table.Name}: row {row.LineNumber} floorCount must be >= 2.");
+                if (minNodes <= 0 || maxNodes <= 0 || minNodes > maxNodes)
+                    result.AddError($"{row.Table.Name}: row {row.LineNumber} node count range must be positive and min <= max.");
+
+                var totalWeight =
+                    Mathf.Max(0, ParseInt(row.Get("battleWeight"))) +
+                    Mathf.Max(0, ParseInt(row.Get("shopWeight"))) +
+                    Mathf.Max(0, ParseInt(row.Get("workbenchWeight"))) +
+                    Mathf.Max(0, ParseInt(row.Get("eventWeight")));
+                if (totalWeight <= 0)
+                    result.AddError($"{row.Table.Name}: row {row.LineNumber} node weights must not all be 0.");
+
+                var bossEnemyIndex = ParseInt(row.Get("bossEnemyIndex"), -1);
+                if (bossEnemyIndex < -1)
+                    result.AddError($"{row.Table.Name}: row {row.LineNumber} bossEnemyIndex must be -1 or >= 0.");
+                if (bossEnemyIndex >= enemyCount)
+                    result.AddError($"{row.Table.Name}: row {row.LineNumber} bossEnemyIndex {bossEnemyIndex} is outside enemy table range.");
             }
         }
 
