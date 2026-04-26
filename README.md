@@ -1,96 +1,148 @@
 # POPHero
 
-`POPHero` 是一个 Unity 2022.3 弹球轨迹 Roguelike 战斗原型。当前版本已经从早期“弹球 + Buff 三选一”演进为带有方块构筑、中场奖励、商店、Sticker 镶嵌、Mod 全局规则和 Canvas 前端的可迭代原型。
+POPHero 是一个基于 Unity 2022.3 的弹球 Roguelike 战斗原型。玩家通过瞄准发射小球，让球在战斗区域内反弹并命中方块；方块会提供伤害、护盾、倍率等回合收益，再结合敌人接敌、双敌同场、商店、地图事件、删卡/工坊、Sticker 镶嵌和 Mod 规则，形成一局可迭代的爬塔式流程。
 
-本文档用于给后续接手的开发者或 AI 工具快速建立上下文。更细的系统说明请继续阅读 [docs/AI_HANDOFF.md](docs/AI_HANDOFF.md)。
+本文档用于帮助开发者或 AI 协作者快速接手当前项目。更细的历史说明可参考 [docs/AI_HANDOFF.md](docs/AI_HANDOFF.md)，但 README 以当前代码事实为准。
 
-## 当前项目状态
+## 环境
 
-- 战斗载体是 `Block`，玩家通过弹球命中方块获得伤害、护盾、倍率等回合收益。
-- 局部强化叫 `Sticker`，通过 socket 镶嵌到具体方块实例上。
-- 全局规则层叫 `Mod`，用于影响经济、信息展示、操作手感和成长上限。
-- 玩家方块组拆成 `Active Blocks` 与 `Reserve Blocks`，战斗只读取上阵区。
-- 中场流程包含 `BlockRewardChoose -> RewardChoose -> Shop -> LoadoutManage`。
-- 正式前端使用 `Canvas + TMP + Presenter/Command`，旧 `PopHeroHud` 只保留为调试 fallback。
+- Unity：`2022.3.62f2c1`
+- 主要 UI：uGUI Canvas + TextMeshPro
+- 测试框架：Unity Test Framework EditMode
+- MCP：项目已接入 `com.coplaydev.unity-mcp`，方便通过 Unity Editor 自动化检查场景、Console 和测试
+- 主要运行场景：`Boot -> MainMenu -> Battle`
 
-## 启动入口
+## 快速开始
 
-正式场景链路为：
+1. 用 Unity Hub 打开项目根目录：`D:\Unity 2022.3.0f1c1\POPhero\POPHero`
+2. 打开 `Assets/Scenes/Boot.unity`
+3. 运行 Play Mode，流程会进入主菜单，再进入 `Battle`
+4. 如果只调战斗/UI，也可以直接打开 `Assets/Scenes/Battle.unity`
 
-1. `Boot`
-2. `MainMenu`
-3. `Battle`
+常用场景：
 
-相关脚本入口：
+- `Assets/Scenes/Boot.unity`：启动入口
+- `Assets/Scenes/MainMenu.unity`：主菜单
+- `Assets/Scenes/Battle.unity`：当前正式战斗场景
+- `Assets/Scenes/SampleScene.unity`：历史/调试残留，不作为正式入口
 
-- 场景跳转：[Assets/Scripts/POPHero/Core/SceneFlow.cs](Assets/Scripts/POPHero/Core/SceneFlow.cs)
-- Boot 初始化：[Assets/Scripts/POPHero/Core/ProjectBootstrap.cs](Assets/Scripts/POPHero/Core/ProjectBootstrap.cs)
-- 主菜单：[Assets/Scripts/POPHero/Core/MainMenuController.cs](Assets/Scripts/POPHero/Core/MainMenuController.cs)
-- 战斗组合根：[Assets/Scripts/POPHero/Core/PopHeroGame.cs](Assets/Scripts/POPHero/Core/PopHeroGame.cs)
+## 当前玩法概览
 
-`SampleScene.unity` 只应视作历史/调试遗留，正式运行请以 `Battle.unity` 为准。
+- 弹球战斗：玩家拖拽瞄准，绿色预测线展示弹射路线，球按路径进入战斗区域并命中方块。
+- 方块收益：命中的 `Block` 会贡献伤害、护盾、倍率、金币或其他回合效果。
+- 敌人接敌：近战敌人默认从 3 步外出生，逐步前进，贴脸后攻击。
+- 飞行支援敌人：从第二场战斗开始，会出现一个后排飞行敌人；它不接敌，每回合从原点远程攻击。
+- 双敌目标：玩家输出始终打离主角最近的存活敌人，伤害不溢出到另一只敌人。
+- 中场流程：战斗清场后进入方块奖励、奖励选择、地图、商店、工坊/删卡等节点。
+- 地图治疗：普通战斗后不再自动回满血，回血主要来自休息节点或路线事件选项。
+- Sticker：可拖拽镶嵌到方块 socket 上，提供局部强化。
+- Mod：全局规则/经济/信息展示等长期效果，和 Sticker 分层存在。
+- GM 调试：Battle 中可用 `D` 键打开 GM 面板，里面有事件调试按钮，方便触发战斗、Boss、商店、工坊、回血和路线事件。
 
-## 核心系统入口
+## 核心目录
 
-- 战斗流程与全局状态：[Assets/Scripts/POPHero/Core/PopHeroGame.cs](Assets/Scripts/POPHero/Core/PopHeroGame.cs)
-- 弹球发射与输入区域限制：[Assets/Scripts/POPHero/Combat/PlayerLauncher.cs](Assets/Scripts/POPHero/Combat/PlayerLauncher.cs)
-- 轨迹/碰撞共享求解：[Assets/Scripts/POPHero/Combat/BounceStepSolver.cs](Assets/Scripts/POPHero/Combat/BounceStepSolver.cs)
-- 方块实例、奖励、运行时板面：[Assets/Scripts/POPHero/Board/BoardServices.cs](Assets/Scripts/POPHero/Board/BoardServices.cs)
-- 方块世界表现：[Assets/Scripts/POPHero/Board/BlockWorldView.cs](Assets/Scripts/POPHero/Board/BlockWorldView.cs)
-- Canvas HUD 与中场 UI：[Assets/Scripts/POPHero/UI/CanvasHudController.cs](Assets/Scripts/POPHero/UI/CanvasHudController.cs)
-- Canvas UI 小组件：[Assets/Scripts/POPHero/UI/CanvasHudViews.cs](Assets/Scripts/POPHero/UI/CanvasHudViews.cs)
-- 场景脚手架：[Assets/Scripts/POPHero/Editor/SceneBuilder.cs](Assets/Scripts/POPHero/Editor/SceneBuilder.cs)
+- `Assets/Scripts/POPHero/Core`：游戏核心数据、配置服务、只读模型、HUD 命令、场景流转和组合根。
+- `Assets/Scripts/POPHero/Flow`：回合结算、敌人行动、遭遇生成、战斗表现控制。
+- `Assets/Scripts/POPHero/Combat`：发射器、瞄准输入、轨迹预测、弹射求解和球飞行模拟。
+- `Assets/Scripts/POPHero/Board`：方块数据、运行时棋盘、世界表现和奖励服务。
+- `Assets/Scripts/POPHero/Systems`：Sticker、Mod、商店、地图、治疗、删卡/工坊等系统。
+- `Assets/Scripts/POPHero/UI`：Canvas HUD、Presenter、可复用 UI View、地图路线视图、旧 IMGUI fallback。
+- `Assets/Scripts/POPHero/Editor`：场景构建、配置表导入、Editor 工具。
+- `Assets/ConfigTables`：CSV 配置源数据。
+- `Assets/Tests/EditMode`：当前 EditMode 回归测试。
 
-## 当前交互规则
+## 关键代码入口
 
-- 发射输入只允许在中间棋盘战斗区域内生效，点击左侧状态栏、右侧方块栏、商店、设置面板等 UI 不会发射。
-- 设置按钮位于 Battle 右上角，打开后暂停游戏，并提供“继续游戏 / 返回菜单 / 退出游戏”。
-- Sticker 背包现在是真拖拽交互：按住嵌片拖到右侧高亮 socket，松手安装；松在空白处或非法槽位会取消并归位。
-- 拖拽嵌片时鼠标旁会显示一个与 socket 尺寸接近的小 ghost，位于最高 UI 排序层，不会被面板挡住，也不会阻挡 drop。
-- 拖拽过程中普通 tooltip 会隐藏；停止拖拽后，背包、socket、方块图标 tooltip 恢复显示。
-- 已安装的 socket 在未拖拽时仍可点击卸下。
+- [PopHeroGame.cs](Assets/Scripts/POPHero/Core/PopHeroGame.cs)：游戏组合根、状态切换和对外只读模型入口。
+- [GameContracts.cs](Assets/Scripts/POPHero/Core/GameContracts.cs)：`IGameReadModel`、`IHudCommandSink`、服务接口和 HUD 命令。
+- [RoundController.cs](Assets/Scripts/POPHero/Flow/RoundController.cs)：单回合结算入口。
+- [EnemyTurnResolver.cs](Assets/Scripts/POPHero/Flow/EnemyTurnResolver.cs)：敌方行动结算，包含近战前进、贴脸攻击和飞行远程攻击。
+- [EncounterDirector.cs](Assets/Scripts/POPHero/Flow/EncounterDirector.cs)：遭遇生成、双敌编队、目标选择、奖励汇总。
+- [BattlePresentationController.cs](Assets/Scripts/POPHero/Flow/BattlePresentationController.cs)：战斗演出和敌人站位表现。
+- [PlayerLauncher.cs](Assets/Scripts/POPHero/Combat/PlayerLauncher.cs)：玩家发射输入。
+- [TrajectoryPredictor.cs](Assets/Scripts/POPHero/Combat/TrajectoryPredictor.cs)：预测轨迹。
+- [BounceStepSolver.cs](Assets/Scripts/POPHero/Combat/BounceStepSolver.cs)：预测与真实弹射共用的弹跳求解。
+- [CanvasHudController.cs](Assets/Scripts/POPHero/UI/CanvasHudController.cs)：正式 Canvas HUD 绑定、刷新和命令发送。
+- [HudPresenters.cs](Assets/Scripts/POPHero/UI/HudPresenters.cs)：从只读游戏状态构建 UI view model。
+- [SceneBuilder.cs](Assets/Scripts/POPHero/Editor/SceneBuilder.cs)：Battle UI/场景结构生成与修复工具。
 
-## 最近开发记录
+## 配置表
 
-### 2026-04-13
+CSV 位于 `Assets/ConfigTables`，运行时和 Editor 导入共用解析逻辑。
 
-- 接入真实 `uGUI` 嵌片拖拽：新增背包嵌片 `BeginDrag/Drag/EndDrag` 与 socket `Drop` 事件链。
-- 拖拽视觉从“大文本浮窗”改成 `28x28` 小嵌片 ghost，并提升到独立高排序 Canvas，避免被右侧栏或中场面板遮挡。
-- 拖拽过程中隐藏普通 tooltip，避免悬停窗口与拖拽 ghost 同时出现。
-- 增加发射输入区域限制：只有鼠标在棋盘区域内才允许瞄准和发射，UI 区点击不会误发射。
-- 设置入口改为真实场景对象/Prefab，并补充继续游戏、返回菜单、退出游戏三按钮。
-- 给方块 Icon 受击动画准备 Animator 资源骨架，命中时只触发 `Hit` Trigger，动画曲线可在 Unity Animator 中继续调整。
-- Canvas 前端、右侧方块管理栏、中场整理界面继续保留现有 `Presenter -> View -> HudCommand` 低耦合链路。
+- `enemy.csv`：敌人模板，包含近战/飞行行为类型、血量、攻击、奖励、初始距离等。
+- `globalConfig.csv`：全局数值，例如成长、发射次数、敌人距离默认值等。
+- `mapConfig.csv`：地图层数、节点权重、Boss 等配置，包含 `restWeight`。
+- `blockType.csv` / `blockRarity.csv` / `blockRewardStage.csv`：方块类型、稀有度和奖励阶段。
+- `sticker.csv` / `stickerToken.csv`：Sticker 定义和 token。
+- `mod.csv`：Mod 定义。
+- `shop.csv`：商店配置。
+- `blockOperation.csv`：删卡/工坊配置。
 
-## 验证方式
+如果修改 CSV 后需要重建 ScriptableObject 配置，可使用根目录的 `RebuildConfigTables.bat`，或在 Unity 内通过对应 Editor 工具导入。
 
-常用命令：
+## UI 现状
 
-```powershell
-dotnet build E:\UnityProject\POPHero-main\POPHero-main.sln
+- 正式前端是 `CanvasFrontend`，主要由 `CanvasHudController` 绑定。
+- `BlockOperationsModal` 已烘进 `Battle.unity`，不再由运行时偷偷生成，方便在 Hierarchy 里直接编辑。
+- 商店中旧的内嵌 `DeletePanel` 已移除，方块删除/替换统一进入独立工坊面板。
+- `CanvasHudViews.cs` 放置卡片、Sticker、GM 调试项、工坊条目等小型 View。
+- `PopHeroHud` 是旧 IMGUI fallback，保留用于调试，不应继续承载正式业务 UI。
+
+## 测试与验证
+
+推荐优先跑 Unity EditMode 测试：
+
+```text
+Window -> General -> Test Runner -> EditMode
 ```
 
-当前已知构建结果：
+当前测试程序集：
 
-- `0 errors`
-- 可能出现 Unity/MCP 相关程序集版本 warning，例如 `System.Net.Http` 或 `System.IO.Compression` 冲突；这些 warning 当前不阻塞运行。
+- `POPHero.EditModeTests`
+- 覆盖敌人距离/飞行敌人/双敌目标选择/共享减伤池
+- 覆盖地图事件、回血规则、CSV 解析与默认值
 
-建议 Unity 内回归：
+如果通过 Unity MCP 运行，可调用 `run_tests`：
+
+```json
+{
+  "mode": "EditMode",
+  "assembly_names": ["POPHero.EditModeTests"],
+  "include_failed_tests": true,
+  "include_details": false
+}
+```
+
+手测建议：
 
 - `Boot -> MainMenu -> Battle` 能正常进入。
-- Battle 中设置面板打开后，点击战场不会发射；继续游戏后需要重新点击棋盘才可发射。
-- 进入背包/整理界面，从嵌片背包拖拽到合法 socket 能安装；松到空白处会取消并归位。
-- 拖拽 ghost 始终显示在 UI 最上层，不被面板遮挡。
-- 商店、右侧栏、上阵/仓库交换、socket 卸下保持可用。
+- 第一场为单近战敌人，第二场开始为近战 + 飞行支援。
+- 近战敌人按距离均匀前进，0 步时已经到主角面前。
+- 飞行敌人原地远程攻击，不移动到主角面前。
+- 普通战斗胜利后玩家不会自动回满血。
+- 地图休息节点和事件营火能恢复 30% 最大生命。
+- 商店中的“方块操作”能打开独立工坊面板，删卡/替换/关闭流程正常。
+- `D` 键 GM 面板中的事件调试按钮可直接触发对应节点或路线事件。
 
-## 文档索引
+## 开发约定
 
-- AI 接手说明：[docs/AI_HANDOFF.md](docs/AI_HANDOFF.md)
-- 开发日志：[docs/DEVLOG_2026-03-31.md](docs/DEVLOG_2026-03-31.md)
-- 场景迁移计划：[docs/scene_migration_plan.md](docs/scene_migration_plan.md)
+- 新战斗规则优先落在 `Flow` 或 `Systems` 的小服务中，不要继续把所有逻辑塞回 `PopHeroGame`。
+- UI 写入口保持 `IHudCommandSink` / `HudCommand`，UI 读取优先走 `IGameReadModel` 和 Presenter。
+- 敌人模板数据不要存运行时距离；遭遇内距离应放在 `EnemyEncounterState`。
+- 场景 UI 可以在 `Battle.unity` 里常驻，但生成/修复逻辑要同步更新 `SceneBuilder`。
+- 修改配置字段时，Runtime CSV loader、Editor importer、fallback 配置和测试要一起更新。
+- 不要手改 Unity YAML 做大规模结构变更；优先用 Unity Editor/PrefabUtility 或已有场景构建工具。
 
-## 维护提示
+## 已知注意点
 
-- README 用于记录项目当前事实与近期开发记录，不要写过期假设。
-- 深层系统规则、接手 checklist 和详细约束优先维护在 [docs/AI_HANDOFF.md](docs/AI_HANDOFF.md)。
-- 若后续继续重构 UI 或战斗流程，请同步更新“当前交互规则”和“最近开发记录”。
+- 项目仍处于原型阶段，部分系统已有解耦方向，但 `PopHeroGame` 和 `CanvasHudController` 仍是较大的中枢。
+- `Library/`、`Temp/`、`Logs/` 等 Unity 生成目录不应提交。
+- Windows 下 Unity 可能自动改动 `ProjectSettings/ProjectSettings.asset`，提交前请确认是否为本次任务相关。
+- 如果出现中文显示异常，优先确认文件编码为 UTF-8，以及 TextMeshPro 使用了项目中的 CJK 字体 fallback。
+
+## 相关文档
+
+- [AI_HANDOFF.md](docs/AI_HANDOFF.md)：历史接手说明。
+- [DEVLOG_2026-03-31.md](docs/DEVLOG_2026-03-31.md)：早期开发记录。
+- [scene_migration_plan.md](docs/scene_migration_plan.md)：场景迁移计划。
