@@ -61,6 +61,7 @@ namespace POPHero
         Aim,
         BallFlying,
         RoundResolve,
+        BallRewardChoose,
         BlockRewardChoose,
         RewardChoose,
         Shop,
@@ -84,6 +85,14 @@ namespace POPHero
         Blue,
         Purple,
         Gold
+    }
+
+    public enum BallSpecialType
+    {
+        None,
+        Lightning,
+        Burst,
+        Pierce
     }
 
     public enum InputAimMode
@@ -522,5 +531,102 @@ namespace POPHero
         public int intValue;
         public float healPercent;
         public string profileId;
+    }
+
+    [Serializable]
+    public class BallDefinition
+    {
+        public string id;
+        public string displayName;
+        public BlockRarity rarity;
+        public string description;
+        public float attackMultiplier = 1f;
+        public float shieldMultiplier = 1f;
+        public float multiplierMultiplier = 1f;
+        public bool isInitial;
+        public bool isBattleReward;
+        public bool isShop;
+        public BallSpecialType specialType;
+        public float valueA;
+        public float valueB;
+        public float valueC;
+        public float valueD;
+
+        public string ShortName
+        {
+            get
+            {
+                if (string.IsNullOrWhiteSpace(displayName))
+                    return string.IsNullOrWhiteSpace(id) ? "BALL" : id;
+                return displayName.Length <= 2 ? displayName : displayName.Substring(0, 2);
+            }
+        }
+    }
+
+    [Serializable]
+    public sealed class PlayerBallInstance
+    {
+        public string runtimeId;
+        public string definitionId;
+        public BallDefinition definition;
+    }
+
+    [Serializable]
+    public sealed class PlayerBallCollection
+    {
+        public readonly List<PlayerBallInstance> balls = new();
+
+        public IReadOnlyList<PlayerBallInstance> Balls => balls;
+        public int Count => balls.Count;
+
+        public void Clear()
+        {
+            balls.Clear();
+        }
+
+        public PlayerBallInstance Add(BallDefinition definition, int serial)
+        {
+            if (definition == null)
+                return null;
+
+            var instance = new PlayerBallInstance
+            {
+                runtimeId = $"ball_{serial:000}",
+                definitionId = definition.id,
+                definition = definition
+            };
+            balls.Add(instance);
+            return instance;
+        }
+    }
+
+    [Serializable]
+    public sealed class BallBagState
+    {
+        public readonly List<PlayerBallInstance> drawPile = new();
+        public readonly List<PlayerBallInstance> usedPile = new();
+        public PlayerBallInstance currentBall;
+        public PlayerBallInstance activeRoundBall;
+        public int discardsRemaining;
+
+        public void Clear()
+        {
+            drawPile.Clear();
+            usedPile.Clear();
+            currentBall = null;
+            activeRoundBall = null;
+            discardsRemaining = 0;
+        }
+    }
+
+    [Serializable]
+    public sealed class BallRewardOption
+    {
+        public int index;
+        public BallDefinition definition;
+        public string displayName;
+        public string description;
+        public string rarityText;
+        public Color color;
     }
 }

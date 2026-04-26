@@ -57,7 +57,8 @@ namespace POPHero
                 maxDuration = Mathf.Max(0.1f, game.config.ball.maxFlightDuration),
                 maxBounces = previewBounceBudget,
                 maxSteps = Mathf.Max(128, previewBounceBudget * 6),
-                includeStartPoint = true
+                includeStartPoint = true,
+                ballDefinition = game.CurrentActionBall
             });
 
             result.pathPoints.AddRange(simulationResult.pathPoints);
@@ -70,7 +71,7 @@ namespace POPHero
                 if (flightEvent.eventType != BallFlightEventType.BlockHit || flightEvent.block == null)
                     continue;
 
-                ApplyPredictedBlockEffect(flightEvent.block, ref predictedAttack, ref predictedShield);
+                ApplyPredictedBlockEffect(flightEvent.block, flightEvent.effectMultiplier, ref predictedAttack, ref predictedShield);
                 result.hitBlocks.Add(flightEvent.block);
             }
 
@@ -101,19 +102,20 @@ namespace POPHero
             return Mathf.Max(configuredBudget, 64, adaptiveBudget);
         }
 
-        void ApplyPredictedBlockEffect(BoardBlock block, ref int predictedAttack, ref int predictedShield)
+        void ApplyPredictedBlockEffect(BoardBlock block, float effectMultiplier, ref int predictedAttack, ref int predictedShield)
         {
+            var ball = game.CurrentActionBall;
             switch (block.blockType)
             {
                 case BoardBlockType.AttackAdd:
-                    predictedAttack += Mathf.Max(0, Mathf.RoundToInt(block.valueA));
+                    predictedAttack += BallEffectCalculator.ScaleAdditive(block.valueA, ball, block.blockType, effectMultiplier);
                     break;
                 case BoardBlockType.AttackMultiply:
                     if (predictedAttack > 0 && block.valueA > 0f)
-                        predictedAttack = Mathf.Max(0, Mathf.RoundToInt(predictedAttack * block.valueA));
+                        predictedAttack = Mathf.Max(0, Mathf.RoundToInt(predictedAttack * BallEffectCalculator.ScaleMultiplier(block.valueA, ball, effectMultiplier)));
                     break;
                 case BoardBlockType.Shield:
-                    predictedShield += Mathf.Max(0, Mathf.RoundToInt(block.valueA));
+                    predictedShield += BallEffectCalculator.ScaleAdditive(block.valueA, ball, block.blockType, effectMultiplier);
                     break;
             }
         }

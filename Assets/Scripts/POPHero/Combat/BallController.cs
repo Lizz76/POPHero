@@ -110,6 +110,17 @@ namespace POPHero
             launchCounterLabel.text = $"{Mathf.Max(0, remaining)}/{Mathf.Max(1, maximum)}";
         }
 
+        public void SetLaunchCounter(string currentBallName, int drawCount, int usedCount)
+        {
+            if (launchCounterLabel == null)
+                BuildLaunchCounter();
+
+            var name = string.IsNullOrWhiteSpace(currentBallName) ? "--" : currentBallName;
+            if (name.Length > 2)
+                name = name.Substring(0, 2);
+            launchCounterLabel.text = $"{name}\n{Mathf.Max(0, drawCount)}/{Mathf.Max(0, usedCount)}";
+        }
+
         public void SetLaunchCounterVisible(bool isVisible)
         {
             if (launchCounterLabel == null)
@@ -234,14 +245,15 @@ namespace POPHero
                 maxTotalDistance = 0f,
                 maxDuration = Mathf.Max(0.1f, game.config.ball.maxFlightDuration),
                 maxBounces = 0,
-                maxSteps = Mathf.Max(1, game.config.ball.maxCollisionStepsPerFixedUpdate)
+                maxSteps = Mathf.Max(1, game.config.ball.maxCollisionStepsPerFixedUpdate),
+                ballDefinition = game.CurrentActionBall
             });
 
             foreach (var flightEvent in result.events)
             {
                 if (flightEvent.eventType == BallFlightEventType.BlockHit && flightEvent.block != null)
                 {
-                    flightEvent.block.ApplyGameplayHit(this);
+                    flightEvent.block.ApplyGameplayHit(this, flightEvent.effectMultiplier);
                     flightEvent.block.PlayHitFeedback();
                     BoostTrail();
                 }

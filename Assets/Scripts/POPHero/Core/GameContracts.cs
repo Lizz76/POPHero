@@ -22,12 +22,18 @@ namespace POPHero
         bool IsSettingsOpen { get; }
         float RunElapsedSeconds { get; }
         string AimModeDisplayText { get; }
+        string CurrentBallName { get; }
+        string CurrentBallDescription { get; }
+        int BallDrawPileCount { get; }
+        int BallUsedPileCount { get; }
+        bool CanDiscardCurrentBall { get; }
         int PreviewHitCount { get; }
         int PreviewAttackBlockCount { get; }
         int PreviewShieldBlockCount { get; }
         int PreviewMultiplierBlockCount { get; }
         IBlockCollectionService BlockCollections { get; }
         IBlockRewardService BlockRewards { get; }
+        IReadOnlyList<BallRewardOption> ActiveBallRewardOptions { get; }
         StickerInventory StickerInventory { get; }
         IModService Mods { get; }
         RoundController RoundController { get; }
@@ -114,6 +120,8 @@ namespace POPHero
         DebugDamagePlayer,
         DebugTriggerMapNode,
         DebugTriggerMapEventChoice,
+        DiscardCurrentBall,
+        TrySelectBallReward,
         TrySelectBlockReward,
         SkipBlockReward,
         TrySelectReward,

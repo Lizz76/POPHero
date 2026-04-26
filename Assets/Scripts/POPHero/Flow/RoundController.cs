@@ -16,6 +16,9 @@ namespace POPHero
         public RoundStickerState StickerState { get; } = new();
         public int ChainLength => StickerState.chainLength;
         public int UniqueFamilyCount => StickerState.uniqueFamilies.Count;
+        readonly System.Collections.Generic.HashSet<BoardBlock> lightningTriggeredBlocks = new();
+        BallDefinition activeBall;
+        int lightningTriggerCount;
 
         public void Initialize(PopHeroGame owner, Vector2 initialLaunchPosition)
         {
@@ -26,6 +29,9 @@ namespace POPHero
             RoundShieldGain = 0;
             RoundHitCount = 0;
             StickerState.Reset();
+            lightningTriggeredBlocks.Clear();
+            lightningTriggerCount = 0;
+            activeBall = null;
             enemyTurnResolver = new EnemyTurnResolver();
         }
 
@@ -36,18 +42,26 @@ namespace POPHero
             RoundShieldGain = 0;
             RoundHitCount = 0;
             StickerState.Reset();
+            lightningTriggeredBlocks.Clear();
+            lightningTriggerCount = 0;
+            activeBall = game.CurrentActionBall;
             game.Player.ClearShield();
             game.CombatEventHub?.Publish(new CombatEventPayload(StickerTriggerType.OnRoundStart));
         }
 
-        public void ProcessBlockHit(BoardBlock block)
+        public void ProcessBlockHit(BoardBlock block, float effectMultiplier = 1f)
+        {
+            ProcessBlockHitInternal(block, effectMultiplier, true);
+        }
+
+        void ProcessBlockHitInternal(BoardBlock block, float effectMultiplier, bool allowLightning)
         {
             if (block?.CardState == null)
                 return;
 
             RoundHitCount += 1;
             RegisterBlockHit(block.CardState);
-            ApplyBaseBlockEffect(block);
+            ApplyBaseBlockEffect(block, effectMultiplier);
             game.CombatEventHub?.Publish(new CombatEventPayload(StickerTriggerType.OnBlockHit, block));
             switch (block.blockType)
             {
@@ -62,6 +76,9 @@ namespace POPHero
                     break;
             }
             game.RefreshPendingDamagePreview();
+
+            if (allowLightning)
+                TryTriggerLightning(block);
         }
 
         public void AddAttack(int amount)
@@ -189,6 +206,11 @@ namespace POPHero
                 result.enemyDisplayHpAfterHit = result.enemyDisplayHpBeforeHit;
             }
 
+            var burstDamage = BallEffectCalculator.BurstDamage(activeBall, RoundHitCount);
+            if (burstDamage > 0)
+                RoundAttackScore += burstDamage;
+            result.attackDamage = RoundAttackScore;
+
             if (targetEncounter != null && targetEncounter.Enemy != null && RoundAttackScore > 0)
             {
                 result.enemyDefeated = targetEncounter.Enemy.ApplyDamage(RoundAttackScore);
@@ -301,20 +323,73 @@ namespace POPHero
             StickerState.lastFamily = card.family;
         }
 
-        void ApplyBaseBlockEffect(BoardBlock block)
+        void ApplyBaseBlockEffect(BoardBlock block, float effectMultiplier)
         {
+            var ball = activeBall;
             switch (block.blockType)
             {
                 case BoardBlockType.AttackAdd:
-                    AddAttack(Mathf.RoundToInt(block.valueA));
+                    AddAttack(BallEffectCalculator.ScaleAdditive(block.valueA, ball, block.blockType, effectMultiplier));
                     break;
                 case BoardBlockType.AttackMultiply:
-                    MultiplyAttack(block.valueA);
+                    MultiplyAttack(BallEffectCalculator.ScaleMultiplier(block.valueA, ball, effectMultiplier));
                     break;
                 case BoardBlockType.Shield:
-                    AddShield(Mathf.RoundToInt(block.valueA));
+                    AddShield(BallEffectCalculator.ScaleAdditive(block.valueA, ball, block.blockType, effectMultiplier));
                     break;
             }
+        }
+
+        void TryTriggerLightning(BoardBlock source)
+        {
+            if (activeBall == null || activeBall.specialType != BallSpecialType.Lightning || source == null)
+                return;
+
+            var maxTriggers = Mathf.Max(0, Mathf.RoundToInt(activeBall.valueD <= 0f ? 3f : activeBall.valueD));
+            if (lightningTriggerCount >= maxTriggers)
+                return;
+
+            var chance = Mathf.Clamp01(activeBall.valueA <= 0f ? 0.3f : activeBall.valueA);
+            if (Random.value > chance)
+                return;
+
+            var target = FindLightningTarget(source);
+            if (target == null)
+                return;
+
+            lightningTriggerCount += 1;
+            lightningTriggeredBlocks.Add(target);
+            ProcessBlockHitInternal(target, activeBall.valueC <= 0f ? 0.5f : activeBall.valueC, false);
+            target.PlayHitFeedback();
+        }
+
+        BoardBlock FindLightningTarget(BoardBlock source)
+        {
+            var blocks = game.RuntimeBoard?.ActiveBlocks;
+            if (blocks == null)
+                return null;
+
+            var range = activeBall.valueB <= 0f ? 1f : activeBall.valueB;
+            var blockSize = game.config != null ? Mathf.Max(game.config.board.blockSize.x, game.config.board.blockSize.y) : 1f;
+            var rangeWorld = range <= 3f ? range * blockSize * 1.5f : range;
+            var sourcePosition = source.transform.position;
+            BoardBlock best = null;
+            var bestDistance = float.MaxValue;
+            for (var index = 0; index < blocks.Count; index++)
+            {
+                var candidate = blocks[index];
+                if (candidate == null || candidate == source || lightningTriggeredBlocks.Contains(candidate))
+                    continue;
+
+                var distance = Vector2.Distance(sourcePosition, candidate.transform.position);
+                if (distance > rangeWorld || distance >= bestDistance)
+                    continue;
+
+                best = candidate;
+                bestDistance = distance;
+            }
+
+            return best;
         }
     }
 }

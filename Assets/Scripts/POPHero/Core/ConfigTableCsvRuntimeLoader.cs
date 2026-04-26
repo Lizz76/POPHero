@@ -90,6 +90,7 @@ namespace POPHero
             asset.shopSlots.Clear();
             asset.blockOperationProfiles.Clear();
             asset.mapConfigs.Clear();
+            asset.balls.Clear();
 
             foreach (var row in GetRows(tables, "globalConfig.csv"))
             {
@@ -274,6 +275,28 @@ namespace POPHero
                     restWeight = ParseInt(row.Get("restWeight"), 10),
                     eventWeight = ParseInt(row.Get("eventWeight"), 10),
                     bossEnemyIndex = ParseInt(row.Get("bossEnemyIndex"), -1)
+                });
+            }
+
+            foreach (var row in GetRows(tables, "ball.csv"))
+            {
+                asset.balls.Add(new BallDefinition
+                {
+                    id = row.Get("id"),
+                    displayName = row.Get("name"),
+                    rarity = ParseEnum(row.Get("rarityKey"), BlockRarity.White),
+                    description = row.Get("description"),
+                    attackMultiplier = ParseFloat(row.Get("attackMultiplier"), 1f),
+                    shieldMultiplier = ParseFloat(row.Get("shieldMultiplier"), 1f),
+                    multiplierMultiplier = ParseFloat(row.Get("multiplierMultiplier"), 1f),
+                    isInitial = ParseBool(row.Get("isInitial")),
+                    isBattleReward = ParseBool(row.Get("isBattleReward")),
+                    isShop = ParseBool(row.Get("isShop")),
+                    specialType = ParseEnum(row.Get("specialType"), BallSpecialType.None),
+                    valueA = ParseFloat(row.Get("valueA")),
+                    valueB = ParseFloat(row.Get("valueB")),
+                    valueC = ParseFloat(row.Get("valueC")),
+                    valueD = ParseFloat(row.Get("valueD"))
                 });
             }
         }

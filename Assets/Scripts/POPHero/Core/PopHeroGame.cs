@@ -15,6 +15,7 @@ namespace POPHero
         enum IntermissionActionKind
         {
             None,
+            SelectBallReward,
             SelectBlockReward,
             SkipBlockReward,
             EnterStickerRewardPhase,
@@ -121,8 +122,16 @@ namespace POPHero
         public bool CanManageStickerLoadout => !IsSettingsOpen && State == RoundState.LoadoutManage;
         public string AimModeDisplayText => CurrentAimMode == InputAimMode.PCMouseAimClick ? "移动鼠标瞄准，左键发射" : "拖动瞄准，再点一次发射";
         public string CurrentAimModeLabel => CurrentAimMode == InputAimMode.PCMouseAimClick ? "移动鼠标瞄准，左键发射" : "拖动瞄准，再点一次发射";
+        public string CurrentBallName => ballBagManager?.CurrentDefinition?.displayName ?? "--";
+        public string CurrentBallDescription => ballBagManager?.CurrentDefinition?.description ?? string.Empty;
+        public int BallDrawPileCount => ballBagManager?.DrawPileCount ?? 0;
+        public int BallUsedPileCount => ballBagManager?.UsedPileCount ?? 0;
+        public bool CanDiscardCurrentBall => ballBagManager?.CanDiscard ?? false;
+        public IReadOnlyList<BallRewardOption> ActiveBallRewardOptions => ballRewardService?.ActiveOptions ?? Array.Empty<BallRewardOption>();
         public Vector2 CurrentLaunchPoint => roundController != null ? roundController.LaunchPosition : initialLaunchPoint;
         public IReadOnlyList<WallAimPoint> WallAimPoints => wallAimPoints;
+        public BallBagManager BallBag => ballBagManager;
+        public BallDefinition CurrentActionBall => ballBagManager?.ActiveRoundDefinition ?? ballBagManager?.CurrentDefinition;
 
         PlayerLauncher launcher;
         BallController ballController;
@@ -142,6 +151,8 @@ namespace POPHero
         StickerInventory stickerInventory;
         StickerEffectRunner stickerEffectRunner;
         RewardChoiceController rewardChoiceController;
+        BallBagManager ballBagManager;
+        BallRewardService ballRewardService;
         ModManager modManager;
         ShopManager shopManager;
         BlockOperationManager blockOperationManager;
@@ -407,6 +418,8 @@ namespace POPHero
             stickerInventory = new StickerInventory();
             stickerEffectRunner = new StickerEffectRunner();
             rewardChoiceController = new RewardChoiceController();
+            ballBagManager = new BallBagManager();
+            ballRewardService = new BallRewardService();
             modManager = new ModManager();
             shopManager = new ShopManager();
             blockOperationManager = new BlockOperationManager();
@@ -416,6 +429,8 @@ namespace POPHero
             stickerInventory.Initialize(this);
             stickerEffectRunner.Initialize(this);
             rewardChoiceController.Initialize(this);
+            ballBagManager.Initialize(this);
+            ballRewardService.Initialize(this);
             modManager.Initialize(this);
             shopManager.Initialize(this);
             blockOperationManager.Initialize(this);
@@ -517,6 +532,8 @@ namespace POPHero
             Player = new PlayerData(config.player.maxHp, config.player.currentHp, config.player.startShield, config.player.startGold);
             UpdateRuntimeContext();
             Player.IncreaseInventoryCapacity(config.stickers.baseInventoryCapacity - Player.StickerInventoryCapacity);
+            ballBagManager?.Initialize(this);
+            ballRewardService?.Initialize(this);
             roundController.Initialize(this, initialLaunchPoint);
             boardManager.ResetBlockProgression();
             ballController.PlaceAt(CurrentLaunchPoint);
@@ -917,11 +934,11 @@ namespace POPHero
 
         internal void TryLaunchBallCore(Vector2 direction, TrajectoryPreviewResult preview = null)
         {
-            if (IsSettingsOpen || suppressAimInputAfterUi || State != RoundState.Aim || direction.sqrMagnitude <= 0.001f || RemainingLaunchesForEnemy <= 0)
+            if (IsSettingsOpen || suppressAimInputAfterUi || State != RoundState.Aim || direction.sqrMagnitude <= 0.001f)
                 return;
 
+            ballBagManager?.BeginRound();
             preview ??= trajectoryPredictor?.BuildPreview(CurrentLaunchPoint, direction, config.ball.previewSegments, config.ball.previewDistance);
-            RemainingLaunchesForEnemy = Mathf.Max(0, RemainingLaunchesForEnemy - 1);
             RefreshLaunchCounter();
             roundController.BeginRound();
             ChangeState(RoundState.BallFlying);
@@ -971,7 +988,14 @@ namespace POPHero
             for (var killIndex = 0; killIndex < clearRewards.DefeatedEnemyCount; killIndex++)
                 Player.RegisterKillAndTryLevelUp();
 
-            BeginBlockRewardDraft(false);
+            BeginBallRewardDraft();
+        }
+
+        void BeginBallRewardDraft()
+        {
+            ballRewardService.GenerateOptions(config.intermission.rewardChoiceCount);
+            IntermissionMessage = "击败敌人后，选择一颗新弹球加入弹球袋。";
+            ChangeState(RoundState.BallRewardChoose);
         }
 
         void BeginBlockRewardDraft(bool initialDraft)
@@ -1007,6 +1031,7 @@ namespace POPHero
         {
             boardManager.EnsureAtLeastOneActive();
             boardManager.AdvanceBlockProgression();
+            ballBagManager?.BeginActionWindow();
             boardManager.ShuffleBlocks(CurrentLaunchPoint);
             ballController.PlaceAt(CurrentLaunchPoint);
             RefreshEnemyTargetSelection();
@@ -1225,6 +1250,7 @@ namespace POPHero
                 : null;
             RefreshEnemyTargetSelection();
             RemainingLaunchesForEnemy = MaxLaunchesPerEnemy;
+            ballBagManager?.StartBattleBag();
             RefreshLaunchCounter();
             RefreshEnemyPresenters();
             ResetBattleActorPositions();
@@ -1373,6 +1399,31 @@ namespace POPHero
                 return;
 
             QueueIntermissionAction(IntermissionActionKind.SelectBlockReward, index);
+        }
+
+        public void TrySelectBallReward(int index)
+        {
+            if (State != RoundState.BallRewardChoose)
+                return;
+
+            QueueIntermissionAction(IntermissionActionKind.SelectBallReward, index);
+        }
+
+        void ExecuteSelectBallReward(int index)
+        {
+            if (State != RoundState.BallRewardChoose)
+                return;
+
+            if (!ballRewardService.TryClaimOption(index, out var addedBall, out var failReason))
+            {
+                IntermissionMessage = failReason;
+                return;
+            }
+
+            IntermissionMessage = addedBall?.definition != null
+                ? $"{addedBall.definition.displayName} 已加入弹球袋。"
+                : "新弹球已加入弹球袋。";
+            QueueIntermissionAction(IntermissionActionKind.EnterStickerRewardPhase);
         }
 
         void ExecuteSelectBlockReward(int index)
@@ -1637,9 +1688,7 @@ namespace POPHero
                     Player.IncreaseInventoryCapacity(rewardData.value);
                     break;
                 case GrowthRewardType.IncreaseLaunchCapacity:
-                    Player.IncreaseLaunchCapacity(rewardData.value);
-                    RemainingLaunchesForEnemy = Mathf.Max(RemainingLaunchesForEnemy, MaxLaunchesPerEnemy);
-                    RefreshLaunchCounter();
+                    IntermissionMessage = "发射次数成长已停用；当前版本失败只由生命归零触发。";
                     break;
             }
         }
@@ -1648,6 +1697,23 @@ namespace POPHero
         {
             if (State == RoundState.LoadoutManage)
                 QueueIntermissionAction(IntermissionActionKind.FinishLoadout);
+        }
+
+        public bool TryDiscardCurrentBall()
+        {
+            if (ballBagManager == null)
+                return false;
+
+            if (!ballBagManager.TryDiscardCurrent(out var message))
+            {
+                IntermissionMessage = message;
+                return false;
+            }
+
+            IntermissionMessage = message;
+            RefreshLaunchCounter();
+            ClearAimPreview();
+            return true;
         }
 
         public void DebugShuffleBoard()
@@ -2084,6 +2150,9 @@ namespace POPHero
 
         void CompleteResolvePresentation(RoundResolveResult result)
         {
+            ballBagManager?.FinishRoundAndDrawNext();
+            RefreshLaunchCounter();
+
             if (result.playerDefeated)
             {
                 TriggerGameOver("生命归零，本局结束。");
@@ -2101,12 +2170,6 @@ namespace POPHero
                 Player.AddGold(interest);
 
             playerPresenter?.Refresh(Player);
-            if (RemainingLaunchesForEnemy <= 0)
-            {
-                TriggerGameOver("该遭遇的发射次数已经耗尽。");
-                return;
-            }
-
             PrepareNextRound();
         }
 
@@ -2348,7 +2411,7 @@ namespace POPHero
 
         void RefreshLaunchCounter()
         {
-            ballController?.SetLaunchCounter(RemainingLaunchesForEnemy, MaxLaunchesPerEnemy);
+            ballController?.SetLaunchCounter(CurrentBallName, BallDrawPileCount, BallUsedPileCount);
         }
 
         void QueueIntermissionAction(IntermissionActionKind actionKind, int index = -1)
@@ -2382,6 +2445,9 @@ namespace POPHero
 
             switch (action)
             {
+                case IntermissionActionKind.SelectBallReward:
+                    ExecuteSelectBallReward(index);
+                    break;
                 case IntermissionActionKind.SelectBlockReward:
                     ExecuteSelectBlockReward(index);
                     break;
@@ -2440,6 +2506,7 @@ namespace POPHero
             phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.Aim, true));
             phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.BallFlying, false));
             phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.RoundResolve, false));
+            phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.BallRewardChoose, false));
             phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.BlockRewardChoose, false));
             phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.RewardChoose, false));
             phaseStateMachine.Register(new SimpleGamePhaseState(RoundState.Shop, false));

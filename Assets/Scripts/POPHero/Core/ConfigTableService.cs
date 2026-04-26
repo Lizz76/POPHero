@@ -12,6 +12,7 @@ namespace POPHero
         readonly Dictionary<string, string> globals = new(StringComparer.OrdinalIgnoreCase);
         readonly Dictionary<BoardBlockType, BlockTypeDef> blockTypes = new();
         readonly Dictionary<string, BlockRarityDef> blockRarities = new();
+        readonly Dictionary<string, BallDefinition> ballsById = new(StringComparer.OrdinalIgnoreCase);
         readonly Dictionary<string, StickerDef> stickersByEffectKey = new(StringComparer.OrdinalIgnoreCase);
         readonly Dictionary<string, ModDef> modsByEffectKey = new(StringComparer.OrdinalIgnoreCase);
         readonly Dictionary<string, BlockOperationProfileDef> blockOperationProfilesById = new(StringComparer.OrdinalIgnoreCase);
@@ -32,12 +33,14 @@ namespace POPHero
         public IReadOnlyList<EnemyDef> EnemyDefs => tableConfig != null ? tableConfig.enemies : Array.Empty<EnemyDef>();
         public IReadOnlyList<BlockOperationProfileDef> BlockOperationProfiles => tableConfig != null ? tableConfig.blockOperationProfiles : Array.Empty<BlockOperationProfileDef>();
         public IReadOnlyList<MapConfigDef> MapConfigs => tableConfig != null ? tableConfig.mapConfigs : Array.Empty<MapConfigDef>();
+        public IReadOnlyList<BallDefinition> BallDefs => tableConfig != null && tableConfig.balls.Count > 0 ? tableConfig.balls : DefaultBallCatalog.CreateDefaults();
 
         void RebuildIndexes()
         {
             globals.Clear();
             blockTypes.Clear();
             blockRarities.Clear();
+            ballsById.Clear();
             stickersByEffectKey.Clear();
             modsByEffectKey.Clear();
             blockOperationProfilesById.Clear();
@@ -56,6 +59,12 @@ namespace POPHero
 
             foreach (var rarity in tableConfig.blockRarities)
                 blockRarities[BuildBlockRarityKey(rarity.blockType, rarity.rarity)] = rarity;
+
+            foreach (var ball in tableConfig.balls)
+            {
+                if (!string.IsNullOrWhiteSpace(ball.id))
+                    ballsById[ball.id.Trim()] = ball;
+            }
 
             foreach (var sticker in tableConfig.stickers)
             {
@@ -292,6 +301,41 @@ namespace POPHero
             if (candidates.Count == 0)
                 candidates = tableConfig.blockTypes;
             return candidates[UnityEngine.Random.Range(0, candidates.Count)].blockType;
+        }
+
+        public BallDefinition GetBallDef(string id)
+        {
+            if (!string.IsNullOrWhiteSpace(id) && ballsById.TryGetValue(id.Trim(), out var configured))
+                return configured;
+
+            var defaults = DefaultBallCatalog.CreateDefaults();
+            return defaults.Find(ball => string.Equals(ball.id, id, StringComparison.OrdinalIgnoreCase));
+        }
+
+        public IReadOnlyList<BallDefinition> GetInitialBallDefs()
+        {
+            var source = BallDefs;
+            var result = new List<BallDefinition>();
+            foreach (var ball in source)
+            {
+                if (ball != null && ball.isInitial)
+                    result.Add(ball);
+            }
+
+            return result.Count > 0 ? result : DefaultBallCatalog.CreateDefaults().FindAll(ball => ball.isInitial);
+        }
+
+        public IReadOnlyList<BallDefinition> GetBattleRewardBallDefs()
+        {
+            var source = BallDefs;
+            var result = new List<BallDefinition>();
+            foreach (var ball in source)
+            {
+                if (ball != null && ball.isBattleReward)
+                    result.Add(ball);
+            }
+
+            return result.Count > 0 ? result : DefaultBallCatalog.CreateDefaults();
         }
 
         public StickerDef GetStickerDef(string effectKey)

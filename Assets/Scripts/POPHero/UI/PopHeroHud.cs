@@ -85,6 +85,9 @@ namespace POPHero
             if (game.State == RoundState.BlockRewardChoose)
                 DrawBlockRewardPanel();
 
+            if (game.State == RoundState.BallRewardChoose)
+                DrawBallRewardPanel();
+
             if (game.State == RoundState.RewardChoose)
                 DrawRewardPanel();
 
@@ -136,6 +139,9 @@ namespace POPHero
             GUILayout.Label(model.RoundAttackText, badgeStyle);
             GUILayout.Label(model.RoundShieldText, badgeStyle);
             GUILayout.Label(model.RoundHitText, badgeStyle);
+            GUILayout.Label(model.CurrentBallText, badgeStyle);
+            if (!string.IsNullOrWhiteSpace(model.CurrentBallDescription))
+                GUILayout.Label(model.CurrentBallDescription, textStyle);
             if (!string.IsNullOrWhiteSpace(model.PreviewText))
                 GUILayout.Label(model.PreviewText, textStyle);
             if (!string.IsNullOrWhiteSpace(model.IntermissionText))
@@ -149,6 +155,10 @@ namespace POPHero
                 RunCommand(new HudCommand(HudCommandType.ToggleAimMode));
             if (GUILayout.Button("重排方块", buttonStyle, GUILayout.Width(110f)))
                 RunCommand(new HudCommand(HudCommandType.DebugShuffleBoard));
+            GUI.enabled = model.CanDiscardCurrentBall;
+            if (GUILayout.Button(model.DiscardButtonText, buttonStyle, GUILayout.Width(150f)))
+                RunCommand(new HudCommand(HudCommandType.DiscardCurrentBall));
+            GUI.enabled = true;
             if (GUILayout.Button("金币 +25", buttonStyle, GUILayout.Width(110f)))
                 RunCommand(new HudCommand(HudCommandType.DebugAddGold, 25));
             if (GUILayout.Button("击败敌人", buttonStyle, GUILayout.Width(110f)))
@@ -396,6 +406,41 @@ namespace POPHero
             if (model.ShowSkipButton && GUILayout.Button(model.SkipButtonText, buttonStyle, GUILayout.Width(170f)))
                 RunCommand(new HudCommand(HudCommandType.SkipBlockReward));
             GUILayout.EndHorizontal();
+            GUILayout.EndArea();
+            GUILayout.EndArea();
+        }
+
+        void DrawBallRewardPanel()
+        {
+            var model = intermissionPanelPresenter.BuildBallReward(game);
+            var panelRect = GetIntermissionRect(1080f, 500f);
+            GUILayout.BeginArea(panelRect, boxStyle);
+            GUILayout.Label(model.TitleText, titleStyle);
+            GUILayout.Label(model.SubtitleText, textStyle);
+
+            var contentRect = new Rect(12f, 68f, panelRect.width - 24f, panelRect.height - 96f);
+            GUILayout.BeginArea(contentRect);
+            rewardScroll = GUILayout.BeginScrollView(rewardScroll, false, true);
+            var cardWidth = GetModalCardWidth(contentRect.width, Mathf.Max(1, model.Cards.Count), 220f, 300f);
+            var cardHeight = Mathf.Clamp(contentRect.height - 24f, 220f, 260f);
+            GUILayout.BeginHorizontal();
+            for (var index = 0; index < model.Cards.Count; index++)
+            {
+                var card = model.Cards[index];
+                GUILayout.BeginVertical(cardStyle, GUILayout.Width(cardWidth), GUILayout.Height(cardHeight));
+                var previousColor = GUI.contentColor;
+                GUI.contentColor = card.AccentColor;
+                GUILayout.Label(card.DisplayName, titleStyle);
+                GUI.contentColor = previousColor;
+                GUILayout.Label(card.RarityText, badgeStyle);
+                GUILayout.Label(card.Description, textStyle, GUILayout.Height(110f));
+                GUILayout.FlexibleSpace();
+                if (GUILayout.Button("加入弹球袋", buttonStyle))
+                    RunCommand(new HudCommand(HudCommandType.TrySelectBallReward, card.Index));
+                GUILayout.EndVertical();
+            }
+            GUILayout.EndHorizontal();
+            GUILayout.EndScrollView();
             GUILayout.EndArea();
             GUILayout.EndArea();
         }
@@ -970,6 +1015,7 @@ namespace POPHero
                 RoundState.Aim => "瞄准",
                 RoundState.BallFlying => "飞行",
                 RoundState.RoundResolve => "结算",
+                RoundState.BallRewardChoose => "选弹球",
                 RoundState.BlockRewardChoose => "选方块",
                 RoundState.RewardChoose => "奖励",
                 RoundState.Shop => "商店",

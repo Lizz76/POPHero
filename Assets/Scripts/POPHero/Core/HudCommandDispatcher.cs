@@ -51,6 +51,12 @@ namespace POPHero
                 case HudCommandType.DebugTriggerMapEventChoice:
                     game.DebugTriggerMapEventChoice(command.PrimaryId);
                     break;
+                case HudCommandType.DiscardCurrentBall:
+                    game.TryDiscardCurrentBall();
+                    break;
+                case HudCommandType.TrySelectBallReward:
+                    game.TrySelectBallReward(command.IntValue);
+                    break;
                 case HudCommandType.TrySelectBlockReward:
                     game.TrySelectBlockReward(command.IntValue);
                     break;

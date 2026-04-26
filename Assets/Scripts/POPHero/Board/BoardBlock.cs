@@ -59,9 +59,9 @@ namespace POPHero
             PlayHitFeedback();
         }
 
-        public void ApplyGameplayHit(BallController ball)
+        public void ApplyGameplayHit(BallController ball, float effectMultiplier = 1f)
         {
-            OnBallHit(ball);
+            OnBallHit(ball, effectMultiplier);
         }
 
         public void PlayHitFeedback()
@@ -74,7 +74,7 @@ namespace POPHero
             worldView?.SetVisualState(state);
         }
 
-        protected abstract void OnBallHit(BallController ball);
+        protected abstract void OnBallHit(BallController ball, float effectMultiplier);
 
         public void RefreshFromCard()
         {

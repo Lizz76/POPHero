@@ -42,6 +42,7 @@ namespace POPHero
         public Collider2D lastGameplayCollider;
         public Vector2 lastGameplayHitPoint;
         public bool hasLastGameplayHit;
+        public int pierceHitCount;
         public bool isTerminated;
         public BallFlightTerminationReason terminationReason;
 
@@ -71,6 +72,7 @@ namespace POPHero
         public int maxBounces;
         public int maxSteps;
         public bool includeStartPoint;
+        public BallDefinition ballDefinition;
     }
 
     public struct BallFlightEvent
@@ -86,6 +88,7 @@ namespace POPHero
         public ArenaSurfaceMarker marker;
         public BallFlightTerminationReason terminationReason;
         public bool isRecovery;
+        public float effectMultiplier;
     }
 
     public sealed class BallFlightResult
@@ -185,14 +188,20 @@ namespace POPHero
                     reflectDirection = state.direction.sqrMagnitude > 0.0001f ? -state.direction.normalized : Vector2.down;
 
                 var eventType = ResolveEventType(state, step);
-                if (!step.isRecoveryStep)
+                var piercesBlock = ShouldPierceBlock(state, options.ballDefinition, eventType);
+                var effectMultiplier = piercesBlock ? BallEffectCalculator.PierceYieldMultiplier(options.ballDefinition) : 1f;
+                if (!step.isRecoveryStep && !piercesBlock)
                 {
                     state.speed = Mathf.Min(game.config.ball.maxSpeed, state.speed + game.config.ball.accelerationPerBounce);
                     state.bounceCount += 1;
                 }
 
-                state.direction = reflectDirection;
-                AddEvent(result, state, step, eventType, travelCost, BallFlightTerminationReason.None);
+                if (piercesBlock)
+                    state.pierceHitCount += 1;
+                else
+                    state.direction = reflectDirection;
+
+                AddEvent(result, state, step, eventType, travelCost, BallFlightTerminationReason.None, effectMultiplier);
                 PushAwayFromSurface(state, epsilon, step, cornerResolved, cornerBounce);
                 UpdateIgnoreMemory(state, step, cornerResolved, cornerBounce);
 
@@ -414,7 +423,15 @@ namespace POPHero
             return false;
         }
 
-        void AddEvent(BallFlightResult result, BallFlightState state, TrajectoryCastStep step, BallFlightEventType eventType, float travelCost, BallFlightTerminationReason terminationReason)
+        bool ShouldPierceBlock(BallFlightState state, BallDefinition ballDefinition, BallFlightEventType eventType)
+        {
+            return eventType == BallFlightEventType.BlockHit &&
+                   ballDefinition != null &&
+                   ballDefinition.specialType == BallSpecialType.Pierce &&
+                   state.pierceHitCount < BallEffectCalculator.PierceCount(ballDefinition);
+        }
+
+        void AddEvent(BallFlightResult result, BallFlightState state, TrajectoryCastStep step, BallFlightEventType eventType, float travelCost, BallFlightTerminationReason terminationReason, float effectMultiplier = 1f)
         {
             var flightEvent = new BallFlightEvent
             {
@@ -428,7 +445,8 @@ namespace POPHero
                 block = step.block,
                 marker = step.marker,
                 terminationReason = terminationReason,
-                isRecovery = step.isRecoveryStep
+                isRecovery = step.isRecoveryStep,
+                effectMultiplier = effectMultiplier
             };
 
             result.events.Add(flightEvent);

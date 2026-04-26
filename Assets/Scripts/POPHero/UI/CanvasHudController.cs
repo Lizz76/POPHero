@@ -112,6 +112,7 @@ namespace POPHero
         Button toggleAimButton;
         Button settingsButton;
         Button shuffleButton;
+        Button discardBallButton;
         Button addGoldButton;
         Button killEnemyButton;
         Button damagePlayerButton;
@@ -357,6 +358,7 @@ namespace POPHero
 
             toggleAimButton = B("HudRoot/CombatPanel/Buttons/ToggleAimButton");
             shuffleButton = B("HudRoot/CombatPanel/Buttons/ShuffleButton");
+            discardBallButton = BOptional("HudRoot/CombatPanel/Buttons/DiscardBallButton") ?? CreateCombatPanelButton("DiscardBallButton", "弃球");
             addGoldButton = B("HudRoot/CombatPanel/Buttons/AddGoldButton");
             killEnemyButton = B("HudRoot/CombatPanel/Buttons/KillEnemyButton");
             damagePlayerButton = B("HudRoot/CombatPanel/Buttons/DamagePlayerButton");
@@ -486,6 +488,7 @@ namespace POPHero
             Bind(settingsButton, () => Run(new HudCommand(HudCommandType.OpenSettings)));
             Bind(toggleAimButton, () => Run(new HudCommand(HudCommandType.ToggleAimMode)));
             Bind(shuffleButton, () => Run(new HudCommand(HudCommandType.DebugShuffleBoard)));
+            Bind(discardBallButton, () => Run(new HudCommand(HudCommandType.DiscardCurrentBall)));
             Bind(addGoldButton, () => Run(new HudCommand(HudCommandType.DebugAddGold)));
             Bind(killEnemyButton, () => Run(new HudCommand(HudCommandType.DebugKillEnemy)));
             Bind(damagePlayerButton, () => Run(new HudCommand(HudCommandType.DebugDamagePlayer)));
@@ -507,7 +510,7 @@ namespace POPHero
 
         void RefreshStatus()
         {
-            SetActive(statusPanelObject, false);
+            SetActive(statusPanelObject, true);
             var model = statusPresenter.Build(game);
             Set(statusTitle, "战斗状态");
             Set(statusState, string.IsNullOrEmpty(model.StateText) ? model.StateText : model.StateText.Replace("整理", "背包"));
@@ -519,7 +522,7 @@ namespace POPHero
             Set(statusShield, model.ShieldText);
             Set(statusGold, model.GoldText);
             Set(statusInventory, model.InventoryText);
-            Set(statusLaunches, model.LaunchesText);
+            Set(statusLaunches, $"{model.LaunchesText}\n{model.BallBagText}");
             Set(statusEnemy, model.EnemyText);
             Set(statusEnemyHp, model.EnemyHpText);
             Set(statusEnemyAtk, model.EnemyAttackText);
@@ -557,7 +560,7 @@ namespace POPHero
             Set(combatTitle, "GM 调试 / 战斗信息");
             Set(combatAttack, model.RoundAttackText);
             Set(combatShield, model.RoundShieldText);
-            Set(combatHits, model.RoundHitText);
+            Set(combatHits, $"{model.RoundHitText}\n{model.CurrentBallText}\n{model.CurrentBallDescription}");
             Set(combatPreview, model.PreviewText);
             var message = string.IsNullOrWhiteSpace(model.IntermissionText)
                 ? "长按 D 关闭，或按 Esc 关闭。"
@@ -565,6 +568,9 @@ namespace POPHero
             Set(combatMessage, message);
             SetButtonLabel(toggleAimButton, "切换瞄准");
             SetButtonLabel(shuffleButton, "重排方块");
+            SetButtonLabel(discardBallButton, model.DiscardButtonText);
+            if (discardBallButton != null)
+                discardBallButton.interactable = model.CanDiscardCurrentBall;
             SetButtonLabel(addGoldButton, "金币 +25");
             SetButtonLabel(killEnemyButton, "秒杀敌人");
             SetButtonLabel(damagePlayerButton, "主角 -10 血");
@@ -669,7 +675,7 @@ namespace POPHero
             var state = game.State;
             SetActive(mapModal, state == RoundState.Map);
             SetActive(mapEventModal, state == RoundState.MapEvent);
-            SetActive(blockRewardModal, state == RoundState.BlockRewardChoose);
+            SetActive(blockRewardModal, state == RoundState.BlockRewardChoose || state == RoundState.BallRewardChoose);
             SetActive(rewardModal, state == RoundState.RewardChoose);
             SetActive(shopModal, state == RoundState.Shop);
             SetActive(blockOperationsModal, state == RoundState.BlockOperations);
@@ -685,7 +691,9 @@ namespace POPHero
             else
                 HideExtra(mapEventCards, 0);
 
-            if (state == RoundState.BlockRewardChoose)
+            if (state == RoundState.BallRewardChoose)
+                RefreshBallReward();
+            else if (state == RoundState.BlockRewardChoose)
                 RefreshBlockReward();
             else
                 HideExtra(blockRewardCards, 0);
@@ -820,6 +828,26 @@ namespace POPHero
                 view.SetInteractable(card.CanSelect);
                 var capturedIndex = card.Index;
                 view.SetAction(() => Run(new HudCommand(HudCommandType.TrySelectBlockReward, capturedIndex)));
+            }
+        }
+
+        void RefreshBallReward()
+        {
+            var model = intermissionPresenter.BuildBallReward(game);
+            Set(blockRewardTitle, model.TitleText);
+            Set(blockRewardSubtitle, model.SubtitleText);
+            SetActive(blockRewardSkipButton, false);
+
+            EnsureCards(blockRewardCards, blockRewardContent, model.Cards.Count);
+            for (var index = 0; index < model.Cards.Count; index++)
+            {
+                var card = model.Cards[index];
+                var view = blockRewardCards[index];
+                view.gameObject.SetActive(true);
+                view.Set(card.DisplayName, card.RarityText, string.Empty, card.Description, "加入弹球袋", card.AccentColor);
+                view.SetInteractable(true);
+                var capturedIndex = card.Index;
+                view.SetAction(() => Run(new HudCommand(HudCommandType.TrySelectBallReward, capturedIndex)));
             }
         }
 
@@ -1312,6 +1340,17 @@ namespace POPHero
         {
             var node = transform.Find(path);
             return node == null ? null : node.GetComponent<Button>();
+        }
+
+        Button CreateCombatPanelButton(string name, string label)
+        {
+            var buttonsRoot = ROptional("HudRoot/CombatPanel/Buttons");
+            if (buttonsRoot == null)
+                return null;
+
+            var button = CanvasUiFactory.Button(name, buttonsRoot, label, new Color(0.28f, 0.46f, 0.88f, 1f), Color.white, 18);
+            button.gameObject.AddComponent<LayoutElement>().preferredHeight = 38f;
+            return button;
         }
 
         void EnsureRuntimeGmEventDebugUi()

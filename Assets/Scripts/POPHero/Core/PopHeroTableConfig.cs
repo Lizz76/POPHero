@@ -19,6 +19,7 @@ namespace POPHero
         public List<ShopSlotDef> shopSlots = new();
         public List<BlockOperationProfileDef> blockOperationProfiles = new();
         public List<MapConfigDef> mapConfigs = new();
+        public List<BallDefinition> balls = new();
 
         public bool HasGameplayTables =>
             blockTypes.Count > 0 ||
@@ -30,7 +31,8 @@ namespace POPHero
             growthRewards.Count > 0 ||
             shopSlots.Count > 0 ||
             blockOperationProfiles.Count > 0 ||
-            mapConfigs.Count > 0;
+            mapConfigs.Count > 0 ||
+            balls.Count > 0;
     }
 
     [Serializable]

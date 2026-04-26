@@ -24,6 +24,7 @@ namespace POPHero
         public string GoldText;
         public string InventoryText;
         public string LaunchesText;
+        public string BallBagText;
         public string EnemyText;
         public string EnemyHpText;
         public string EnemyAttackText;
@@ -36,6 +37,10 @@ namespace POPHero
         public string RoundHitText;
         public string PreviewText;
         public string IntermissionText;
+        public string CurrentBallText;
+        public string CurrentBallDescription;
+        public string DiscardButtonText;
+        public bool CanDiscardCurrentBall;
     }
 
     public sealed class BlockRowModel
@@ -90,6 +95,22 @@ namespace POPHero
         public IReadOnlyList<BlockRewardCardModel> Cards;
         public bool ShowSkipButton;
         public string SkipButtonText;
+    }
+
+    public sealed class BallRewardCardModel
+    {
+        public int Index;
+        public string DisplayName;
+        public string RarityText;
+        public string Description;
+        public Color AccentColor;
+    }
+
+    public sealed class BallRewardPanelModel
+    {
+        public string TitleText;
+        public string SubtitleText;
+        public IReadOnlyList<BallRewardCardModel> Cards;
     }
 
     public sealed class RewardCardModel
@@ -233,7 +254,7 @@ namespace POPHero
             var reserveCapacity = blocks?.ReserveCapacity ?? 0;
             var state = game != null ? GetStateText(game.State) : "--";
             var aimMode = game?.AimModeDisplayText ?? "--";
-            var launches = game != null ? $"{game.RemainingLaunchesForEnemy}/{game.MaxLaunchesPerEnemy}" : "--/--";
+            var launches = game != null ? $"抽取 {game.BallDrawPileCount} / 已用 {game.BallUsedPileCount}" : "抽取 -- / 已用 --";
             var encounter = game != null ? game.EncounterIndex.ToString() : "--";
 
             var model = new StatusPanelModel
@@ -249,7 +270,8 @@ namespace POPHero
                 ShieldText = hasPlayer ? $"护盾：{player.CurrentShield}" : "护盾：-",
                 GoldText = hasPlayer ? $"金币：{player.Gold}" : "金币：-",
                 InventoryText = $"嵌片库存：{inventoryCount}/{inventoryCapacity}",
-                LaunchesText = $"发射次数：{launches}",
+                LaunchesText = $"弹球袋：{launches}",
+                BallBagText = $"当前弹球：{game?.CurrentBallName ?? "--"}",
                 EnemyText = $"当前目标 #{encounter}：{enemy?.DisplayName ?? "--"}",
                 EnemyHpText = enemy != null ? $"目标生命：{enemy.CurrentHp}/{enemy.MaxHp}" : "目标生命：-/--",
                 EnemyAttackText = enemy != null ? $"目标攻击：{enemy.AttackDamage}" : "目标攻击：-"
@@ -312,6 +334,10 @@ namespace POPHero
                 RoundAttackText = $"本轮伤害：{round?.RoundAttackScore ?? 0}",
                 RoundShieldText = $"本轮护盾：{round?.RoundShieldGain ?? 0}",
                 RoundHitText = $"命中次数：{round?.RoundHitCount ?? 0}",
+                CurrentBallText = $"当前弹球：{game?.CurrentBallName ?? "--"}  抽取 {game?.BallDrawPileCount ?? 0} / 已用 {game?.BallUsedPileCount ?? 0}",
+                CurrentBallDescription = game?.CurrentBallDescription ?? string.Empty,
+                DiscardButtonText = game?.CanDiscardCurrentBall == true ? "弃掉当前弹球" : "本行动不能弃球",
+                CanDiscardCurrentBall = game?.CanDiscardCurrentBall == true,
                 PreviewText = previewEnabled && game != null && game.State == RoundState.Aim
                     ? $"锁定路线预览：总命中 {game.PreviewHitCount}，攻击 {game.PreviewAttackBlockCount}，防御 {game.PreviewShieldBlockCount}，倍率 {game.PreviewMultiplierBlockCount}"
                     : string.Empty,
@@ -367,12 +393,38 @@ namespace POPHero
 
     public sealed class IntermissionPanelPresenter
     {
+        readonly List<BallRewardCardModel> ballRewardCards = new();
         readonly List<BlockRewardCardModel> blockRewardCards = new();
         readonly List<RewardCardModel> rewardCards = new();
         readonly List<ShopItemCardModel> shopItemCards = new();
         readonly List<MapNodeCardModel> mapNodeCards = new();
         readonly List<MapEventOptionCardModel> mapEventOptionCards = new();
         readonly BlockOperationsPanelModel blockOperationsPanel = new();
+
+        public BallRewardPanelModel BuildBallReward(IGameReadModel game)
+        {
+            ballRewardCards.Clear();
+            var options = game?.ActiveBallRewardOptions ?? Array.Empty<BallRewardOption>();
+            for (var index = 0; index < options.Count; index++)
+            {
+                var option = options[index];
+                ballRewardCards.Add(new BallRewardCardModel
+                {
+                    Index = option.index,
+                    DisplayName = option.displayName,
+                    RarityText = $"稀有度：{option.rarityText}",
+                    Description = option.description,
+                    AccentColor = option.color
+                });
+            }
+
+            return new BallRewardPanelModel
+            {
+                TitleText = "选择新弹球",
+                SubtitleText = "将一颗弹球加入你的弹球袋，之后的战斗会从袋中抽取。",
+                Cards = ballRewardCards
+            };
+        }
 
         public MapPanelModel BuildMapPanel(IGameReadModel game)
         {
