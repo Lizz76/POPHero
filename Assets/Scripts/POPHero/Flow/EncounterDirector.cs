@@ -20,7 +20,7 @@ namespace POPHero
     public sealed class EncounterDirector
     {
         readonly GameRuntimeContext context;
-        readonly List<EnemyEncounterState> currentEnemyEncounters = new(2);
+        readonly List<EnemyEncounterState> currentEnemyEncounters = new(3);
 
         public EncounterDirector(GameRuntimeContext context)
         {
@@ -31,6 +31,7 @@ namespace POPHero
         public EnemyEncounterState CurrentEnemyEncounter { get; private set; }
         public EnemyData CurrentEnemy => CurrentEnemyEncounter?.Enemy;
         public IReadOnlyList<EnemyEncounterState> CurrentEnemyEncounters => currentEnemyEncounters;
+        public string CurrentEncounterId { get; private set; }
 
         PopHeroPrototypeConfig Config => context?.Config;
 
@@ -38,12 +39,22 @@ namespace POPHero
         {
             CurrentEnemyGroup = null;
             CurrentEnemyEncounter = null;
+            CurrentEncounterId = string.Empty;
             currentEnemyEncounters.Clear();
         }
 
         public EnemyEncounterGroupState SpawnEncounter(int index)
         {
             CurrentEnemyGroup = BuildEnemyEncounterGroupForIndex(index);
+            CurrentEncounterId = string.Empty;
+            RefreshTargetSelection();
+            return CurrentEnemyGroup;
+        }
+
+        public EnemyEncounterGroupState SpawnEncounter(string encounterId)
+        {
+            CurrentEnemyGroup = BuildEnemyEncounterGroupForId(encounterId);
+            CurrentEncounterId = encounterId ?? string.Empty;
             RefreshTargetSelection();
             return CurrentEnemyGroup;
         }
@@ -97,8 +108,26 @@ namespace POPHero
             var template = templates[clampedIndex];
             var overflow = Mathf.Max(0, index - (templates.Count - 1));
             var primaryEncounter = BuildEncounterFromTemplate(template, overflow, EnemyEncounterSlot.Primary);
-            var supportEncounter = index >= 1 ? BuildFlyingSupportEncounter(overflow) : null;
-            return new EnemyEncounterGroupState(primaryEncounter, supportEncounter);
+            return new EnemyEncounterGroupState(primaryEncounter);
+        }
+
+        EnemyEncounterGroupState BuildEnemyEncounterGroupForId(string encounterId)
+        {
+            var encounter = FindEncounter(encounterId) ?? FindFirstEncounter();
+            if (encounter == null || encounter.enemies == null || encounter.enemies.Count == 0)
+                return BuildEnemyEncounterGroupForIndex(0);
+
+            var built = new List<EnemyEncounterState>(encounter.enemies.Count);
+            for (var index = 0; index < encounter.enemies.Count; index++)
+            {
+                var entry = encounter.enemies[index];
+                var template = FindEnemyTemplate(entry.enemyId);
+                var state = BuildEncounterFromTemplate(template, 0, entry.slot);
+                if (state != null)
+                    built.Add(state);
+            }
+
+            return built.Count > 0 ? new EnemyEncounterGroupState(built) : BuildEnemyEncounterGroupForIndex(0);
         }
 
         EnemyEncounterState BuildEncounterFromTemplate(EnemyTemplate template, int overflow, EnemyEncounterSlot slot)
@@ -119,17 +148,58 @@ namespace POPHero
             if (template.behaviorType == EnemyBehaviorType.FlyingRangedOrigin)
                 initialDistanceSteps = 0;
 
-            var enemy = new EnemyData(name, hp, rewardGold, rewardHeal, attackDamage, template.color, template.behaviorType);
+            var enemy = new EnemyData(name, hp, rewardGold, rewardHeal, attackDamage, template.color, template.behaviorType, template.enemyId, template.prefabKey, template.abilityIds);
             return new EnemyEncounterState(enemy, initialDistanceSteps, slot);
         }
 
-        EnemyEncounterState BuildFlyingSupportEncounter(int overflow)
+        EncounterDef FindEncounter(string encounterId)
         {
-            var template = Config?.enemies?.flyingSupportTemplate;
-            if (template == null || template.behaviorType != EnemyBehaviorType.FlyingRangedOrigin)
+            if (string.IsNullOrWhiteSpace(encounterId))
                 return null;
 
-            return BuildEncounterFromTemplate(template, overflow, EnemyEncounterSlot.Support);
+            var encounters = context?.Tables?.EncounterDefs;
+            if (encounters == null)
+                return null;
+
+            for (var index = 0; index < encounters.Count; index++)
+            {
+                var encounter = encounters[index];
+                if (encounter != null && string.Equals(encounter.encounterId, encounterId, System.StringComparison.OrdinalIgnoreCase))
+                    return encounter;
+            }
+
+            return null;
+        }
+
+        EncounterDef FindFirstEncounter()
+        {
+            var encounters = context?.Tables?.EncounterDefs;
+            if (encounters == null)
+                return null;
+
+            for (var index = 0; index < encounters.Count; index++)
+            {
+                if (encounters[index] != null)
+                    return encounters[index];
+            }
+
+            return null;
+        }
+
+        EnemyTemplate FindEnemyTemplate(int enemyId)
+        {
+            var templates = Config?.enemies?.templates;
+            if (templates == null || templates.Count == 0)
+                return null;
+
+            for (var index = 0; index < templates.Count; index++)
+            {
+                var template = templates[index];
+                if (template != null && template.enemyId == enemyId)
+                    return template;
+            }
+
+            return templates[0];
         }
     }
 }

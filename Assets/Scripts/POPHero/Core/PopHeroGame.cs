@@ -53,6 +53,7 @@ namespace POPHero
 
         [Header("Enemy Layer Visuals")]
         [SerializeField] SpriteRenderer enemyPanel;
+        [SerializeField] EnemyPrefabRegistry enemyPrefabRegistry;
 
         [Header("Characters")]
         [SerializeField] PlayerPresenter playerPresenterRef;
@@ -139,7 +140,11 @@ namespace POPHero
         BoardManager boardManager;
         RoundController roundController;
         EnemyController enemyController;
+        EnemyController midEnemyController;
         EnemyController supportEnemyController;
+        string enemyControllerPrefabKey = EnemyPrefabRegistry.DefaultPrefabKey;
+        string midEnemyControllerPrefabKey = EnemyPrefabRegistry.DefaultPrefabKey;
+        string supportEnemyControllerPrefabKey = EnemyPrefabRegistry.DefaultPrefabKey;
         PlayerPresenter playerPresenter;
         PopHeroHud hud;
         CanvasHudController canvasHud;
@@ -176,7 +181,7 @@ namespace POPHero
         MapFlowController mapFlowController;
         readonly List<WallAimPoint> wallAimPoints = new();
         readonly List<RaycastResult> uiRaycastResults = new();
-        readonly List<EnemyEncounterState> currentEnemyEncounters = new(2);
+        readonly List<EnemyEncounterState> currentEnemyEncounters = new(3);
         int enemyEncounterIndex;
         bool initialBlockDraftPending;
         IntermissionActionKind pendingIntermissionAction;
@@ -184,6 +189,7 @@ namespace POPHero
         bool isBattlePresentationPlaying;
         Vector3 playerIdlePosition;
         Vector3 enemyMeleeAnchor;
+        Vector3 enemyMidMeleeAnchor;
         Vector3 enemyAttackImpactPosition;
         Vector3 enemySupportOriginPosition;
         Vector3 enemyRangedImpactPosition;
@@ -217,6 +223,9 @@ namespace POPHero
                 if (Application.isEditor && !string.IsNullOrWhiteSpace(csvError))
                     Debug.LogWarning($"[POPHero] Failed to load CSV tables directly, falling back to runtime asset. Reason: {csvError}");
             }
+
+            if (enemyPrefabRegistry == null)
+                enemyPrefabRegistry = Resources.Load<EnemyPrefabRegistry>(EnemyPrefabRegistry.ResourceName);
 
             Tables = new ConfigTableService(tableConfig, config);
             if (tableConfig == null || !tableConfig.HasGameplayTables)
@@ -320,6 +329,7 @@ namespace POPHero
             PreviewMultiplierBlockCount = 0;
             boardManager?.ClearPreviewState();
             enemyController?.ClearPreviewDamage();
+            midEnemyController?.ClearPreviewDamage();
             supportEnemyController?.ClearPreviewDamage();
         }
 
@@ -556,6 +566,8 @@ namespace POPHero
             isBattlePresentationPlaying = false;
             if (enemyController != null)
                 enemyController.gameObject.SetActive(false);
+            if (midEnemyController != null)
+                midEnemyController.gameObject.SetActive(false);
             if (supportEnemyController != null)
                 supportEnemyController.gameObject.SetActive(false);
             playerPresenter?.Refresh(Player);
@@ -594,6 +606,7 @@ namespace POPHero
 
             playerIdlePosition = panelCenter + new Vector2(-BoardRect.width * 0.28f, -0.16f);
             enemyMeleeAnchor = playerIdlePosition + new Vector3(1.92f, 0.06f, 0f);
+            enemyMidMeleeAnchor = enemyMeleeAnchor + new Vector3(0.72f, 0.36f, 0f);
             enemyAttackImpactPosition = playerIdlePosition + new Vector3(1.0f, 1.04f, 0f);
             enemySupportOriginPosition = panelCenter + new Vector2(BoardRect.width * 0.34f, 0.62f);
             enemyRangedImpactPosition = playerIdlePosition + new Vector3(0.18f, 1.28f, 0f);
@@ -613,16 +626,29 @@ namespace POPHero
             enemyController = enemyControllerRef;
             if (enemyController != null)
             {
+                enemyControllerPrefabKey = EnemyPrefabRegistry.DefaultPrefabKey;
                 enemyController.transform.position = GetEnemyDefaultPosition(EnemyEncounterSlot.Primary);
                 enemyController.Initialize(this);
             }
 
-            supportEnemyController = EnsureSupportEnemyController();
+            var existingSupport = battleStageRoot != null ? battleStageRoot.Find("EnemySupport") : null;
+            supportEnemyController = existingSupport != null ? existingSupport.GetComponent<EnemyController>() : null;
             if (supportEnemyController != null)
             {
+                supportEnemyControllerPrefabKey = EnemyPrefabRegistry.DefaultPrefabKey;
                 supportEnemyController.transform.position = GetEnemyDefaultPosition(EnemyEncounterSlot.Support);
                 supportEnemyController.Initialize(this);
                 supportEnemyController.gameObject.SetActive(false);
+            }
+
+            var existingMid = battleStageRoot != null ? battleStageRoot.Find("EnemyMid") : null;
+            midEnemyController = existingMid != null ? existingMid.GetComponent<EnemyController>() : null;
+            if (midEnemyController != null)
+            {
+                midEnemyControllerPrefabKey = EnemyPrefabRegistry.DefaultPrefabKey;
+                midEnemyController.transform.position = GetEnemyDefaultPosition(EnemyEncounterSlot.Mid);
+                midEnemyController.Initialize(this);
+                midEnemyController.gameObject.SetActive(false);
             }
         }
 
@@ -1016,7 +1042,7 @@ namespace POPHero
         {
             initialBlockDraftPending = false;
             IntermissionMessage = string.Empty;
-            SpawnEnemy(enemyEncounterIndex);
+            SpawnEncounter(null, EncounterNodeType.Normal, 1);
             PrepareNextRound();
         }
 
@@ -1078,8 +1104,8 @@ namespace POPHero
             {
                 case MapNodeKind.Battle:
                 case MapNodeKind.Boss:
-                    enemyEncounterIndex = Mathf.Max(0, node.enemyIndex);
-                    SpawnEnemy(enemyEncounterIndex);
+                    enemyEncounterIndex = Mathf.Max(0, node.floor);
+                    SpawnEncounter(node.encounterId, RunMapManager.TryMapEncounterNodeType(node.kind, out var nodeType) ? nodeType : EncounterNodeType.Normal, node.floor + 1);
                     PrepareNextRound();
                     break;
                 case MapNodeKind.Shop:
@@ -1231,6 +1257,7 @@ namespace POPHero
             }
 
             enemyController?.gameObject.SetActive(false);
+            midEnemyController?.gameObject.SetActive(false);
             supportEnemyController?.gameObject.SetActive(false);
             encounterDirector?.Reset();
             CurrentEnemyGroup = null;
@@ -1244,9 +1271,17 @@ namespace POPHero
 
         void SpawnEnemy(int index)
         {
+            SpawnEncounter(null, EncounterNodeType.Normal, index + 1);
+        }
+
+        void SpawnEncounter(string encounterId, EncounterNodeType nodeType, int floor)
+        {
             UpdateRuntimeContext();
+            var selectedEncounterId = string.IsNullOrWhiteSpace(encounterId)
+                ? SelectEncounterId(nodeType, floor)
+                : encounterId;
             CurrentEnemyGroup = encounterDirector != null
-                ? encounterDirector.SpawnEncounter(index)
+                ? encounterDirector.SpawnEncounter(selectedEncounterId)
                 : null;
             RefreshEnemyTargetSelection();
             RemainingLaunchesForEnemy = MaxLaunchesPerEnemy;
@@ -1254,6 +1289,13 @@ namespace POPHero
             RefreshLaunchCounter();
             RefreshEnemyPresenters();
             ResetBattleActorPositions();
+        }
+
+        string SelectEncounterId(EncounterNodeType nodeType, int floor)
+        {
+            var selector = new EncounterSelector();
+            var selected = selector.Select(Tables?.EncounterDefs, 1, nodeType, Mathf.Max(1, floor));
+            return selected != null ? selected.encounterId : string.Empty;
         }
 
         internal void RefreshEnemyTargetSelection()
@@ -1277,7 +1319,11 @@ namespace POPHero
 
         void RefreshEnemyPresenters()
         {
+            enemyController = EnsureEnemyPresenter(CurrentEnemyGroup?.GetEncounter(EnemyEncounterSlot.Primary), EnemyEncounterSlot.Primary);
+            midEnemyController = EnsureEnemyPresenter(CurrentEnemyGroup?.GetEncounter(EnemyEncounterSlot.Mid), EnemyEncounterSlot.Mid);
+            supportEnemyController = EnsureEnemyPresenter(CurrentEnemyGroup?.GetEncounter(EnemyEncounterSlot.Support), EnemyEncounterSlot.Support);
             RefreshEnemyPresenter(enemyController, CurrentEnemyGroup?.GetEncounter(EnemyEncounterSlot.Primary));
+            RefreshEnemyPresenter(midEnemyController, CurrentEnemyGroup?.GetEncounter(EnemyEncounterSlot.Mid));
             RefreshEnemyPresenter(supportEnemyController, CurrentEnemyGroup?.GetEncounter(EnemyEncounterSlot.Support));
         }
 
@@ -1302,7 +1348,68 @@ namespace POPHero
 
         EnemyController GetEnemyPresenter(EnemyEncounterSlot slot)
         {
-            return slot == EnemyEncounterSlot.Support ? supportEnemyController : enemyController;
+            return slot switch
+            {
+                EnemyEncounterSlot.Mid => midEnemyController,
+                EnemyEncounterSlot.Support => supportEnemyController,
+                _ => enemyController
+            };
+        }
+
+        EnemyController EnsureEnemyPresenter(EnemyEncounterState encounter, EnemyEncounterSlot slot)
+        {
+            var current = GetEnemyPresenter(slot);
+            if (encounter == null || encounter.Enemy == null)
+                return current;
+
+            var desiredKey = EnemyPrefabRegistry.NormalizeKey(encounter.Enemy.PrefabKey);
+            var currentKey = slot switch
+            {
+                EnemyEncounterSlot.Mid => midEnemyControllerPrefabKey,
+                EnemyEncounterSlot.Support => supportEnemyControllerPrefabKey,
+                _ => enemyControllerPrefabKey
+            };
+            if (current != null && string.Equals(currentKey, desiredKey, StringComparison.OrdinalIgnoreCase))
+                return current;
+
+            var prefab = enemyPrefabRegistry != null ? enemyPrefabRegistry.ResolvePrefab(desiredKey) : null;
+            if (prefab == null)
+            {
+                if (current == null)
+                    Debug.LogWarning($"[POPHero] Enemy prefabKey `{desiredKey}` could not be resolved and no existing presenter is available.");
+                return current;
+            }
+
+            var replacementObject = Instantiate(prefab, battleStageRoot != null ? battleStageRoot : transform);
+            var replacement = replacementObject.GetComponent<EnemyController>() ?? replacementObject.AddComponent<EnemyController>();
+
+            replacement.name = slot switch
+            {
+                EnemyEncounterSlot.Mid => "EnemyMid",
+                EnemyEncounterSlot.Support => "EnemySupport",
+                _ => "Enemy"
+            };
+            replacement.Initialize(this);
+            replacement.transform.position = GetEnemyDefaultPosition(slot);
+            replacement.gameObject.SetActive(false);
+
+            if (current != null && current != replacement)
+                Destroy(current.gameObject);
+
+            if (slot == EnemyEncounterSlot.Support)
+            {
+                supportEnemyControllerPrefabKey = desiredKey;
+                return replacement;
+            }
+
+            if (slot == EnemyEncounterSlot.Mid)
+            {
+                midEnemyControllerPrefabKey = desiredKey;
+                return replacement;
+            }
+
+            enemyControllerPrefabKey = desiredKey;
+            return replacement;
         }
 
         Vector3 GetEnemyWorldPosition(EnemyEncounterState encounter)
@@ -1312,24 +1419,33 @@ namespace POPHero
 
             return encounter.BehaviorType == EnemyBehaviorType.FlyingRangedOrigin
                 ? enemySupportOriginPosition
-                : GetEnemyApproachPosition(encounter.DistanceStepsRemaining, encounter.StartingDistanceSteps);
+                : GetEnemyApproachPosition(encounter.Slot, encounter.DistanceStepsRemaining, encounter.StartingDistanceSteps);
         }
 
         Vector3 GetEnemyDefaultPosition(EnemyEncounterSlot slot)
         {
-            return slot == EnemyEncounterSlot.Support
-                ? enemySupportOriginPosition
-                : new Vector3(enemySpawnXLimit, enemyMeleeAnchor.y, enemyMeleeAnchor.z);
+            return slot switch
+            {
+                EnemyEncounterSlot.Support => enemySupportOriginPosition,
+                EnemyEncounterSlot.Mid => new Vector3(enemySpawnXLimit - 0.45f, enemyMidMeleeAnchor.y, enemyMidMeleeAnchor.z),
+                _ => new Vector3(enemySpawnXLimit, enemyMeleeAnchor.y, enemyMeleeAnchor.z)
+            };
         }
 
         Vector3 GetEnemyApproachPosition(int distanceStepsRemaining, int startingDistanceSteps)
         {
+            return GetEnemyApproachPosition(EnemyEncounterSlot.Primary, distanceStepsRemaining, startingDistanceSteps);
+        }
+
+        Vector3 GetEnemyApproachPosition(EnemyEncounterSlot slot, int distanceStepsRemaining, int startingDistanceSteps)
+        {
             var clampedDistance = Mathf.Max(0, distanceStepsRemaining);
             var maxDistance = Mathf.Max(0, startingDistanceSteps);
+            var anchor = slot == EnemyEncounterSlot.Mid ? enemyMidMeleeAnchor : enemyMeleeAnchor;
             if (maxDistance <= 0 || clampedDistance <= 0)
-                return enemyMeleeAnchor;
+                return anchor;
 
-            return enemyMeleeAnchor + Vector3.right * GetEnemyStepDistanceWorld(maxDistance) * clampedDistance;
+            return anchor + Vector3.right * GetEnemyStepDistanceWorld(maxDistance) * clampedDistance;
         }
 
         float GetEnemyStepDistanceWorld(int startingDistanceSteps)
@@ -1337,20 +1453,6 @@ namespace POPHero
             var clampedSteps = Mathf.Max(1, startingDistanceSteps);
             var maxTravelDistance = Mathf.Max(0f, enemySpawnXLimit - enemyMeleeAnchor.x);
             return Mathf.Min(preferredEnemyStepDistanceWorld, maxTravelDistance / clampedSteps);
-        }
-
-        EnemyController EnsureSupportEnemyController()
-        {
-            if (battleStageRoot == null || enemyController == null)
-                return null;
-
-            var existing = battleStageRoot.Find("EnemySupport");
-            if (existing != null && existing.TryGetComponent(out EnemyController existingController))
-                return existingController;
-
-            var clone = Instantiate(enemyController.gameObject, enemyController.transform.parent);
-            clone.name = "EnemySupport";
-            return clone.GetComponent<EnemyController>();
         }
 
         void RefreshLaunchGeometry()
@@ -1877,10 +1979,10 @@ namespace POPHero
             switch (kind)
             {
                 case MapNodeKind.Battle:
-                    StartDebugEncounter(Mathf.Max(0, enemyEncounterIndex), "普通战斗");
+                    StartDebugEncounter(EncounterNodeType.Normal, "普通战斗");
                     break;
                 case MapNodeKind.Boss:
-                    StartDebugEncounter(ResolveDebugBossEnemyIndex(), "Boss 战");
+                    StartDebugEncounter(EncounterNodeType.Boss, "Boss 战");
                     break;
                 case MapNodeKind.Shop:
                     OpenDebugShop();
@@ -1926,7 +2028,7 @@ namespace POPHero
             canvasHud?.RefreshNow();
         }
 
-        void StartDebugEncounter(int encounterIndex, string label)
+        void StartDebugEncounter(EncounterNodeType nodeType, string label)
         {
             ClearPendingIntermissionAction();
             ClearDebugReturnState();
@@ -1937,8 +2039,8 @@ namespace POPHero
 
             debugBattleReturnActive = true;
             debugBattleReturnState = RoundState.Map;
-            enemyEncounterIndex = Mathf.Max(0, encounterIndex);
-            SpawnEnemy(enemyEncounterIndex);
+            enemyEncounterIndex = 0;
+            SpawnEncounter(null, nodeType, 1);
             PrepareNextRound();
             IntermissionMessage = $"GM 调试：已启动{label}。";
         }
@@ -2013,6 +2115,7 @@ namespace POPHero
             debugBattleReturnActive = false;
             boardManager.ClearRewardOptions();
             enemyController?.gameObject.SetActive(false);
+            midEnemyController?.gameObject.SetActive(false);
             supportEnemyController?.gameObject.SetActive(false);
             encounterDirector?.Reset();
             CurrentEnemyGroup = null;
@@ -2294,7 +2397,7 @@ namespace POPHero
 
             var encounter = CurrentEnemyGroup?.GetEncounter(slot);
             var startingDistanceSteps = encounter != null ? encounter.StartingDistanceSteps : distanceStepsRemaining;
-            return GetEnemyApproachPosition(distanceStepsRemaining, startingDistanceSteps);
+            return GetEnemyApproachPosition(slot, distanceStepsRemaining, startingDistanceSteps);
         }
 
         void ResetEnemyPresenterPosition(EnemyController presenter, EnemyEncounterState encounter, EnemyEncounterSlot slot)
@@ -2336,6 +2439,7 @@ namespace POPHero
             }
 
             ResetEnemyPresenterPosition(enemyController, CurrentEnemyGroup?.GetEncounter(EnemyEncounterSlot.Primary), EnemyEncounterSlot.Primary);
+            ResetEnemyPresenterPosition(midEnemyController, CurrentEnemyGroup?.GetEncounter(EnemyEncounterSlot.Mid), EnemyEncounterSlot.Mid);
             ResetEnemyPresenterPosition(supportEnemyController, CurrentEnemyGroup?.GetEncounter(EnemyEncounterSlot.Support), EnemyEncounterSlot.Support);
 
             ClearAttackForegroundSorting();
@@ -2345,8 +2449,10 @@ namespace POPHero
         {
             playerPresenter?.SetSortingOffset(0);
             enemyController?.SetSortingOffset(0);
+            midEnemyController?.SetSortingOffset(0);
             supportEnemyController?.SetSortingOffset(0);
             enemyController?.SetIntentSuppressed(false);
+            midEnemyController?.SetIntentSuppressed(false);
             supportEnemyController?.SetIntentSuppressed(false);
         }
 

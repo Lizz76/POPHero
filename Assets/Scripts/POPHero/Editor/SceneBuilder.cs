@@ -18,6 +18,9 @@ namespace POPHero.Editor
         const string BattleScenePath = "Assets/Scenes/Battle.unity";
         const string SettingsButtonPrefabPath = "Assets/Prefabs/UI/SettingsButton.prefab";
         const string SettingsModalPrefabPath = "Assets/Prefabs/UI/SettingsModal.prefab";
+        const string EnemyPrefabPath = "Assets/Prefabs/Characters/Enemy.prefab";
+        const string BirdEnemyPrefabPath = "Assets/Prefabs/Characters/BirdEnemy.prefab";
+        const string EnemyPrefabRegistryPath = "Assets/Resources/EnemyPrefabRegistry.asset";
 
         [MenuItem("POPHero/Build Settings UI Prefabs")]
         public static void BuildSettingsUiPrefabs()
@@ -36,6 +39,41 @@ namespace POPHero.Editor
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log("[POPHero] Settings UI prefabs generated.");
+        }
+
+        [MenuItem("POPHero/Build Enemy Character Prefabs")]
+        public static void BuildEnemyCharacterPrefabs()
+        {
+            EnsureAssetFolder("Assets/Prefabs");
+            EnsureAssetFolder("Assets/Prefabs/Characters");
+            EnsureAssetFolder("Assets/Resources");
+
+            var defaultEnemy = CreateEnemyPrefabRoot("Enemy", Vector2.zero);
+            PrefabUtility.SaveAsPrefabAsset(defaultEnemy, EnemyPrefabPath);
+            Object.DestroyImmediate(defaultEnemy);
+
+            var birdEnemy = CreateBirdEnemyPrefabRoot();
+            PrefabUtility.SaveAsPrefabAsset(birdEnemy, BirdEnemyPrefabPath);
+            Object.DestroyImmediate(birdEnemy);
+
+            var registry = AssetDatabase.LoadAssetAtPath<EnemyPrefabRegistry>(EnemyPrefabRegistryPath);
+            if (registry == null)
+            {
+                registry = ScriptableObject.CreateInstance<EnemyPrefabRegistry>();
+                AssetDatabase.CreateAsset(registry, EnemyPrefabRegistryPath);
+            }
+
+            registry.DefaultPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(EnemyPrefabPath);
+            registry.Entries.Clear();
+            registry.Entries.Add(new EnemyPrefabRegistry.Entry
+            {
+                key = "bird",
+                prefab = AssetDatabase.LoadAssetAtPath<GameObject>(BirdEnemyPrefabPath)
+            });
+            EditorUtility.SetDirty(registry);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log("[POPHero] Enemy character prefabs and registry generated.");
         }
 
         [MenuItem("POPHero/Install Settings UI Into Battle Scene")]
@@ -192,6 +230,7 @@ namespace POPHero.Editor
         public static void BuildBattleScene()
         {
             BuildSettingsUiPrefabs();
+            BuildEnemyCharacterPrefabs();
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             scene.name = SceneNames.Battle;
 
@@ -349,6 +388,36 @@ namespace POPHero.Editor
             CreateTextChild(enemy, "EnemyName", new Vector3(0f, 1.65f, 0f), "鏁屼汉", Color.white, 15, 0.11f);
             CreateTextChild(enemy, "EnemyIntent", new Vector3(0f, 2.15f, 0f), "鏀诲嚮 0", new Color(1f, 0.78f, 0.34f, 1f), 16, 0.085f);
             CreateTextChild(enemy, "EnemyHp", new Vector3(0f, -2.2f, 0f), "0/0", Color.white, 15, 0.08f, FontStyle.Normal);
+            return enemy;
+        }
+
+        static GameObject CreateEnemyPrefabRoot(string name, Vector2 position)
+        {
+            var root = new GameObject("EnemyPrefabBuildRoot");
+            var enemy = CreateEnemy(root, position);
+            enemy.name = name;
+            enemy.transform.SetParent(null, false);
+            Object.DestroyImmediate(root);
+            WireEnemyController(enemy);
+            return enemy;
+        }
+
+        static GameObject CreateBirdEnemyPrefabRoot()
+        {
+            var enemy = new GameObject("BirdEnemy");
+            enemy.AddComponent<EnemyController>();
+            CreateSpriteChild(enemy, "WingLeft", new Vector3(-0.68f, 0.06f, 0f), new Vector3(0.9f, 0.36f, 1f), new Color(0.45f, 0.86f, 1f, 0.9f), 9);
+            CreateSpriteChild(enemy, "WingRight", new Vector3(0.68f, 0.06f, 0f), new Vector3(0.9f, 0.36f, 1f), new Color(0.45f, 0.86f, 1f, 0.9f), 9);
+            CreateSpriteChild(enemy, "EnemyBody", Vector3.zero, new Vector3(1.45f, 1.08f, 1f), new Color(0.5f, 0.84f, 1f, 1f), 10, true);
+            CreateSpriteChild(enemy, "EnemyCore", new Vector3(0f, 0.1f, 0f), Vector3.one * 0.42f, new Color(1f, 1f, 1f, 0.24f), 11, true);
+            CreateSpriteChild(enemy, "Beak", new Vector3(0f, -0.02f, 0f), new Vector3(0.28f, 0.16f, 1f), new Color(1f, 0.82f, 0.26f, 1f), 12);
+            CreateSpriteChild(enemy, "HpBack", new Vector3(0f, -1.24f, 0f), new Vector3(2.2f, 0.26f, 1f), new Color(0f, 0f, 0f, 0.55f), 12);
+            CreateSpriteChild(enemy, "HpFill", new Vector3(0f, -1.24f, -0.02f), new Vector3(2.0f, 0.14f, 1f), new Color(0.98f, 0.92f, 0.72f, 1f), 13);
+            CreateSpriteChild(enemy, "HpPreview", new Vector3(0f, -1.24f, -0.015f), new Vector3(2.0f, 0.14f, 1f), new Color(0.56f, 0.16f, 0.18f, 0.92f), 14);
+            CreateTextChild(enemy, "EnemyName", new Vector3(0f, 1.18f, 0f), "Bird", Color.white, 15, 0.1f);
+            CreateTextChild(enemy, "EnemyIntent", new Vector3(0f, 1.62f, 0f), "Attack 0", new Color(1f, 0.78f, 0.34f, 1f), 16, 0.078f);
+            CreateTextChild(enemy, "EnemyHp", new Vector3(0f, -1.58f, 0f), "0/0", Color.white, 15, 0.074f, FontStyle.Normal);
+            WireEnemyController(enemy);
             return enemy;
         }
 
@@ -1361,6 +1430,7 @@ namespace POPHero.Editor
             so.FindProperty("wallLeftRoot").objectReferenceValue = wallLeftRoot;
             so.FindProperty("wallRightRoot").objectReferenceValue = wallRightRoot;
             so.FindProperty("enemyPanel").objectReferenceValue = enemyPanel;
+            so.FindProperty("enemyPrefabRegistry").objectReferenceValue = AssetDatabase.LoadAssetAtPath<EnemyPrefabRegistry>(EnemyPrefabRegistryPath);
             so.FindProperty("playerPresenterRef").objectReferenceValue = playerPresenter;
             so.FindProperty("enemyControllerRef").objectReferenceValue = enemyController;
             so.FindProperty("ballControllerRef").objectReferenceValue = ballController;

@@ -434,6 +434,7 @@ namespace POPHero
     [Serializable]
     public class EnemyTemplate
     {
+        public int enemyId;
         public string displayName = "Enemy";
         public int maxHp = 80;
         public int rewardGold = 20;
@@ -441,6 +442,8 @@ namespace POPHero
         public int attackDamage = 8;
         public int initialDistanceStepsOverride = -1;
         public EnemyBehaviorType behaviorType = EnemyBehaviorType.MeleeAdvance;
+        public string prefabKey = EnemyPrefabRegistry.DefaultPrefabKey;
+        public List<string> abilityIds = new() { "none" };
         [HideInInspector] public Color color = new(0.95f, 0.38f, 0.38f, 1f);
     }
 

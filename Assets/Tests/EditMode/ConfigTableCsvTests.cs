@@ -16,6 +16,18 @@ namespace POPHero.Tests
                 Assert.IsTrue(tables.globalConfig.Exists(entry => entry.key == "endlessHpGrowth" && entry.value == "45"));
                 Assert.IsTrue(tables.globalConfig.Exists(entry => entry.key == "endlessAttackGrowth" && entry.value == "2"));
                 Assert.IsTrue(tables.enemies.Exists(enemy => enemy.behaviorType == EnemyBehaviorType.FlyingRangedOrigin));
+                var bird = tables.enemies.Find(enemy => enemy.prefabKey == "bird");
+                Assert.IsNotNull(bird);
+                Assert.AreEqual(EnemyBehaviorType.FlyingRangedOrigin, bird.behaviorType);
+                CollectionAssert.Contains(bird.abilityIds, "none");
+                var birdEncounter = tables.encounters.Find(encounter => encounter.encounterId == "act1_mid_ground_bird");
+                Assert.IsNotNull(birdEncounter);
+                Assert.AreEqual(EncounterNodeType.Normal, birdEncounter.nodeType);
+                Assert.AreEqual(2, birdEncounter.enemies.Count);
+                Assert.AreEqual(3001, birdEncounter.enemies[0].enemyId);
+                Assert.AreEqual(EnemyEncounterSlot.Primary, birdEncounter.enemies[0].slot);
+                Assert.AreEqual(3901, birdEncounter.enemies[1].enemyId);
+                Assert.AreEqual(EnemyEncounterSlot.Support, birdEncounter.enemies[1].slot);
                 Assert.IsTrue(tables.mapConfigs.Count > 0);
                 Assert.AreEqual(10, tables.mapConfigs[0].restWeight);
             }
@@ -37,6 +49,30 @@ namespace POPHero.Tests
             Assert.AreEqual(10f, weights.gold);
             Assert.IsTrue(ConfigTableCsvParsers.ParseBool("1"));
             Assert.IsFalse(ConfigTableCsvParsers.ParseBool("0", true));
+        }
+
+        [Test]
+        public void SharedCsvParsers_ParseEnemyBehaviorAliases()
+        {
+            Assert.IsTrue(ConfigTableService.TryParseEnumKey("ground_melee", out EnemyBehaviorType ground));
+            Assert.AreEqual(EnemyBehaviorType.MeleeAdvance, ground);
+
+            Assert.IsTrue(ConfigTableService.TryParseEnumKey("flying_ranged", out EnemyBehaviorType flying));
+            Assert.AreEqual(EnemyBehaviorType.FlyingRangedOrigin, flying);
+        }
+
+        [Test]
+        public void SharedCsvParsers_ParseEncounterEnemySlots()
+        {
+            var enemies = ConfigTableCsvParsers.ParseEncounterEnemies("3001:slot_front|3901:slot_air|3002:slot_mid");
+
+            Assert.AreEqual(3, enemies.Count);
+            Assert.AreEqual(3001, enemies[0].enemyId);
+            Assert.AreEqual(EnemyEncounterSlot.Primary, enemies[0].slot);
+            Assert.AreEqual(3901, enemies[1].enemyId);
+            Assert.AreEqual(EnemyEncounterSlot.Support, enemies[1].slot);
+            Assert.AreEqual(3002, enemies[2].enemyId);
+            Assert.AreEqual(EnemyEncounterSlot.Mid, enemies[2].slot);
         }
 
         [Test]

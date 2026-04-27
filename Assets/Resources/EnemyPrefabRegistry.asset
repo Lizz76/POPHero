@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e822c171862bcbc4ea7ebed9d821e7dd, type: 3}
+  m_Name: EnemyPrefabRegistry
+  m_EditorClassIdentifier: 
+  defaultPrefab: {fileID: 2665361795460432918, guid: dcee2395a8b8b7e47b8891dea291526b, type: 3}
+  entries:
+  - key: bird
+    prefab: {fileID: 4875275600457219665, guid: 91bbbeb6a80efb7488f871b2d4aac81c, type: 3}

@@ -138,6 +138,7 @@ namespace POPHero
             asset.blockRarities.Clear();
             asset.blockRewardStages.Clear();
             asset.enemies.Clear();
+            asset.encounters.Clear();
             asset.stickers.Clear();
             asset.stickerTokens.Clear();
             asset.mods.Clear();
@@ -209,7 +210,24 @@ namespace POPHero
                     behaviorType = ParseEnum(row, "behaviorType", EnemyBehaviorType.MeleeAdvance),
                     initialDistanceSteps = ParseInt(row.Get("initialDistanceSteps"), -1),
                     color = ConfigTableService.ParseColorHex(row.Get("colorHex"), Color.white),
-                    spawnWeight = ParseInt(row.Get("spawnWeight"), 100)
+                    spawnWeight = ParseInt(row.Get("spawnWeight"), 100),
+                    prefabKey = row.Get("prefabKey"),
+                    abilityIds = ParseTokenList(row.Get("abilityIds"))
+                });
+            }
+
+            foreach (var row in result.GetRows("encounter.csv"))
+            {
+                asset.encounters.Add(new EncounterDef
+                {
+                    encounterId = row.Get("encounterId"),
+                    act = ParseInt(row.Get("act"), 1),
+                    nodeType = ParseEnum(row, "nodeType", EncounterNodeType.Normal),
+                    minFloor = ParseInt(row.Get("minFloor"), 1),
+                    maxFloor = ParseInt(row.Get("maxFloor"), 99),
+                    weight = ParseInt(row.Get("weight"), 100),
+                    allowRepeat = ParseBool(row.Get("allowRepeat")),
+                    enemies = ParseEncounterEnemies(row.Get("enemySlots"))
                 });
             }
 
@@ -338,7 +356,7 @@ namespace POPHero
             foreach (var required in new[]
                      {
                          "globalConfig.csv", "blockType.csv", "blockRarity.csv", "blockRewardStage.csv",
-                         "enemy.csv", "sticker.csv", "stickerToken.csv", "mod.csv", "growthReward.csv", "shop.csv", "blockOperation.csv", "mapConfig.csv"
+                        "enemy.csv", "encounter.csv", "sticker.csv", "stickerToken.csv", "mod.csv", "growthReward.csv", "shop.csv", "blockOperation.csv", "mapConfig.csv"
                      })
             {
                 if (!result.Tables.ContainsKey(required))
@@ -380,6 +398,7 @@ namespace POPHero
             ValidateStickerReferences(result);
             ValidateShop(result);
             ValidateBlockOperations(result);
+            ValidateEncounterTemplates(result);
             ValidateMapConfig(result);
         }
 
@@ -414,6 +433,9 @@ namespace POPHero
 
             foreach (var row in result.GetRows("shop.csv"))
                 RequireEnum<ShopSlotKind>(result, row, "slotKind");
+
+            foreach (var row in result.GetRows("encounter.csv"))
+                RequireEnum<EncounterNodeType>(result, row, "nodeType");
         }
 
         static void ValidateBlockReferences(TableImportResult result)
@@ -511,6 +533,62 @@ namespace POPHero
             }
         }
 
+        static void ValidateEncounterTemplates(TableImportResult result)
+        {
+            var enemyIds = result.GetRows("enemy.csv")
+                .Select(row => ParseInt(row.Get("id"), -1))
+                .ToHashSet();
+
+            foreach (var row in result.GetRows("encounter.csv"))
+            {
+                var minFloor = ParseInt(row.Get("minFloor"));
+                var maxFloor = ParseInt(row.Get("maxFloor"));
+                if (minFloor <= 0 || maxFloor <= 0 || minFloor > maxFloor)
+                    result.AddError($"{row.Table.Name}: row {row.LineNumber} floor range must be positive and min <= max.");
+
+                if (ParseInt(row.Get("weight")) <= 0)
+                    result.AddError($"{row.Table.Name}: row {row.LineNumber} weight must be > 0.");
+
+                ValidateBool(result, row, "allowRepeat");
+                ValidateEncounterEnemySlots(result, row, enemyIds);
+            }
+        }
+
+        static void ValidateEncounterEnemySlots(TableImportResult result, ConfigCsvRow row, HashSet<int> enemyIds)
+        {
+            var raw = row.Get("enemySlots");
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                result.AddError($"{row.Table.Name}: row {row.LineNumber} enemySlots must contain at least one enemy.");
+                return;
+            }
+
+            var seenSlots = new HashSet<EnemyEncounterSlot>();
+            var parts = raw.Split(new[] { '|', ';' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var part in parts)
+            {
+                var fields = part.Trim().Split(new[] { ':' }, 2, StringSplitOptions.RemoveEmptyEntries);
+                if (fields.Length < 2)
+                {
+                    result.AddError($"{row.Table.Name}: row {row.LineNumber} enemy slot `{part}` must use enemyId:slotKey.");
+                    continue;
+                }
+
+                var enemyId = ParseInt(fields[0], -1);
+                if (!enemyIds.Contains(enemyId))
+                    result.AddError($"{row.Table.Name}: row {row.LineNumber} references missing enemy id `{fields[0]}`.");
+
+                if (!ConfigTableCsvParsers.TryParseEnemyEncounterSlot(fields[1], out var slot))
+                {
+                    result.AddError($"{row.Table.Name}: row {row.LineNumber} slot `{fields[1]}` is invalid.");
+                    continue;
+                }
+
+                if (!seenSlots.Add(slot))
+                    result.AddError($"{row.Table.Name}: row {row.LineNumber} uses slot `{fields[1]}` more than once.");
+            }
+        }
+
         static void ValidateMapConfig(TableImportResult result)
         {
             var enemyCount = result.GetRows("enemy.csv").Count();
@@ -581,6 +659,16 @@ namespace POPHero
         static RarityWeightSet ParseRarityWeights(string raw)
         {
             return ConfigTableCsvParsers.ParseRarityWeights(raw);
+        }
+
+        static List<string> ParseTokenList(string raw)
+        {
+            return ConfigTableCsvParsers.ParseTokenList(raw);
+        }
+
+        static List<EncounterEnemyDef> ParseEncounterEnemies(string raw)
+        {
+            return ConfigTableCsvParsers.ParseEncounterEnemies(raw);
         }
 
         static void ValidateBool(TableImportResult result, ConfigCsvRow row, string field)

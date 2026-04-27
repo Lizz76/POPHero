@@ -515,6 +515,7 @@ namespace POPHero
         public MapNodeStatus status;
         public Vector2 normalizedPosition;
         public int enemyIndex;
+        public string encounterId;
         public List<string> nextNodeIds = new();
 
         public bool IsSelectable => status == MapNodeStatus.Available;

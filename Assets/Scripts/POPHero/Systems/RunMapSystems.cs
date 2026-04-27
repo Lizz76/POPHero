@@ -9,6 +9,7 @@ namespace POPHero
         readonly List<MapNodeState> nodes = new();
         readonly List<MapEventChoiceState> currentEventChoices = new();
         readonly Dictionary<string, MapNodeState> nodesById = new(StringComparer.OrdinalIgnoreCase);
+        readonly EncounterSelector encounterSelector = new();
 
         PopHeroGame game;
         MapConfigDef config;
@@ -30,6 +31,7 @@ namespace POPHero
             nodes.Clear();
             nodesById.Clear();
             currentEventChoices.Clear();
+            encounterSelector.ResetHistory();
             CurrentNode = null;
             LastFeedback = string.Empty;
         }
@@ -162,7 +164,8 @@ namespace POPHero
                 kind = kind,
                 status = MapNodeStatus.Locked,
                 normalizedPosition = new Vector2(x, y),
-                enemyIndex = ResolveEnemyIndex(floor, kind)
+                enemyIndex = ResolveEnemyIndex(floor, kind),
+                encounterId = ResolveEncounterId(floor, kind)
             };
         }
 
@@ -245,6 +248,31 @@ namespace POPHero
             }
 
             return Mathf.Clamp(floor, 0, templateCount - 1);
+        }
+
+        string ResolveEncounterId(int floor, MapNodeKind kind)
+        {
+            if (!TryMapEncounterNodeType(kind, out var nodeType))
+                return string.Empty;
+
+            var selected = encounterSelector.Select(game?.Tables?.EncounterDefs, 1, nodeType, floor + 1);
+            return selected != null ? selected.encounterId : string.Empty;
+        }
+
+        public static bool TryMapEncounterNodeType(MapNodeKind kind, out EncounterNodeType nodeType)
+        {
+            switch (kind)
+            {
+                case MapNodeKind.Battle:
+                    nodeType = EncounterNodeType.Normal;
+                    return true;
+                case MapNodeKind.Boss:
+                    nodeType = EncounterNodeType.Boss;
+                    return true;
+                default:
+                    nodeType = EncounterNodeType.Normal;
+                    return false;
+            }
         }
 
         void BuildCurrentEventChoices()

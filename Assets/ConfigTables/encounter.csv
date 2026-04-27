@@ -1,0 +1,12 @@
+encounterId,act,nodeType,minFloor,maxFloor,weight,allowRepeat,enemySlots
+string,int,string,int,int,int,bool,string
+both,both,both,both,both,both,both,both
+Encounter ID,Act,Node Type,Min Floor,Max Floor,Weight,Allow Repeat,Enemy Slots
+,,,,,,,
+act1_early_single_ground,1,normal,1,3,100,0,3001:slot_front
+act1_early_double_ground,1,normal,1,4,80,0,3001:slot_front|3001:slot_mid
+act1_mid_ground_bird,1,normal,3,7,100,0,3001:slot_front|3901:slot_air
+act1_mid_double_ground,1,normal,4,7,80,0,3001:slot_front|3002:slot_mid
+act1_late_ground_bird_pressure,1,normal,6,7,100,0,3003:slot_front|3901:slot_air
+act1_late_double_ground_bird,1,normal,6,7,70,0,3002:slot_front|3001:slot_mid|3901:slot_air
+act1_boss_default,1,boss,7,7,100,1,3005:slot_front

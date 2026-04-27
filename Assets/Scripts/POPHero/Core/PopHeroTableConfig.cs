@@ -12,6 +12,7 @@ namespace POPHero
         public List<BlockRarityDef> blockRarities = new();
         public List<BlockRewardStageDef> blockRewardStages = new();
         public List<EnemyDef> enemies = new();
+        public List<EncounterDef> encounters = new();
         public List<StickerDef> stickers = new();
         public List<StickerTokenDef> stickerTokens = new();
         public List<ModDef> mods = new();
@@ -26,6 +27,7 @@ namespace POPHero
             blockRarities.Count > 0 ||
             blockRewardStages.Count > 0 ||
             enemies.Count > 0 ||
+            encounters.Count > 0 ||
             stickers.Count > 0 ||
             mods.Count > 0 ||
             growthRewards.Count > 0 ||
@@ -90,6 +92,36 @@ namespace POPHero
         public int initialDistanceSteps = -1;
         public Color color = Color.white;
         public int spawnWeight = 100;
+        public string prefabKey = EnemyPrefabRegistry.DefaultPrefabKey;
+        public List<string> abilityIds = new() { "none" };
+    }
+
+    public enum EncounterNodeType
+    {
+        Normal,
+        Elite,
+        Boss,
+        EventBattle
+    }
+
+    [Serializable]
+    public sealed class EncounterDef
+    {
+        public string encounterId;
+        public int act = 1;
+        public EncounterNodeType nodeType = EncounterNodeType.Normal;
+        public int minFloor = 1;
+        public int maxFloor = 99;
+        public int weight = 100;
+        public bool allowRepeat;
+        public List<EncounterEnemyDef> enemies = new();
+    }
+
+    [Serializable]
+    public sealed class EncounterEnemyDef
+    {
+        public int enemyId;
+        public EnemyEncounterSlot slot = EnemyEncounterSlot.Primary;
     }
 
     [Serializable]

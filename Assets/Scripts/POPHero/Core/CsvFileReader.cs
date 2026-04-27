@@ -178,6 +178,86 @@ namespace POPHero
             };
         }
 
+        public static List<string> ParseTokenList(string raw, string fallback = "none")
+        {
+            var result = new List<string>();
+            if (!string.IsNullOrWhiteSpace(raw))
+            {
+                var parts = raw.Split(new[] { '|', ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var part in parts)
+                {
+                    var token = part.Trim();
+                    if (!string.IsNullOrWhiteSpace(token))
+                        result.Add(token);
+                }
+            }
+
+            if (result.Count == 0 && !string.IsNullOrWhiteSpace(fallback))
+                result.Add(fallback.Trim());
+
+            return result;
+        }
+
+        public static List<EncounterEnemyDef> ParseEncounterEnemies(string raw)
+        {
+            var result = new List<EncounterEnemyDef>();
+            if (string.IsNullOrWhiteSpace(raw))
+                return result;
+
+            var parts = raw.Split(new[] { '|', ';' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var part in parts)
+            {
+                var token = part.Trim();
+                if (string.IsNullOrWhiteSpace(token))
+                    continue;
+
+                var fields = token.Split(new[] { ':' }, 2, StringSplitOptions.RemoveEmptyEntries);
+                var enemyId = fields.Length > 0 ? ParseInt(fields[0]) : 0;
+                var slotKey = fields.Length > 1 ? fields[1] : string.Empty;
+                result.Add(new EncounterEnemyDef
+                {
+                    enemyId = enemyId,
+                    slot = ParseEnemyEncounterSlot(slotKey, EnemyEncounterSlot.Primary)
+                });
+            }
+
+            return result;
+        }
+
+        public static EnemyEncounterSlot ParseEnemyEncounterSlot(string raw, EnemyEncounterSlot fallback)
+        {
+            return TryParseEnemyEncounterSlot(raw, out var slot) ? slot : fallback;
+        }
+
+        public static bool TryParseEnemyEncounterSlot(string raw, out EnemyEncounterSlot slot)
+        {
+            slot = EnemyEncounterSlot.Primary;
+            if (string.IsNullOrWhiteSpace(raw))
+                return false;
+
+            var normalized = raw.Trim().Replace("-", "_").Replace(" ", "_").ToLowerInvariant();
+            switch (normalized)
+            {
+                case "slot_front":
+                case "front":
+                case "primary":
+                    slot = EnemyEncounterSlot.Primary;
+                    return true;
+                case "slot_mid":
+                case "mid":
+                case "middle":
+                    slot = EnemyEncounterSlot.Mid;
+                    return true;
+                case "slot_air":
+                case "air":
+                case "support":
+                    slot = EnemyEncounterSlot.Support;
+                    return true;
+                default:
+                    return Enum.TryParse(raw.Trim(), true, out slot);
+            }
+        }
+
         public static bool IsBoolLiteral(string value)
         {
             if (string.IsNullOrWhiteSpace(value))

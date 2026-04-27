@@ -17,6 +17,7 @@ namespace POPHero
             "blockRarity.csv",
             "blockRewardStage.csv",
             "enemy.csv",
+            "encounter.csv",
             "sticker.csv",
             "stickerToken.csv",
             "mod.csv",
@@ -83,6 +84,7 @@ namespace POPHero
             asset.blockRarities.Clear();
             asset.blockRewardStages.Clear();
             asset.enemies.Clear();
+            asset.encounters.Clear();
             asset.stickers.Clear();
             asset.stickerTokens.Clear();
             asset.mods.Clear();
@@ -155,7 +157,24 @@ namespace POPHero
                     behaviorType = ParseEnum(row.Get("behaviorType"), EnemyBehaviorType.MeleeAdvance),
                     initialDistanceSteps = ParseInt(row.Get("initialDistanceSteps"), -1),
                     color = ConfigTableService.ParseColorHex(row.Get("colorHex"), Color.white),
-                    spawnWeight = ParseInt(row.Get("spawnWeight"), 100)
+                    spawnWeight = ParseInt(row.Get("spawnWeight"), 100),
+                    prefabKey = row.Get("prefabKey"),
+                    abilityIds = ParseTokenList(row.Get("abilityIds"))
+                });
+            }
+
+            foreach (var row in GetRows(tables, "encounter.csv"))
+            {
+                asset.encounters.Add(new EncounterDef
+                {
+                    encounterId = row.Get("encounterId"),
+                    act = ParseInt(row.Get("act"), 1),
+                    nodeType = ParseEnum(row.Get("nodeType"), EncounterNodeType.Normal),
+                    minFloor = ParseInt(row.Get("minFloor"), 1),
+                    maxFloor = ParseInt(row.Get("maxFloor"), 99),
+                    weight = ParseInt(row.Get("weight"), 100),
+                    allowRepeat = ParseBool(row.Get("allowRepeat")),
+                    enemies = ParseEncounterEnemies(row.Get("enemySlots"))
                 });
             }
 
@@ -329,6 +348,16 @@ namespace POPHero
         static RarityWeightSet ParseRarityWeights(string raw)
         {
             return ConfigTableCsvParsers.ParseRarityWeights(raw);
+        }
+
+        static List<string> ParseTokenList(string raw)
+        {
+            return ConfigTableCsvParsers.ParseTokenList(raw);
+        }
+
+        static List<EncounterEnemyDef> ParseEncounterEnemies(string raw)
+        {
+            return ConfigTableCsvParsers.ParseEncounterEnemies(raw);
         }
     }
 }

@@ -295,6 +295,9 @@ MonoBehaviour:
     initialDistanceSteps: -1
     color: {r: 0.9490196, g: 0.38039216, b: 0.38039216, a: 1}
     spawnWeight: 100
+    prefabKey: default
+    abilityIds:
+    - none
   - id: 3002
     displayName: "\u94C1\u4FE1\u4F7F"
     maxHp: 70
@@ -305,6 +308,9 @@ MonoBehaviour:
     initialDistanceSteps: -1
     color: {r: 0.99215686, g: 0.52156866, b: 0.2509804, a: 1}
     spawnWeight: 100
+    prefabKey: default
+    abilityIds:
+    - none
   - id: 3003
     displayName: "\u5C16\u523A\u56FE\u817E"
     maxHp: 110
@@ -315,6 +321,9 @@ MonoBehaviour:
     initialDistanceSteps: -1
     color: {r: 0.9490196, g: 0.7411765, b: 0.23921569, a: 1}
     spawnWeight: 100
+    prefabKey: default
+    abilityIds:
+    - none
   - id: 3004
     displayName: "\u6218\u796D\u53F8"
     maxHp: 160
@@ -325,6 +334,9 @@ MonoBehaviour:
     initialDistanceSteps: -1
     color: {r: 0.9019608, g: 0.36862746, b: 0.7921569, a: 1}
     spawnWeight: 100
+    prefabKey: default
+    abilityIds:
+    - none
   - id: 3005
     displayName: "\u6DF1\u6E0A\u9886\u4E3B"
     maxHp: 225
@@ -335,8 +347,11 @@ MonoBehaviour:
     initialDistanceSteps: -1
     color: {r: 0.52156866, g: 0.47843137, b: 1, a: 1}
     spawnWeight: 100
+    prefabKey: default
+    abilityIds:
+    - none
   - id: 3901
-    displayName: "\u5929\u7A79\u5996\u7075"
+    displayName: "\u5929\u7A7A\u5996\u7075"
     maxHp: 48
     attackDamage: 6
     rewardGold: 18
@@ -345,6 +360,92 @@ MonoBehaviour:
     initialDistanceSteps: 0
     color: {r: 0.49803922, g: 0.8392157, b: 1, a: 1}
     spawnWeight: 100
+    prefabKey: bird
+    abilityIds:
+    - none
+  encounters:
+  - encounterId: act1_early_single_ground
+    act: 1
+    nodeType: 0
+    minFloor: 1
+    maxFloor: 3
+    weight: 100
+    allowRepeat: 0
+    enemies:
+    - enemyId: 3001
+      slot: 0
+  - encounterId: act1_early_double_ground
+    act: 1
+    nodeType: 0
+    minFloor: 1
+    maxFloor: 4
+    weight: 80
+    allowRepeat: 0
+    enemies:
+    - enemyId: 3001
+      slot: 0
+    - enemyId: 3001
+      slot: 1
+  - encounterId: act1_mid_ground_bird
+    act: 1
+    nodeType: 0
+    minFloor: 3
+    maxFloor: 7
+    weight: 100
+    allowRepeat: 0
+    enemies:
+    - enemyId: 3001
+      slot: 0
+    - enemyId: 3901
+      slot: 2
+  - encounterId: act1_mid_double_ground
+    act: 1
+    nodeType: 0
+    minFloor: 4
+    maxFloor: 7
+    weight: 80
+    allowRepeat: 0
+    enemies:
+    - enemyId: 3001
+      slot: 0
+    - enemyId: 3002
+      slot: 1
+  - encounterId: act1_late_ground_bird_pressure
+    act: 1
+    nodeType: 0
+    minFloor: 6
+    maxFloor: 7
+    weight: 100
+    allowRepeat: 0
+    enemies:
+    - enemyId: 3003
+      slot: 0
+    - enemyId: 3901
+      slot: 2
+  - encounterId: act1_late_double_ground_bird
+    act: 1
+    nodeType: 0
+    minFloor: 6
+    maxFloor: 7
+    weight: 70
+    allowRepeat: 0
+    enemies:
+    - enemyId: 3002
+      slot: 0
+    - enemyId: 3001
+      slot: 1
+    - enemyId: 3901
+      slot: 2
+  - encounterId: act1_boss_default
+    act: 1
+    nodeType: 2
+    minFloor: 7
+    maxFloor: 7
+    weight: 100
+    allowRepeat: 1
+    enemies:
+    - enemyId: 3005
+      slot: 0
   stickers:
   - configId: 1001
     effectKey: impact_core
@@ -928,3 +1029,4 @@ MonoBehaviour:
     restWeight: 10
     eventWeight: 10
     bossEnemyIndex: 4
+  balls: []

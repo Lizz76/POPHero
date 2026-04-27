@@ -31,6 +31,7 @@ namespace POPHero
         public IReadOnlyList<GrowthRewardDef> GrowthRewardDefs => tableConfig != null ? tableConfig.growthRewards : Array.Empty<GrowthRewardDef>();
         public IReadOnlyList<ShopSlotDef> ShopSlots => tableConfig != null ? tableConfig.shopSlots : Array.Empty<ShopSlotDef>();
         public IReadOnlyList<EnemyDef> EnemyDefs => tableConfig != null ? tableConfig.enemies : Array.Empty<EnemyDef>();
+        public IReadOnlyList<EncounterDef> EncounterDefs => tableConfig != null ? tableConfig.encounters : Array.Empty<EncounterDef>();
         public IReadOnlyList<BlockOperationProfileDef> BlockOperationProfiles => tableConfig != null ? tableConfig.blockOperationProfiles : Array.Empty<BlockOperationProfileDef>();
         public IReadOnlyList<MapConfigDef> MapConfigs => tableConfig != null ? tableConfig.mapConfigs : Array.Empty<MapConfigDef>();
         public IReadOnlyList<BallDefinition> BallDefs => tableConfig != null && tableConfig.balls.Count > 0 ? tableConfig.balls : DefaultBallCatalog.CreateDefaults();
@@ -195,6 +196,7 @@ namespace POPHero
             {
                 var template = new EnemyTemplate
                 {
+                    enemyId = enemy.id,
                     displayName = enemy.displayName,
                     maxHp = enemy.maxHp,
                     attackDamage = enemy.attackDamage,
@@ -202,14 +204,15 @@ namespace POPHero
                     rewardHeal = enemy.rewardHeal,
                     behaviorType = enemy.behaviorType,
                     initialDistanceStepsOverride = Mathf.Max(-1, enemy.initialDistanceSteps),
-                    color = enemy.color
+                    color = enemy.color,
+                    prefabKey = EnemyPrefabRegistry.NormalizeKey(enemy.prefabKey),
+                    abilityIds = SanitizeEnemyAbilityIds(enemy.abilityIds)
                 };
 
                 if (!supportAssigned && template.behaviorType == EnemyBehaviorType.FlyingRangedOrigin)
                 {
                     config.enemies.flyingSupportTemplate = template;
                     supportAssigned = true;
-                    continue;
                 }
 
                 config.enemies.templates.Add(template);
@@ -383,7 +386,27 @@ namespace POPHero
         public static bool TryParseEnumKey<T>(string key, out T value) where T : struct
         {
             value = default;
-            return !string.IsNullOrWhiteSpace(key) && Enum.TryParse(key.Trim(), true, out value);
+            if (string.IsNullOrWhiteSpace(key))
+                return false;
+
+            if (typeof(T) == typeof(EnemyBehaviorType))
+            {
+                var normalized = key.Trim().Replace("-", "_").Replace(" ", "_").ToLowerInvariant();
+                object parsed = normalized switch
+                {
+                    "ground_melee" or "melee_advance" => EnemyBehaviorType.MeleeAdvance,
+                    "flying_ranged" or "flying_ranged_origin" => EnemyBehaviorType.FlyingRangedOrigin,
+                    _ => null
+                };
+
+                if (parsed != null)
+                {
+                    value = (T)parsed;
+                    return true;
+                }
+            }
+
+            return Enum.TryParse(key.Trim(), true, out value);
         }
 
         public static bool TryParseSocketMask(string raw, out SocketTargetMask mask)
@@ -421,6 +444,42 @@ namespace POPHero
             if (!normalized.StartsWith("#", StringComparison.Ordinal))
                 normalized = "#" + normalized;
             return ColorUtility.TryParseHtmlString(normalized, out var color) ? color : fallback;
+        }
+
+        static List<string> SanitizeEnemyAbilityIds(IEnumerable<string> abilityIds)
+        {
+            var result = new List<string>();
+            if (abilityIds != null)
+            {
+                foreach (var abilityId in abilityIds)
+                {
+                    var normalized = string.IsNullOrWhiteSpace(abilityId) ? string.Empty : abilityId.Trim();
+                    if (string.IsNullOrEmpty(normalized))
+                        continue;
+
+                    if (!IsKnownEnemyAbilityId(normalized))
+                    {
+                        Debug.LogWarning($"[POPHero] Enemy abilityId `{normalized}` is not implemented in v1 and will be ignored.");
+                        continue;
+                    }
+
+                    if (!result.Contains(normalized))
+                        result.Add(normalized);
+                }
+            }
+
+            if (result.Count == 0)
+                result.Add("none");
+
+            return result;
+        }
+
+        static bool IsKnownEnemyAbilityId(string abilityId)
+        {
+            return string.Equals(abilityId, "none", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(abilityId, "gain_shield_each_turn", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(abilityId, "explode_on_contact", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(abilityId, "buff_front_enemy", StringComparison.OrdinalIgnoreCase);
         }
     }
 }
