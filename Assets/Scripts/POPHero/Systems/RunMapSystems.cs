@@ -308,7 +308,7 @@ namespace POPHero
                     index = 2,
                     actionType = MapEventActionType.OpenWorkbench,
                     title = "临时工坊",
-                    description = "进入一次免费方块操作，可以删除或替换方块。",
+                    description = "进入一次免费方块操作，可以替换或升级方块。",
                     buttonText = "进入工坊",
                     profileId = "map_workbench"
                 },

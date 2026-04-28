@@ -345,6 +345,20 @@ namespace POPHero
                 growthData = growth,
                 price = 11
             });
+
+            var blockOption = game.BoardManager.CreateRewardOption(game.Player.TotalKills, items.Count);
+            if (blockOption != null)
+            {
+                items.Add(new ShopItemEntry
+                {
+                    id = $"shop_block_fallback_{blockOption.id}",
+                    kind = ShopItemKind.Block,
+                    title = blockOption.displayName,
+                    description = blockOption.desc,
+                    blockReward = blockOption,
+                    price = GetBlockPrice(blockOption.rarity)
+                });
+            }
         }
 
         void GenerateItemsFromTables()
@@ -405,6 +419,24 @@ namespace POPHero
                                 description = growth.description,
                                 growthData = growth,
                                 price = slot.price > 0 ? slot.price : Mathf.Max(0, growth.shopPrice)
+                            });
+                        }
+                        break;
+                    case ShopSlotKind.Block:
+                        for (var i = 0; i < count; i++)
+                        {
+                            var option = game.BoardManager.CreateRewardOption(game.Player.TotalKills, items.Count, BlockRarity.White, slot.rarityWeights);
+                            if (option == null)
+                                continue;
+
+                            items.Add(new ShopItemEntry
+                            {
+                                id = $"shop_block_{slot.slotId}_{i}_{option.id}",
+                                kind = ShopItemKind.Block,
+                                title = option.displayName,
+                                description = option.desc,
+                                blockReward = option,
+                                price = slot.price > 0 ? slot.price : GetBlockPrice(option.rarity)
                             });
                         }
                         break;
@@ -480,9 +512,15 @@ namespace POPHero
                 return false;
             }
 
+            if (!ApplyItem(item, out var failReason))
+            {
+                EventState = ShopEventState.ShopNoMoney;
+                LastFeedback = failReason;
+                return false;
+            }
+
             game.Player.SpendGold(item.price);
             item.purchased = true;
-            ApplyItem(item);
             EventState = ShopEventState.ShopBuySuccess;
             LastFeedback = $"已购买：{item.title}";
             return true;
@@ -505,8 +543,9 @@ namespace POPHero
             return true;
         }
 
-        void ApplyItem(ShopItemEntry item)
+        bool ApplyItem(ShopItemEntry item, out string failReason)
         {
+            failReason = string.Empty;
             switch (item.kind)
             {
                 case ShopItemKind.Sticker:
@@ -516,14 +555,32 @@ namespace POPHero
                         game.Player.IncreaseInventoryCapacity(1);
                         game.StickerInventory.TryAdd(sticker);
                     }
-                    break;
+                    return true;
                 case ShopItemKind.Mod:
                     game.ModManager.AcquireMod(item.modData.id);
-                    break;
+                    return true;
                 case ShopItemKind.Growth:
                     game.ApplyGrowthReward(item.growthData);
-                    break;
+                    return true;
+                case ShopItemKind.Block:
+                    if (item.blockReward == null)
+                    {
+                        failReason = "方块商品无效。";
+                        return false;
+                    }
+
+                    if (!game.BoardManager.TryGrantRewardOption(item.blockReward, out _, out _, out failReason))
+                    {
+                        if (string.IsNullOrWhiteSpace(failReason) || failReason.Contains("full"))
+                            failReason = "上阵和仓库都已满，无法购买方块。";
+                        return false;
+                    }
+
+                    return true;
             }
+
+            failReason = "未知商品类型。";
+            return false;
         }
 
         static int GetStickerPrice(StickerData data)
@@ -535,6 +592,18 @@ namespace POPHero
                 StickerRarity.Rare => 12,
                 StickerRarity.Epic => 16,
                 _ => 8
+            };
+        }
+
+        static int GetBlockPrice(BlockRarity rarity)
+        {
+            return rarity switch
+            {
+                BlockRarity.White => 8,
+                BlockRarity.Blue => 12,
+                BlockRarity.Purple => 18,
+                BlockRarity.Gold => 26,
+                _ => 12
             };
         }
     }

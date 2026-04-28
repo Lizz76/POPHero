@@ -210,6 +210,9 @@ namespace POPHero
         public bool allowSwap;
         public int swapCostGold;
         public int maxSwapCount = -1;
+        public bool allowUpgrade;
+        public int upgradeCostGold;
+        public int maxUpgradeCount = -1;
     }
 
     [Serializable]

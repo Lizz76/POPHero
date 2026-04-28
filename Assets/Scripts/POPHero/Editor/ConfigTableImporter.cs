@@ -328,7 +328,10 @@ namespace POPHero
                     maxDeleteCount = ParseInt(row.Get("maxDeleteCount"), -1),
                     allowSwap = ParseBool(row.Get("allowSwap")),
                     swapCostGold = ParseInt(row.Get("swapCostGold")),
-                    maxSwapCount = ParseInt(row.Get("maxSwapCount"), -1)
+                    maxSwapCount = ParseInt(row.Get("maxSwapCount"), -1),
+                    allowUpgrade = ParseBool(row.Get("allowUpgrade")),
+                    upgradeCostGold = ParseInt(row.Get("upgradeCostGold")),
+                    maxUpgradeCount = ParseInt(row.Get("maxUpgradeCount"), -1)
                 });
             }
 
@@ -503,7 +506,7 @@ namespace POPHero
             foreach (var row in result.GetRows("shop.csv"))
             {
                 var kind = ParseEnum(row, "slotKind", ShopSlotKind.Sticker);
-                if ((kind == ShopSlotKind.Sticker || kind == ShopSlotKind.Mod || kind == ShopSlotKind.Growth) && ParseInt(row.Get("count")) <= 0)
+                if ((kind == ShopSlotKind.Sticker || kind == ShopSlotKind.Mod || kind == ShopSlotKind.Growth || kind == ShopSlotKind.Block) && ParseInt(row.Get("count")) <= 0)
                     result.AddError($"{row.Table.Name}: row {row.LineNumber} count must be > 0 for {kind} slots.");
 
                 var rarityWeights = row.Get("rarityWeights");
@@ -526,10 +529,13 @@ namespace POPHero
             {
                 ValidateBool(result, row, "allowDelete");
                 ValidateBool(result, row, "allowSwap");
+                ValidateBool(result, row, "allowUpgrade");
                 ValidateNonNegative(result, row, "deleteCostGold");
                 ValidateNonNegative(result, row, "swapCostGold");
+                ValidateNonNegative(result, row, "upgradeCostGold");
                 ValidateLimit(result, row, "maxDeleteCount");
                 ValidateLimit(result, row, "maxSwapCount");
+                ValidateLimit(result, row, "maxUpgradeCount");
             }
         }
 

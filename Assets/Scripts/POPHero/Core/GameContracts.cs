@@ -19,6 +19,7 @@ namespace POPHero
         bool CanManageBlockAssignments { get; }
         bool CanManageStickerLoadout { get; }
         bool IsInitialBlockDraftPending { get; }
+        bool IsBossBlockDraftPending { get; }
         bool IsSettingsOpen { get; }
         float RunElapsedSeconds { get; }
         string AimModeDisplayText { get; }
@@ -137,6 +138,7 @@ namespace POPHero
         CancelStickerDrag,
         ToggleModActivation,
         TryRemoveBlock,
+        TryUpgradeBlock,
         TrySwapActiveReserve,
         TryInstallDraggedSticker,
         RemoveStickerFromCard,
@@ -184,6 +186,7 @@ namespace POPHero
         bool CanAcceptRewardBlock { get; }
         bool RewardWillGoToReserve { get; }
         bool TryRemoveOwnedCard(string cardId, out string failReason);
+        bool TryUpgradeOwnedCard(string cardId, out BlockCardState upgradedCard, out string failReason);
         bool TrySwapActiveAndReserve(string activeCardId, string reserveCardId, out string failReason);
         bool EnsureAtLeastOneActive();
     }
@@ -191,8 +194,9 @@ namespace POPHero
     public interface IBlockRewardService
     {
         IReadOnlyList<BlockRewardOption> ActiveRewardOptions { get; }
-        void GenerateRewardOptions(int defeatedEnemies, int count);
+        void GenerateRewardOptions(int defeatedEnemies, int count, BlockRarity minimumRarity = BlockRarity.White);
         bool TryClaimRewardOption(int index, out BlockCardState addedCard, out bool addedToReserve, out string failReason);
+        bool TryGrantRewardOption(BlockRewardOption option, out BlockCardState addedCard, out bool addedToReserve, out string failReason);
         void ClearRewardOptions();
     }
 
@@ -232,6 +236,7 @@ namespace POPHero
         bool TryOpen(string profileId, RoundState returnState, out string failReason);
         void Close();
         bool TryRemoveBlock(string cardId, out string failReason);
+        bool TryUpgradeBlock(string cardId, out string failReason);
         bool TrySwapActiveReserve(string activeCardId, string reserveCardId, out string failReason);
     }
 

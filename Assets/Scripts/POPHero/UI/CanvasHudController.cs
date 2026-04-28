@@ -953,16 +953,23 @@ namespace POPHero
                 var card = model.ActiveCards[index];
                 var view = blockOperationActiveEntries[index];
                 var tooltip = BlockPresentationUtility.BuildTooltip(card);
+                Action sideAction = null;
+                if (model.AllowUpgrade)
+                    sideAction = () => Run(new HudCommand(HudCommandType.TryUpgradeBlock, 0, card.id));
+                else if (model.AllowDelete)
+                    sideAction = () => Run(new HudCommand(HudCommandType.TryRemoveBlock, 0, card.id));
+
+                var sideLabel = model.AllowUpgrade ? "升级" : model.AllowDelete ? "删除" : string.Empty;
                 view.gameObject.SetActive(true);
                 view.Set(
                     card.cardName,
                     $"{BlockIcon(card.baseBlockType)} {Format(card)}",
-                    model.AllowDelete ? "选择替换，或直接删除" : "选择后可与背包方块替换",
+                    model.AllowUpgrade ? "选择替换，或直接升级" : model.AllowDelete ? "选择替换，或直接删除" : "选择后可与背包方块替换",
                     BlockColor(card),
                     selectedBlockOperationActiveId == card.id,
                     () => ClickBlockOperationCard(card, true),
-                    model.AllowDelete ? () => Run(new HudCommand(HudCommandType.TryRemoveBlock, 0, card.id)) : null,
-                    model.AllowDelete ? "删除" : string.Empty);
+                    sideAction,
+                    sideLabel);
                 view.SetTooltip(tooltip.Title, tooltip.Body, tooltip.AccentColor, this);
             }
 
@@ -972,16 +979,21 @@ namespace POPHero
                 var card = model.ReserveCards[index];
                 var view = blockOperationReserveEntries[index];
                 var tooltip = BlockPresentationUtility.BuildTooltip(card);
+                Action sideAction = model.AllowUpgrade
+                    ? () => Run(new HudCommand(HudCommandType.TryUpgradeBlock, 0, card.id))
+                    : null;
                 view.gameObject.SetActive(true);
                 view.Set(
                     card.cardName,
                     $"{BlockIcon(card.baseBlockType)} {Format(card)}",
-                    model.AllowSwap ? "选择后可与上阵方块替换" : "当前规则不允许替换",
+                    model.AllowUpgrade
+                        ? model.AllowSwap ? "可直接升级，或选择后与上阵方块替换" : "可直接升级"
+                        : model.AllowSwap ? "选择后可与上阵方块替换" : "当前规则不允许替换",
                     BlockColor(card),
                     selectedBlockOperationReserveId == card.id,
                     () => ClickBlockOperationCard(card, false),
-                    null,
-                    string.Empty);
+                    sideAction,
+                    model.AllowUpgrade ? "升级" : string.Empty);
                 view.SetTooltip(tooltip.Title, tooltip.Body, tooltip.AccentColor, this);
             }
         }

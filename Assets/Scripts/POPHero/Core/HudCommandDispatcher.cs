@@ -106,6 +106,9 @@ namespace POPHero
                 case HudCommandType.TryRemoveBlock:
                     game.TryRemoveBlock(command.PrimaryId);
                     break;
+                case HudCommandType.TryUpgradeBlock:
+                    game.TryUpgradeBlock(command.PrimaryId);
+                    break;
                 case HudCommandType.TrySwapActiveReserve:
                     game.TrySwapActiveReserve(command.PrimaryId, command.SecondaryId);
                     break;

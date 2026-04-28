@@ -76,6 +76,65 @@ namespace POPHero.Tests
         }
 
         [Test]
+        public void RuntimeCsvLoader_ReadsBlockAcquisitionTables()
+        {
+            Assert.IsTrue(ConfigTableCsvRuntimeLoader.TryLoadFromProjectCsv(out var tables, out _, out var error), error);
+            try
+            {
+                var blockSlot = tables.shopSlots.Find(slot => slot.slotId == "shop_block");
+                Assert.IsNotNull(blockSlot);
+                Assert.AreEqual(ShopSlotKind.Block, blockSlot.slotKind);
+                Assert.AreEqual(1, blockSlot.count);
+                Assert.AreEqual(12, blockSlot.price);
+                Assert.IsTrue(blockSlot.rarityWeights.HasAnyWeight);
+
+                var workbench = tables.blockOperationProfiles.Find(profile => profile.id == "map_workbench");
+                Assert.IsNotNull(workbench);
+                Assert.IsFalse(workbench.allowDelete);
+                Assert.IsTrue(workbench.allowSwap);
+                Assert.IsTrue(workbench.allowUpgrade);
+                Assert.AreEqual(0, workbench.upgradeCostGold);
+                Assert.AreEqual(1, workbench.maxUpgradeCount);
+            }
+            finally
+            {
+                if (tables != null)
+                    Object.DestroyImmediate(tables);
+            }
+        }
+
+        [Test]
+        public void SharedCsvParsers_ParseBlockShopSlotKind()
+        {
+            Assert.IsTrue(ConfigTableService.TryParseEnumKey("Block", out ShopSlotKind block));
+            Assert.AreEqual(ShopSlotKind.Block, block);
+        }
+
+        [Test]
+        public void PlayerBlockCollection_TryReplaceCard_PreservesActiveAndReservePositions()
+        {
+            var collection = new PlayerBlockCollection();
+            var active = new BlockCardState { id = "active", rarity = BlockRarity.White };
+            var reserve = new BlockCardState { id = "reserve", rarity = BlockRarity.Blue };
+            collection.activeBlocks.Add(active);
+            collection.reserveBlocks.Add(reserve);
+
+            var upgradedActive = new BlockCardState { id = "upgraded_active", rarity = BlockRarity.Blue };
+            Assert.IsTrue(collection.TryReplaceCard("active", upgradedActive, out var replacedActive, out var replacedWasActive));
+            Assert.IsTrue(replacedWasActive);
+            Assert.AreSame(active, replacedActive);
+            Assert.AreSame(upgradedActive, collection.activeBlocks[0]);
+            Assert.AreSame(reserve, collection.reserveBlocks[0]);
+
+            var upgradedReserve = new BlockCardState { id = "upgraded_reserve", rarity = BlockRarity.Purple };
+            Assert.IsTrue(collection.TryReplaceCard("reserve", upgradedReserve, out var replacedReserve, out var replacedWasReserveActive));
+            Assert.IsFalse(replacedWasReserveActive);
+            Assert.AreSame(reserve, replacedReserve);
+            Assert.AreSame(upgradedActive, collection.activeBlocks[0]);
+            Assert.AreSame(upgradedReserve, collection.reserveBlocks[0]);
+        }
+
+        [Test]
         public void MapConfigRestWeight_MissingColumnFallsBackToDefault()
         {
             var table = new ConfigCsvTable { Name = "mapConfig.csv" };

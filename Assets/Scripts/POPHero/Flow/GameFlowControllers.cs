@@ -85,6 +85,7 @@ namespace POPHero
         public bool CanAcceptRewardBlock => boardManager.CanAcceptRewardBlock;
         public bool RewardWillGoToReserve => boardManager.RewardWillGoToReserve;
         public bool TryRemoveOwnedCard(string cardId, out string failReason) => boardManager.TryRemoveOwnedCard(cardId, out failReason);
+        public bool TryUpgradeOwnedCard(string cardId, out BlockCardState upgradedCard, out string failReason) => boardManager.TryUpgradeOwnedCard(cardId, out upgradedCard, out failReason);
         public bool TrySwapActiveAndReserve(string activeCardId, string reserveCardId, out string failReason) => boardManager.TrySwapActiveAndReserve(activeCardId, reserveCardId, out failReason);
         public bool EnsureAtLeastOneActive() => boardManager.EnsureAtLeastOneActive();
     }
@@ -99,8 +100,9 @@ namespace POPHero
         }
 
         public IReadOnlyList<BlockRewardOption> ActiveRewardOptions => boardManager.ActiveRewardOptions;
-        public void GenerateRewardOptions(int defeatedEnemies, int count) => boardManager.GenerateRewardOptions(defeatedEnemies, count);
+        public void GenerateRewardOptions(int defeatedEnemies, int count, BlockRarity minimumRarity = BlockRarity.White) => boardManager.GenerateRewardOptions(defeatedEnemies, count, minimumRarity);
         public bool TryClaimRewardOption(int index, out BlockCardState addedCard, out bool addedToReserve, out string failReason) => boardManager.TryClaimRewardOption(index, out addedCard, out addedToReserve, out failReason);
+        public bool TryGrantRewardOption(BlockRewardOption option, out BlockCardState addedCard, out bool addedToReserve, out string failReason) => boardManager.TryGrantRewardOption(option, out addedCard, out addedToReserve, out failReason);
         public void ClearRewardOptions() => boardManager.ClearRewardOptions();
     }
 

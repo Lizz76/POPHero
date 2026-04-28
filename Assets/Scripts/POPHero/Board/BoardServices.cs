@@ -327,6 +327,42 @@ internal sealed class BlockCollectionService
             return true;
         }
 
+        public bool TryUpgradeOwnedCard(string cardId, BlockRewardService rewardService, out BlockCardState upgradedCard, out bool upgradedActive, out string failReason)
+        {
+            failReason = string.Empty;
+            upgradedCard = null;
+            upgradedActive = false;
+            if (rewardService == null)
+            {
+                failReason = "方块奖励服务不可用。";
+                return false;
+            }
+
+            var sourceCard = context.BlockCollection.FindCard(cardId);
+            if (sourceCard == null)
+            {
+                failReason = "找不到要升级的方块。";
+                return false;
+            }
+
+            var upgradedRarity = BlockRewardService.GetNextRarity(sourceCard.rarity);
+            var option = rewardService.CreateRewardOption(
+                context.Game.Player.TotalKills,
+                context.CardSerial,
+                BlockRarity.White,
+                BlockRewardService.CreateFixedRarityWeights(upgradedRarity));
+            upgradedCard = rewardService.CreateCardState(option);
+            if (!context.BlockCollection.TryReplaceCard(cardId, upgradedCard, out _, out upgradedActive))
+            {
+                failReason = "无法替换目标方块。";
+                upgradedCard = null;
+                return false;
+            }
+
+            context.RefreshAllCardsCache();
+            return true;
+        }
+
         public bool TrySwapActiveAndReserve(string activeCardId, string reserveCardId, out string failReason)
         {
             failReason = string.Empty;
@@ -362,12 +398,12 @@ internal sealed class BlockRewardService
 
         public IReadOnlyList<BlockRewardOption> ActiveRewardOptions => context.ActiveRewardOptions;
 
-        public void GenerateRewardOptions(int defeatedEnemies, int count)
+        public void GenerateRewardOptions(int defeatedEnemies, int count, BlockRarity minimumRarity = BlockRarity.White)
         {
             context.ActiveRewardOptions.Clear();
             var optionCount = Mathf.Max(1, count);
             for (var index = 0; index < optionCount; index++)
-                context.ActiveRewardOptions.Add(CreateRewardOption(defeatedEnemies, index));
+                context.ActiveRewardOptions.Add(CreateRewardOption(defeatedEnemies, index, minimumRarity));
         }
 
         public bool TryClaimRewardOption(int index, out BlockCardState addedCard, out bool addedToReserve, out string failReason)
@@ -381,11 +417,37 @@ internal sealed class BlockRewardService
                 return false;
             }
 
-            addedCard = CreateCardState(context.ActiveRewardOptions[index]);
-            if (!collectionService.TryAddCard(addedCard, out addedToReserve, out failReason))
+            if (!TryGrantRewardOption(context.ActiveRewardOptions[index], out addedCard, out addedToReserve, out failReason))
                 return false;
 
             context.ActiveRewardOptions.Clear();
+            return true;
+        }
+
+        public bool TryGrantRewardOption(BlockRewardOption option, out BlockCardState addedCard, out bool addedToReserve, out string failReason)
+        {
+            addedCard = null;
+            addedToReserve = false;
+            failReason = string.Empty;
+            if (option == null)
+            {
+                failReason = "Invalid block reward.";
+                return false;
+            }
+
+            if (!collectionService.CanAcceptRewardBlock)
+            {
+                failReason = "Active and reserve are both full.";
+                return false;
+            }
+
+            addedCard = CreateCardState(option);
+            if (!collectionService.TryAddCard(addedCard, out addedToReserve, out failReason))
+            {
+                addedCard = null;
+                return false;
+            }
+
             return true;
         }
 
@@ -400,10 +462,12 @@ internal sealed class BlockRewardService
             context.ActiveRewardOptions.Clear();
         }
 
-        BlockRewardOption CreateRewardOption(int defeatedEnemies, int optionIndex)
+        public BlockRewardOption CreateRewardOption(int defeatedEnemies, int optionIndex, BlockRarity minimumRarity = BlockRarity.White, RarityWeightSet rarityWeights = null)
         {
             var blockType = RollBlockType();
-            var rarity = RollRarity(defeatedEnemies);
+            var rarity = ApplyMinimumRarity(
+                rarityWeights != null && rarityWeights.HasAnyWeight ? rarityWeights.Roll() : RollRarity(defeatedEnemies),
+                minimumRarity);
             var value = GetRarityValue(blockType, rarity);
             var typeName = GetConfiguredBlockTypeName(blockType);
             var rarityName = GetConfiguredRarityName(blockType, rarity);
@@ -420,9 +484,47 @@ internal sealed class BlockRewardService
             };
         }
 
-        BlockCardState CreateCardState(BlockRewardOption option)
+        public BlockCardState CreateCardState(BlockRewardOption option)
         {
             return CreateCardState(option.blockType, option.rarity);
+        }
+
+        public static BlockRarity GetNextRarity(BlockRarity rarity)
+        {
+            return rarity switch
+            {
+                BlockRarity.White => BlockRarity.Blue,
+                BlockRarity.Blue => BlockRarity.Purple,
+                BlockRarity.Purple => BlockRarity.Gold,
+                _ => BlockRarity.Gold
+            };
+        }
+
+        public static RarityWeightSet CreateFixedRarityWeights(BlockRarity rarity)
+        {
+            var weights = new RarityWeightSet();
+            switch (rarity)
+            {
+                case BlockRarity.White:
+                    weights.white = 100f;
+                    break;
+                case BlockRarity.Blue:
+                    weights.blue = 100f;
+                    break;
+                case BlockRarity.Purple:
+                    weights.purple = 100f;
+                    break;
+                case BlockRarity.Gold:
+                    weights.gold = 100f;
+                    break;
+            }
+
+            return weights;
+        }
+
+        static BlockRarity ApplyMinimumRarity(BlockRarity rarity, BlockRarity minimumRarity)
+        {
+            return (int)rarity < (int)minimumRarity ? minimumRarity : rarity;
         }
 
         BlockCardState CreateCardState(BoardBlockType blockType, BlockRarity rarity)

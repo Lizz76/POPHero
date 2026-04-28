@@ -91,6 +91,55 @@ namespace POPHero
             return true;
         }
 
+        public bool TryUpgradeBlock(string cardId, out string failReason)
+        {
+            failReason = string.Empty;
+            if (!IsOpen)
+            {
+                failReason = "当前没有打开方块操作。";
+                return false;
+            }
+
+            if (!currentProfile.allowUpgrade)
+            {
+                failReason = "当前规则不允许升级方块。";
+                return false;
+            }
+
+            if (!CanUse(session.upgradeUsedCount, currentProfile.maxUpgradeCount))
+            {
+                failReason = BuildLimitReachedMessage("升级", currentProfile.maxUpgradeCount);
+                session.lastFeedback = failReason;
+                return false;
+            }
+
+            var cost = Mathf.Max(0, currentProfile.upgradeCostGold);
+            if (game.Player.Gold < cost)
+            {
+                failReason = $"金币不足，升级需要 {cost} 金币。";
+                session.lastFeedback = failReason;
+                return false;
+            }
+
+            if (!game.BoardManager.TryUpgradeOwnedCard(cardId, out var upgradedCard, out failReason))
+            {
+                session.lastFeedback = failReason;
+                return false;
+            }
+
+            if (cost > 0)
+                game.Player.SpendGold(cost);
+
+            session.upgradeUsedCount += 1;
+            var cardName = upgradedCard != null && !string.IsNullOrWhiteSpace(upgradedCard.cardName)
+                ? upgradedCard.cardName
+                : "新方块";
+            session.lastFeedback = cost > 0
+                ? $"已置换升级为 {cardName}，消耗 {cost} 金币。"
+                : $"已置换升级为 {cardName}。";
+            return true;
+        }
+
         public bool TrySwapActiveReserve(string activeCardId, string reserveCardId, out string failReason)
         {
             failReason = string.Empty;

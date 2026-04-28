@@ -55,9 +55,14 @@ namespace POPHero
         {
         }
 
-        public void GenerateRewardOptions(int defeatedEnemies, int count)
+        public void GenerateRewardOptions(int defeatedEnemies, int count, BlockRarity minimumRarity = BlockRarity.White)
         {
-            rewardService?.GenerateRewardOptions(defeatedEnemies, count);
+            rewardService?.GenerateRewardOptions(defeatedEnemies, count, minimumRarity);
+        }
+
+        public BlockRewardOption CreateRewardOption(int defeatedEnemies, int optionIndex, BlockRarity minimumRarity = BlockRarity.White, RarityWeightSet rarityWeights = null)
+        {
+            return rewardService?.CreateRewardOption(defeatedEnemies, optionIndex, minimumRarity, rarityWeights);
         }
 
         public bool TryClaimRewardOption(int index, out BlockCardState addedCard, out bool addedToReserve, out string failReason)
@@ -66,6 +71,14 @@ namespace POPHero
             addedToReserve = false;
             failReason = string.Empty;
             return rewardService != null && rewardService.TryClaimRewardOption(index, out addedCard, out addedToReserve, out failReason);
+        }
+
+        public bool TryGrantRewardOption(BlockRewardOption option, out BlockCardState addedCard, out bool addedToReserve, out string failReason)
+        {
+            addedCard = null;
+            addedToReserve = false;
+            failReason = string.Empty;
+            return rewardService != null && rewardService.TryGrantRewardOption(option, out addedCard, out addedToReserve, out failReason);
         }
 
         public bool GrantStartingCard(BoardBlockType blockType, BlockRarity rarity, out BlockCardState addedCard, out string failReason)
@@ -94,6 +107,22 @@ namespace POPHero
 
             collectionService.EnsureAtLeastOneActive();
             runtimeBoardService.RefreshRuntimeBoardIfManageable();
+            return true;
+        }
+
+        public bool TryUpgradeOwnedCard(string cardId, out BlockCardState upgradedCard, out string failReason)
+        {
+            upgradedCard = null;
+            failReason = string.Empty;
+            if (collectionService == null || rewardService == null || runtimeBoardService == null)
+                return false;
+
+            if (!collectionService.TryUpgradeOwnedCard(cardId, rewardService, out upgradedCard, out var upgradedActive, out failReason))
+                return false;
+
+            if (upgradedActive)
+                runtimeBoardService.RefreshRuntimeBoardIfManageable();
+
             return true;
         }
 

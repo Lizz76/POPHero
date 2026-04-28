@@ -117,6 +117,7 @@ namespace POPHero
         public int MaxLaunchesPerEnemy => Mathf.Max(1, config.enemies.maxLaunchesPerEnemy + (Player?.BonusLaunchesPerEnemy ?? 0));
         public InputAimMode CurrentAimMode => config.aim.currentAimMode;
         public bool IsInitialBlockDraftPending => initialBlockDraftPending;
+        public bool IsBossBlockDraftPending => bossBlockDraftPending;
         public bool IsSettingsOpen { get; private set; }
         public float RunElapsedSeconds => runElapsedSeconds;
         public bool CanManageBlockAssignments => !IsSettingsOpen && State == RoundState.BlockOperations;
@@ -184,6 +185,7 @@ namespace POPHero
         readonly List<EnemyEncounterState> currentEnemyEncounters = new(3);
         int enemyEncounterIndex;
         bool initialBlockDraftPending;
+        bool bossBlockDraftPending;
         IntermissionActionKind pendingIntermissionAction;
         int pendingIntermissionIndex = -1;
         bool isBattlePresentationPlaying;
@@ -203,6 +205,7 @@ namespace POPHero
         Vector2 initialLaunchPoint;
         bool loadoutReturnsToMap;
         bool debugBattleReturnActive;
+        bool debugBattleIsBoss;
         bool debugShopReturnActive;
         bool debugBlockOperationsReturnActive;
         RoundState debugBattleReturnState = RoundState.Map;
@@ -554,6 +557,7 @@ namespace POPHero
             CurrentEnemyEncounter = null;
             currentEnemyEncounters.Clear();
             initialBlockDraftPending = false;
+            bossBlockDraftPending = false;
             GameOverMessage = "本局结束。";
             IntermissionMessage = string.Empty;
             runElapsedSeconds = 0f;
@@ -1002,7 +1006,7 @@ namespace POPHero
             var clearRewards = encounterDirector != null
                 ? encounterDirector.BuildClearRewardSummary()
                 : new EncounterClearRewardSummary(0, 0, 0);
-            var defeatedBoss = !debugBattleReturnActive && runMapManager?.CurrentNode?.kind == MapNodeKind.Boss;
+            var defeatedBoss = debugBattleIsBoss || (!debugBattleReturnActive && runMapManager?.CurrentNode?.kind == MapNodeKind.Boss);
 
             if (clearRewards.RewardGold > 0)
                 Player.AddGold(Mathf.RoundToInt(clearRewards.RewardGold * modManager.GetRewardGoldMultiplier()));
@@ -1014,7 +1018,10 @@ namespace POPHero
             for (var killIndex = 0; killIndex < clearRewards.DefeatedEnemyCount; killIndex++)
                 Player.RegisterKillAndTryLevelUp();
 
-            BeginBallRewardDraft();
+            if (defeatedBoss)
+                BeginBossBlockRewardDraft();
+            else
+                BeginBallRewardDraft();
         }
 
         void BeginBallRewardDraft()
@@ -1027,6 +1034,7 @@ namespace POPHero
         void BeginBlockRewardDraft(bool initialDraft)
         {
             initialBlockDraftPending = initialDraft;
+            bossBlockDraftPending = false;
             boardManager.GenerateRewardOptions(Player.TotalKills, initialDraft ? config.blockRewards.initialChoiceCount : config.blockRewards.rewardChoiceCount);
             IntermissionMessage = initialDraft
                 ? "在第一场战斗开始前，先选择一张起始方块。"
@@ -1035,6 +1043,17 @@ namespace POPHero
                     : boardManager.RewardWillGoToReserve
                         ? "上阵已满，选中的方块会被送入仓库。"
                         : "击败敌人后，可选择一张方块加入上阵，或直接跳过。";
+            ChangeState(RoundState.BlockRewardChoose);
+        }
+
+        void BeginBossBlockRewardDraft()
+        {
+            initialBlockDraftPending = false;
+            bossBlockDraftPending = true;
+            boardManager.GenerateRewardOptions(Player.TotalKills, config.blockRewards.rewardChoiceCount, BlockRarity.Blue);
+            IntermissionMessage = boardManager.CanAcceptRewardBlock
+                ? "Boss 已击败，选择一张高品质方块开启下一段路线。"
+                : "Boss 已击败，但上阵和仓库都已满。请继续路线，之后通过工坊整理构筑。";
             ChangeState(RoundState.BlockRewardChoose);
         }
 
@@ -1235,7 +1254,7 @@ namespace POPHero
                 : $"{label}没有恢复生命，当前生命已满。";
         }
 
-        internal void CompleteCurrentMapNodeAndReturnCore(string overrideFeedback = null)
+        internal void CompleteCurrentMapNodeAndReturnCore(string overrideFeedback = null, bool continueAfterBoss = false)
         {
             if (runMapManager == null)
                 return;
@@ -1250,7 +1269,7 @@ namespace POPHero
             IntermissionMessage = string.IsNullOrWhiteSpace(overrideFeedback)
                 ? runMapManager.LastFeedback
                 : overrideFeedback;
-            if (completedBoss)
+            if (completedBoss && !continueAfterBoss)
             {
                 TriggerGameOver("路线完成，Boss 已被击败。");
                 return;
@@ -1266,6 +1285,8 @@ namespace POPHero
             currentEnemyEncounters.Clear();
             RemainingLaunchesForEnemy = 0;
             ballController?.StopImmediately();
+            if (completedBoss && continueAfterBoss)
+                runMapManager.GenerateNewMap();
             ChangeState(RoundState.Map);
         }
 
@@ -1543,6 +1564,8 @@ namespace POPHero
 
             if (initialBlockDraftPending)
                 CompleteInitialDraft();
+            else if (bossBlockDraftPending)
+                CompleteBossBlockRewardAndStartNextMap();
             else
                 QueueIntermissionAction(IntermissionActionKind.EnterStickerRewardPhase);
         }
@@ -1550,6 +1573,9 @@ namespace POPHero
         public void SkipBlockReward()
         {
             if (State != RoundState.BlockRewardChoose || initialBlockDraftPending)
+                return;
+
+            if (bossBlockDraftPending && boardManager.CanAcceptRewardBlock)
                 return;
 
             QueueIntermissionAction(IntermissionActionKind.SkipBlockReward);
@@ -1560,8 +1586,29 @@ namespace POPHero
             if (State != RoundState.BlockRewardChoose || initialBlockDraftPending)
                 return;
 
+            if (bossBlockDraftPending && boardManager.CanAcceptRewardBlock)
+                return;
+
             boardManager.ClearRewardOptions();
-            QueueIntermissionAction(IntermissionActionKind.EnterStickerRewardPhase);
+            if (bossBlockDraftPending)
+                CompleteBossBlockRewardAndStartNextMap("Boss 已击败，方块容量已满，本次未获得新方块，新的路线已经展开。");
+            else
+                QueueIntermissionAction(IntermissionActionKind.EnterStickerRewardPhase);
+        }
+
+        void CompleteBossBlockRewardAndStartNextMap(string feedback = null)
+        {
+            bossBlockDraftPending = false;
+            boardManager.ClearRewardOptions();
+            if (debugBattleReturnActive)
+            {
+                CompleteDebugBossBlockRewardAndReturnCore(feedback);
+                return;
+            }
+
+            CompleteCurrentMapNodeAndReturnCore(
+                string.IsNullOrWhiteSpace(feedback) ? "Boss 已击败，新方块已加入构筑，新的路线已经展开。" : feedback,
+                true);
         }
 
         public void TrySelectReward(int index)
@@ -1688,6 +1735,17 @@ namespace POPHero
                 return;
 
             if (blockOperationManager.TryRemoveBlock(cardId, out var failReason))
+                IntermissionMessage = blockOperationManager.Session.lastFeedback;
+            else
+                IntermissionMessage = string.IsNullOrWhiteSpace(failReason) ? blockOperationManager.Session.lastFeedback : failReason;
+        }
+
+        public void TryUpgradeBlock(string cardId)
+        {
+            if (State != RoundState.BlockOperations)
+                return;
+
+            if (blockOperationManager.TryUpgradeBlock(cardId, out var failReason))
                 IntermissionMessage = blockOperationManager.Session.lastFeedback;
             else
                 IntermissionMessage = string.IsNullOrWhiteSpace(failReason) ? blockOperationManager.Session.lastFeedback : failReason;
@@ -1979,10 +2037,10 @@ namespace POPHero
             switch (kind)
             {
                 case MapNodeKind.Battle:
-                    StartDebugEncounter(EncounterNodeType.Normal, "普通战斗");
+                    StartDebugEncounter(EncounterNodeType.Normal, "普通战斗", false);
                     break;
                 case MapNodeKind.Boss:
-                    StartDebugEncounter(EncounterNodeType.Boss, "Boss 战");
+                    StartDebugEncounter(EncounterNodeType.Boss, "Boss 战", true);
                     break;
                 case MapNodeKind.Shop:
                     OpenDebugShop();
@@ -2028,7 +2086,7 @@ namespace POPHero
             canvasHud?.RefreshNow();
         }
 
-        void StartDebugEncounter(EncounterNodeType nodeType, string label)
+        void StartDebugEncounter(EncounterNodeType nodeType, string label, bool isBoss)
         {
             ClearPendingIntermissionAction();
             ClearDebugReturnState();
@@ -2038,6 +2096,7 @@ namespace POPHero
                 blockOperationManager.Close();
 
             debugBattleReturnActive = true;
+            debugBattleIsBoss = isBoss;
             debugBattleReturnState = RoundState.Map;
             enemyEncounterIndex = 0;
             SpawnEncounter(null, nodeType, 1);
@@ -2113,6 +2172,7 @@ namespace POPHero
         void CompleteDebugBattleAndReturnCore()
         {
             debugBattleReturnActive = false;
+            debugBattleIsBoss = false;
             boardManager.ClearRewardOptions();
             enemyController?.gameObject.SetActive(false);
             midEnemyController?.gameObject.SetActive(false);
@@ -2130,9 +2190,33 @@ namespace POPHero
             debugBattleReturnState = RoundState.Map;
         }
 
+        void CompleteDebugBossBlockRewardAndReturnCore(string feedback = null)
+        {
+            debugBattleReturnActive = false;
+            debugBattleIsBoss = false;
+            enemyController?.gameObject.SetActive(false);
+            midEnemyController?.gameObject.SetActive(false);
+            supportEnemyController?.gameObject.SetActive(false);
+            encounterDirector?.Reset();
+            CurrentEnemyGroup = null;
+            CurrentEnemy = null;
+            CurrentEnemyEncounter = null;
+            currentEnemyEncounters.Clear();
+            RemainingLaunchesForEnemy = 0;
+            ballController?.StopImmediately();
+            RefreshLaunchCounter();
+            runMapManager?.GenerateNewMap();
+            IntermissionMessage = string.IsNullOrWhiteSpace(feedback)
+                ? "GM 调试 Boss 已击败，新方块已加入构筑，新的路线已经展开。"
+                : feedback;
+            ChangeState(RoundState.Map);
+            debugBattleReturnState = RoundState.Map;
+        }
+
         void ClearDebugReturnState()
         {
             debugBattleReturnActive = false;
+            debugBattleIsBoss = false;
             debugShopReturnActive = false;
             debugBlockOperationsReturnActive = false;
             debugBattleReturnState = RoundState.Map;

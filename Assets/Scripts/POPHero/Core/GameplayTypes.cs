@@ -191,18 +191,20 @@ namespace POPHero
 
     public enum ShopItemKind
     {
-        Sticker,
-        Mod,
-        Growth
+        Sticker = 0,
+        Mod = 1,
+        Growth = 2,
+        Block = 3
     }
 
     public enum ShopSlotKind
     {
-        Sticker,
-        Mod,
-        Growth,
-        RemoveBlock,
-        Reroll
+        Sticker = 0,
+        Mod = 1,
+        Growth = 2,
+        RemoveBlock = 3,
+        Reroll = 4,
+        Block = 5
     }
 
     public enum GrowthRewardType
@@ -403,6 +405,33 @@ namespace POPHero
             return false;
         }
 
+        public bool TryReplaceCard(string cardId, BlockCardState replacement, out BlockCardState replacedCard, out bool replacedActive)
+        {
+            replacedCard = null;
+            replacedActive = false;
+            if (replacement == null)
+                return false;
+
+            var activeIndex = activeBlocks.FindIndex(card => card.id == cardId);
+            if (activeIndex >= 0)
+            {
+                replacedCard = activeBlocks[activeIndex];
+                activeBlocks[activeIndex] = replacement;
+                replacedActive = true;
+                return true;
+            }
+
+            var reserveIndex = reserveBlocks.FindIndex(card => card.id == cardId);
+            if (reserveIndex >= 0)
+            {
+                replacedCard = reserveBlocks[reserveIndex];
+                reserveBlocks[reserveIndex] = replacement;
+                return true;
+            }
+
+            return false;
+        }
+
         public bool SwapActiveAndReserve(string activeCardId, string reserveCardId)
         {
             var activeIndex = activeBlocks.FindIndex(card => card.id == activeCardId);
@@ -460,6 +489,7 @@ namespace POPHero
         public StickerData stickerData;
         public ModData modData;
         public GrowthRewardData growthData;
+        public BlockRewardOption blockReward;
     }
 
     [Serializable]
@@ -474,6 +504,7 @@ namespace POPHero
         public StickerData stickerData;
         public ModData modData;
         public GrowthRewardData growthData;
+        public BlockRewardOption blockReward;
     }
 
     [Serializable]
@@ -483,6 +514,7 @@ namespace POPHero
         public RoundState returnState = RoundState.Shop;
         public int deleteUsedCount;
         public int swapUsedCount;
+        public int upgradeUsedCount;
         public string lastFeedback;
 
         public bool IsOpen => !string.IsNullOrWhiteSpace(profileId);
@@ -493,6 +525,7 @@ namespace POPHero
             returnState = nextReturnState;
             deleteUsedCount = 0;
             swapUsedCount = 0;
+            upgradeUsedCount = 0;
             lastFeedback = string.Empty;
         }
 
@@ -502,6 +535,7 @@ namespace POPHero
             returnState = RoundState.Shop;
             deleteUsedCount = 0;
             swapUsedCount = 0;
+            upgradeUsedCount = 0;
             lastFeedback = string.Empty;
         }
     }

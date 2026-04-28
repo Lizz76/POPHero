@@ -275,7 +275,10 @@ namespace POPHero
                     maxDeleteCount = ParseInt(row.Get("maxDeleteCount"), -1),
                     allowSwap = ParseBool(row.Get("allowSwap")),
                     swapCostGold = ParseInt(row.Get("swapCostGold")),
-                    maxSwapCount = ParseInt(row.Get("maxSwapCount"), -1)
+                    maxSwapCount = ParseInt(row.Get("maxSwapCount"), -1),
+                    allowUpgrade = ParseBool(row.Get("allowUpgrade")),
+                    upgradeCostGold = ParseInt(row.Get("upgradeCostGold")),
+                    maxUpgradeCount = ParseInt(row.Get("maxUpgradeCount"), -1)
                 });
             }
 

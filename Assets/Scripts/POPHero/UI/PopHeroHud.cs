@@ -649,9 +649,9 @@ namespace POPHero
 
             GUILayout.Space(10f);
             GUILayout.BeginHorizontal();
-            DrawBlockOperationSection(model.ActiveColumnTitle, model.ActiveCards, true, model.AllowDelete);
+            DrawBlockOperationSection(model.ActiveColumnTitle, model.ActiveCards, true, model.AllowDelete, model.AllowUpgrade);
             GUILayout.Space(12f);
-            DrawBlockOperationSection(model.ReserveColumnTitle, model.ReserveCards, false, false);
+            DrawBlockOperationSection(model.ReserveColumnTitle, model.ReserveCards, false, false, model.AllowUpgrade);
             GUILayout.EndHorizontal();
             GUILayout.EndArea();
 
@@ -850,7 +850,7 @@ namespace POPHero
             GUI.Label(new Rect(mouse.x + 22f, mouse.y + 40f, 150f, 20f), "拖到右侧空槽位松手安装", textStyle);
         }
 
-        void DrawBlockOperationSection(string title, System.Collections.Generic.IReadOnlyList<BlockCardState> cards, bool isActiveSection, bool allowDelete)
+        void DrawBlockOperationSection(string title, System.Collections.Generic.IReadOnlyList<BlockCardState> cards, bool isActiveSection, bool allowDelete, bool allowUpgrade)
         {
             GUILayout.BeginVertical(cardStyle, GUILayout.Width(490f));
             GUILayout.Label(title, badgeStyle);
@@ -878,7 +878,12 @@ namespace POPHero
                 GUILayout.Label(card.cardName, badgeStyle, GUILayout.Width(160f));
                 GUILayout.Label(FormatBlockValue(card), tinyLabelStyle, GUILayout.Width(92f));
                 GUILayout.FlexibleSpace();
-                if (allowDelete)
+                if (allowUpgrade)
+                {
+                    if (GUILayout.Button("升级", buttonStyle, GUILayout.Width(60f)))
+                        RunCommand(new HudCommand(HudCommandType.TryUpgradeBlock, 0, card.id));
+                }
+                else if (allowDelete)
                 {
                     if (GUILayout.Button("删除", buttonStyle, GUILayout.Width(60f)))
                         RunCommand(new HudCommand(HudCommandType.TryRemoveBlock, 0, card.id));
@@ -1081,6 +1086,7 @@ namespace POPHero
                 ShopItemKind.Sticker => "嵌片",
                 ShopItemKind.Mod => "模组",
                 ShopItemKind.Growth => "成长",
+                ShopItemKind.Block => "方块",
                 _ => kind.ToString()
             };
         }
@@ -1092,6 +1098,7 @@ namespace POPHero
                 ShopItemKind.Sticker => "嵌片",
                 ShopItemKind.Mod => "模组",
                 ShopItemKind.Growth => "成长项",
+                ShopItemKind.Block => "方块",
                 _ => kind.ToString()
             };
         }

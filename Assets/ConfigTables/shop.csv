@@ -1,10 +1,11 @@
 slotId,slotKind,itemPool,count,price,rarityWeights,weight
 string,string,string,int,int,string,int
 both,both,both,both,both,both,both
-槽位ID,槽位类型Sticker/Mod/Growth/RemoveBlock/Reroll,商品池,生成数量,价格,品质权重白|蓝|紫|金,槽位权重
+槽位ID,槽位类型Sticker/Mod/Growth/Block/RemoveBlock/Reroll,商品池,生成数量,价格,品质权重白|蓝|紫|金,槽位权重
 ,,,,,,
 shop_sticker,Sticker,All,3,8,55|30|12|3,100
 shop_mod,Mod,All,1,14,,100
 shop_growth,Growth,All,1,11,,100
+shop_block,Block,All,1,12,60|30|9|1,100
 shop_remove,RemoveBlock,All,1,18,,100
 shop_reroll,Reroll,All,1,3,,100

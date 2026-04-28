@@ -72,6 +72,7 @@ namespace POPHero
         public IReadOnlyList<BlockCardState> ActiveCards;
         public IReadOnlyList<BlockCardState> ReserveCards;
         public bool AllowDelete;
+        public bool AllowUpgrade;
         public bool AllowSwap;
     }
 
@@ -491,6 +492,9 @@ namespace POPHero
             blockRewardCards.Clear();
             var blockRewards = game?.BlockRewards;
             var blockCollections = game?.BlockCollections;
+            var initialDraft = game?.IsInitialBlockDraftPending ?? false;
+            var bossDraft = game?.IsBossBlockDraftPending ?? false;
+            var canAcceptBlock = blockCollections?.CanAcceptRewardBlock ?? false;
             var options = blockRewards?.ActiveRewardOptions ?? Array.Empty<BlockRewardOption>();
             for (var index = 0; index < options.Count; index++)
             {
@@ -504,29 +508,40 @@ namespace POPHero
                     ValueText = $"数值：{FormatBlockValue(option)}",
                     Description = option.desc,
                     AccentColor = GetRarityColor(option.rarity),
-                    CanSelect = game == null || game.IsInitialBlockDraftPending || (blockCollections?.CanAcceptRewardBlock ?? false),
-                    SelectButtonText = blockCollections?.RewardWillGoToReserve == true && game != null && !game.IsInitialBlockDraftPending
+                    CanSelect = game == null || initialDraft || canAcceptBlock,
+                    SelectButtonText = blockCollections?.RewardWillGoToReserve == true && game != null && !initialDraft
                         ? "放入背包"
                         : "加入方块组"
                 });
             }
 
-            var subtitle = game != null && game.IsInitialBlockDraftPending
-                ? "在第一场战斗开始前，先选择你的起始方块。"
-                : blockCollections?.CanAcceptRewardBlock == false
-                    ? "上阵和方块背包都已满，请先腾出空间。"
-                    : blockCollections?.RewardWillGoToReserve == true
-                        ? "上阵已满，选中的方块会进入方块背包。"
-                        : "上阵还有空位，选中的方块会直接加入上阵。";
+            var subtitle = "上阵还有空位，选中的方块会直接加入上阵。";
+            if (initialDraft)
+                subtitle = "在第一场战斗开始前，先选择你的起始方块。";
+            else if (bossDraft)
+                subtitle = canAcceptBlock
+                    ? "选择一张高品质方块加入构筑，然后开启新的路线。"
+                    : "上阵和方块背包都已满，请先继续路线，之后通过工坊整理构筑。";
+            else if (!canAcceptBlock)
+                subtitle = "上阵和方块背包都已满，请先腾出空间。";
+            else if (blockCollections?.RewardWillGoToReserve == true)
+                subtitle = "上阵已满，选中的方块会进入方块背包。";
 
             return new BlockRewardPanelModel
             {
-                TitleText = game != null && game.IsInitialBlockDraftPending ? "选择起始方块" : "选择新方块",
+                TitleText = GetBlockRewardTitle(initialDraft, bossDraft),
                 SubtitleText = subtitle,
                 Cards = blockRewardCards,
-                ShowSkipButton = game != null && !game.IsInitialBlockDraftPending,
-                SkipButtonText = "跳过本次方块"
+                ShowSkipButton = game != null && !initialDraft && (!bossDraft || !canAcceptBlock),
+                SkipButtonText = bossDraft ? "容量已满，继续路线" : "跳过本次方块"
             };
+        }
+
+        static string GetBlockRewardTitle(bool initialDraft, bool bossDraft)
+        {
+            if (initialDraft)
+                return "选择起始方块";
+            return bossDraft ? "Boss 方块奖励" : "选择新方块";
         }
 
         public RewardPanelModel BuildRewardPanel(IGameReadModel game)
@@ -592,7 +607,7 @@ namespace POPHero
             return new ShopPanelModel
             {
                 TitleText = "商店",
-                SubtitleText = "购买嵌片、模组和成长项。需要调整方块构筑时，可进入独立的方块操作面板。",
+                SubtitleText = "购买嵌片、模组、成长项和方块。需要调整构筑时，可进入独立的方块操作面板。",
                 Items = shopItemCards,
                 LastFeedbackText = shops?.LastFeedback ?? string.Empty,
                 GoldText = $"金币：{player?.Gold ?? 0}",
@@ -615,12 +630,17 @@ namespace POPHero
             blockOperationsPanel.FeedbackText = session?.lastFeedback ?? string.Empty;
             blockOperationsPanel.ActiveColumnTitle = string.IsNullOrWhiteSpace(profile?.activeColumnTitle) ? "上阵方块" : profile.activeColumnTitle;
             blockOperationsPanel.ReserveColumnTitle = string.IsNullOrWhiteSpace(profile?.reserveColumnTitle) ? "背包方块" : profile.reserveColumnTitle;
-            blockOperationsPanel.DeleteStatusText = BuildOperationStatusText("删除", profile?.allowDelete ?? false, profile?.deleteCostGold ?? 0, profile?.maxDeleteCount ?? -1, session?.deleteUsedCount ?? 0);
+            var deleteStatusText = BuildOperationStatusText("删除", profile?.allowDelete ?? false, profile?.deleteCostGold ?? 0, profile?.maxDeleteCount ?? -1, session?.deleteUsedCount ?? 0);
+            var upgradeStatusText = BuildOperationStatusText("升级", profile?.allowUpgrade ?? false, profile?.upgradeCostGold ?? 0, profile?.maxUpgradeCount ?? -1, session?.upgradeUsedCount ?? 0);
+            blockOperationsPanel.DeleteStatusText = deleteStatusText;
+            if (profile?.allowUpgrade == true)
+                blockOperationsPanel.DeleteStatusText = profile.allowDelete ? $"{deleteStatusText}    {upgradeStatusText}" : upgradeStatusText;
             blockOperationsPanel.SwapStatusText = BuildOperationStatusText("替换", profile?.allowSwap ?? false, profile?.swapCostGold ?? 0, profile?.maxSwapCount ?? -1, session?.swapUsedCount ?? 0);
             blockOperationsPanel.CloseButtonText = string.IsNullOrWhiteSpace(profile?.closeButtonText) ? "关闭" : profile.closeButtonText;
             blockOperationsPanel.ActiveCards = blocks?.ActiveCardStates ?? Array.Empty<BlockCardState>();
             blockOperationsPanel.ReserveCards = blocks?.ReserveCardStates ?? Array.Empty<BlockCardState>();
             blockOperationsPanel.AllowDelete = profile?.allowDelete ?? false;
+            blockOperationsPanel.AllowUpgrade = profile?.allowUpgrade ?? false;
             blockOperationsPanel.AllowSwap = profile?.allowSwap ?? false;
             return blockOperationsPanel;
         }
@@ -681,6 +701,7 @@ namespace POPHero
                 ShopItemKind.Sticker => "嵌片",
                 ShopItemKind.Mod => "模组",
                 ShopItemKind.Growth => "成长",
+                ShopItemKind.Block => "方块",
                 _ => kind.ToString()
             };
         }
