@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using NUnit.Framework;
 
 namespace POPHero.Tests
@@ -109,6 +110,31 @@ namespace POPHero.Tests
             var selected = selector.Select(encounters, 1, EncounterNodeType.Normal, 1);
 
             Assert.AreEqual("high", selected.encounterId);
+        }
+
+        [Test]
+        public void Select_WithConfiguredAct1Pool_FiltersEarlyAndLateFloors()
+        {
+            Assert.IsTrue(ConfigTableCsvRuntimeLoader.TryLoadFromProjectCsv(out var tables, out _, out var error), error);
+            try
+            {
+                var floorOneSelector = new EncounterSelector((_, _) => 0);
+                var floorOne = floorOneSelector.Select(tables.encounters, 1, EncounterNodeType.Normal, 1);
+                Assert.IsNotNull(floorOne);
+                Assert.IsFalse(floorOne.encounterId.Contains("late"));
+                Assert.IsTrue(floorOne.maxFloor <= 3);
+
+                var floorSixSelector = new EncounterSelector((_, _) => 160);
+                var floorSix = floorSixSelector.Select(tables.encounters, 1, EncounterNodeType.Normal, 6);
+                Assert.IsNotNull(floorSix);
+                Assert.AreEqual("act1_late_01", floorSix.encounterId);
+                Assert.IsTrue(floorSix.enemies.Any(enemy => enemy.enemyId == 3901 && enemy.slot == EnemyEncounterSlot.Support));
+            }
+            finally
+            {
+                if (tables != null)
+                    UnityEngine.Object.DestroyImmediate(tables);
+            }
         }
 
         static EncounterDef MakeEncounter(string id, int act, EncounterNodeType nodeType, int minFloor, int maxFloor, int weight = 100)

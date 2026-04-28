@@ -1,3 +1,4 @@
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -20,7 +21,7 @@ namespace POPHero.Tests
                 Assert.IsNotNull(bird);
                 Assert.AreEqual(EnemyBehaviorType.FlyingRangedOrigin, bird.behaviorType);
                 CollectionAssert.Contains(bird.abilityIds, "none");
-                var birdEncounter = tables.encounters.Find(encounter => encounter.encounterId == "act1_mid_ground_bird");
+                var birdEncounter = tables.encounters.Find(encounter => encounter.encounterId == "act1_early_03");
                 Assert.IsNotNull(birdEncounter);
                 Assert.AreEqual(EncounterNodeType.Normal, birdEncounter.nodeType);
                 Assert.AreEqual(2, birdEncounter.enemies.Count);
@@ -35,6 +36,42 @@ namespace POPHero.Tests
             {
                 if (tables != null)
                     UnityEngine.Object.DestroyImmediate(tables);
+            }
+        }
+
+        [Test]
+        public void RuntimeCsvLoader_ReadsAct1EncounterPoolV1()
+        {
+            Assert.IsTrue(ConfigTableCsvRuntimeLoader.TryLoadFromProjectCsv(out var tables, out _, out var error), error);
+            try
+            {
+                var act1Normal = tables.encounters
+                    .Where(encounter => encounter.act == 1 && encounter.nodeType == EncounterNodeType.Normal)
+                    .ToList();
+                var act1Boss = tables.encounters
+                    .Where(encounter => encounter.act == 1 && encounter.nodeType == EncounterNodeType.Boss)
+                    .ToList();
+
+                Assert.AreEqual(8, act1Normal.Count);
+                Assert.AreEqual(1, act1Boss.Count);
+                AssertEncounter(tables, "act1_early_01", 1, 2, 100, "3001:Primary");
+                AssertEncounter(tables, "act1_early_02", 1, 3, 80, "3001:Primary", "3001:Mid");
+                AssertEncounter(tables, "act1_early_03", 2, 3, 70, "3001:Primary", "3901:Support");
+                AssertEncounter(tables, "act1_mid_01", 3, 5, 90, "3001:Primary", "3002:Mid");
+                AssertEncounter(tables, "act1_mid_02", 3, 6, 90, "3002:Primary", "3901:Support");
+                AssertEncounter(tables, "act1_mid_03", 4, 6, 70, "3003:Primary");
+                AssertEncounter(tables, "act1_late_01", 5, 7, 90, "3003:Primary", "3901:Support");
+                AssertEncounter(tables, "act1_late_02", 6, 7, 70, "3002:Primary", "3001:Mid", "3901:Support");
+
+                var birdEncounters = act1Normal.Where(encounter => encounter.enemies.Any(enemy => enemy.enemyId == 3901)).ToList();
+                Assert.AreEqual(4, birdEncounters.Count);
+                Assert.IsTrue(birdEncounters.All(encounter =>
+                    encounter.enemies.Any(enemy => enemy.enemyId == 3901 && enemy.slot == EnemyEncounterSlot.Support)));
+            }
+            finally
+            {
+                if (tables != null)
+                    Object.DestroyImmediate(tables);
             }
         }
 
@@ -166,6 +203,26 @@ namespace POPHero.Tests
             });
 
             Assert.AreEqual(10, ConfigTableCsvParsers.ParseInt(row.Get("restWeight"), 10));
+        }
+
+        static void AssertEncounter(PopHeroTableConfig tables, string id, int minFloor, int maxFloor, int weight, params string[] enemies)
+        {
+            var encounter = tables.encounters.Find(row => row.encounterId == id);
+            Assert.IsNotNull(encounter, id);
+            Assert.AreEqual(1, encounter.act, id);
+            Assert.AreEqual(EncounterNodeType.Normal, encounter.nodeType, id);
+            Assert.AreEqual(minFloor, encounter.minFloor, id);
+            Assert.AreEqual(maxFloor, encounter.maxFloor, id);
+            Assert.AreEqual(weight, encounter.weight, id);
+            Assert.IsFalse(encounter.allowRepeat, id);
+            Assert.AreEqual(enemies.Length, encounter.enemies.Count, id);
+
+            for (var index = 0; index < enemies.Length; index++)
+            {
+                var expected = enemies[index].Split(':');
+                Assert.AreEqual(int.Parse(expected[0]), encounter.enemies[index].enemyId, id);
+                Assert.AreEqual(expected[1], encounter.enemies[index].slot.ToString(), id);
+            }
         }
     }
 }

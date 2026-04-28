@@ -135,12 +135,12 @@ namespace POPHero.Tests
                 service.ApplyToPrototypeConfig(config);
                 var director = new EncounterDirector(new GameRuntimeContext { Config = config, Tables = service });
 
-                var first = director.SpawnEncounter("act1_mid_ground_bird");
-                var second = director.SpawnEncounter("act1_mid_ground_bird");
+                var first = director.SpawnEncounter("act1_early_03");
+                var second = director.SpawnEncounter("act1_early_03");
 
                 AssertFixedGroundBirdEncounter(first);
                 AssertFixedGroundBirdEncounter(second);
-                Assert.AreEqual("act1_mid_ground_bird", director.CurrentEncounterId);
+                Assert.AreEqual("act1_early_03", director.CurrentEncounterId);
             }
             finally
             {
