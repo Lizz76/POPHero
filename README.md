@@ -14,7 +14,7 @@ POPHero 是一个基于 Unity 2022.3 的弹球 Roguelike 战斗原型。玩家�
 
 ## 快速开始
 
-1. 用 Unity Hub 打开项目根目录：`D:\Unity 2022.3.0f1c1\POPhero\POPHero`
+1. 用 Unity Hub 打开项目根目录，例如：`E:\UnityProject\POPHero-main`
 2. 打开 `Assets/Scenes/Boot.unity`
 3. 运行 Play Mode，流程会进入主菜单，再进入 `Battle`
 4. 如果只调战斗/UI，也可以直接打开 `Assets/Scenes/Battle.unity`
@@ -33,11 +33,21 @@ POPHero 是一个基于 Unity 2022.3 的弹球 Roguelike 战斗原型。玩家�
 - 敌人接敌：近战敌人默认从 3 步外出生，逐步前进，贴脸后攻击。
 - 飞行支援敌人：从第二场战斗开始，会出现一个后排飞行敌人；它不接敌，每回合从原点远程攻击。
 - 双敌目标：玩家输出始终打离主角最近的存活敌人，伤害不溢出到另一只敌人。
-- 中场流程：战斗清场后进入方块奖励、奖励选择、地图、商店、工坊/删卡等节点。
+- 起始方块：开局不再弹方块三选一，固定获得 1 张白色攻击方块。
+- 普通战斗奖励：普通战斗清场后进入弹珠奖励，不再直接给方块。
+- 方块获取：当前主要来自商店方块商品、路线工坊置换升级、Boss 战后方块三选一。
+- Boss 续局：Boss 清场后给最低蓝色品质的方块三选一，选择后生成下一张地图并保留局内成长。
 - 地图治疗：普通战斗后不再自动回满血，回血主要来自休息节点或路线事件选项。
 - Sticker：可拖拽镶嵌到方块 socket 上，提供局部强化。
 - Mod：全局规则/经济/信息展示等长期效果，和 Sticker 分层存在。
-- GM 调试：Battle 中可用 `D` 键打开 GM 面板，里面有事件调试按钮，方便触发战斗、Boss、商店、工坊、回血和路线事件。
+- GM 调试：Battle 中可用 `D` 键打开 GM 面板，里面有事件调试按钮，方便触发战斗、Boss、商店、工坊、回血和路线事件；GM Boss 秒杀同样会进入 Boss 方块奖励。
+
+## 方块获取 v1
+
+- 商店：`shop.csv` 里 `shop_block` 使用 `ShopSlotKind.Block` 固定生成 1 个方块商品。购买后优先加入上阵；上阵满了进仓库；上阵和仓库都满时购买失败且不扣金币。
+- 工坊：`blockOperation.csv` 的 `map_workbench` 开启 `allowUpgrade`，关闭直接删除。玩家点某张已有方块的“升级”按钮后，会消耗原方块并生成随机类型、品质 +1 的新方块，最高保持 `Gold`，并替换回原来的上阵/仓库位置。
+- Boss：Boss 战清场后跳过普通弹珠奖励，进入方块三选一；奖励品质按方块奖励阶段计算但最低为 `Blue`。选择后完成 Boss 节点、清空旧地图节点状态并生成下一张地图。
+- 保留内容：Boss 续局会保留玩家、方块、弹珠、Sticker、Mod、金币等局内成长。
 
 ## 核心目录
 
@@ -73,11 +83,12 @@ CSV 位于 `Assets/ConfigTables`，运行时和 Editor 导入共用解析逻辑�
 - `enemy.csv`：敌人模板，包含近战/飞行行为类型、血量、攻击、奖励、初始距离等。
 - `globalConfig.csv`：全局数值，例如成长、发射次数、敌人距离默认值等。
 - `mapConfig.csv`：地图层数、节点权重、Boss 等配置，包含 `restWeight`。
+- `encounter.csv`：路线遭遇池，区分普通战斗和 Boss 遭遇，并配置敌人编队槽位。
 - `blockType.csv` / `blockRarity.csv` / `blockRewardStage.csv`：方块类型、稀有度和奖励阶段。
 - `sticker.csv` / `stickerToken.csv`：Sticker 定义和 token。
 - `mod.csv`：Mod 定义。
-- `shop.csv`：商店配置。
-- `blockOperation.csv`：删卡/工坊配置。
+- `shop.csv`：商店配置；`shop_block` 是当前固定方块商品槽位，`price` 优先作为方块购买价格，`rarityWeights` 控制商品品质权重。
+- `blockOperation.csv`：删卡/工坊配置；`map_workbench` 当前允许替换和 1 次免费置换升级，`allowUpgrade / upgradeCostGold / maxUpgradeCount` 控制升级规则。
 
 如果修改 CSV 后需要重建 ScriptableObject 配置，可使用根目录的 `RebuildConfigTables.bat`，或在 Unity 内通过对应 Editor 工具导入。
 
@@ -102,6 +113,7 @@ Window -> General -> Test Runner -> EditMode
 - `POPHero.EditModeTests`
 - 覆盖敌人距离/飞行敌人/双敌目标选择/共享减伤池
 - 覆盖地图事件、回血规则、CSV 解析与默认值
+- 覆盖方块获取路径：商店购买、容量满失败、工坊升级、Boss/GM Boss 方块奖励和新地图续局
 
 如果通过 Unity MCP 运行，可调用 `run_tests`：
 
@@ -121,9 +133,12 @@ Window -> General -> Test Runner -> EditMode
 - 近战敌人按距离均匀前进，0 步时已经到主角面前。
 - 飞行敌人原地远程攻击，不移动到主角面前。
 - 普通战斗胜利后玩家不会自动回满血。
+- 普通战斗胜利后只进入弹珠奖励，不出现方块奖励。
 - 地图休息节点和事件营火能恢复 30% 最大生命。
-- 商店中的“方块操作”能打开独立工坊面板，删卡/替换/关闭流程正常。
-- `D` 键 GM 面板中的事件调试按钮可直接触发对应节点或路线事件。
+- 商店能刷出方块商品；购买后上阵有空位则进上阵，上阵满则进仓库，仓库也满时购买失败且不扣钱。
+- 地图工坊能替换上阵/仓库方块，并能对已有方块执行 1 次免费升级。
+- Boss 战胜利后出现方块三选一，选完后进入下一张地图且保留局内成长。
+- `D` 键 GM 面板中的事件调试按钮可直接触发对应节点或路线事件；GM Boss 秒杀后也应出现 Boss 方块三选一。
 
 ## 开发约定
 
