@@ -3,6 +3,6 @@ string,string,string,string,int,int,int
 both,both,both,both,both,both,both
 成长ID,名称,描述,成长类型Key,数值,商店价格,抽取权重
 ,,,,,,
-growth_socket,额外槽位,随机解锁一张载体方块的1个槽位,UnlockSocket,1,11,100
-growth_inventory,库存扩容,嵌片库存容量+1,IncreaseInventoryCapacity,1,11,100
-growth_launch,额外弹珠,每个敌人的可发射次数+1,IncreaseLaunchCapacity,1,11,100
+growth_socket,额外槽位,随机解锁一张载体方块的1个槽位,UnlockSocket,1,60,100
+growth_inventory,库存扩容,嵌片库存容量+1,IncreaseInventoryCapacity,1,45,100
+growth_launch,额外弹珠,每个敌人的可发射次数+1,IncreaseLaunchCapacity,1,70,100

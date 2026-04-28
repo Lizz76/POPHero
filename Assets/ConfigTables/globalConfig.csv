@@ -22,10 +22,10 @@ stickerInventoryCapacity,6,int,嵌片背包容量
 defaultSocketsPerCard,2,int,每张方块默认插槽数
 maxSocketsPerCard,3,int,每张方块最大插槽数
 modUseCap,6,int,Mod最大启用数量
-stickerSkipMoney,6,int,跳过嵌片选择获得金币
-stickerRerollMoney,4,int,重新随机奖励消耗金币
-shopRerollMoney,3,int,刷新商店消耗金币
-blockRemovalCost,18,int,移除方块消耗金币(兼容旧逻辑)
+stickerSkipMoney,10,int,跳过嵌片选择获得金币
+stickerRerollMoney,12,int,重新随机奖励消耗金币
+shopRerollMoney,12,int,刷新商店消耗金币
+blockRemovalCost,45,int,移除方块消耗金币(兼容旧逻辑)
 shopBlockOperationProfileId,shop_default,string,商店方块操作配置ID
 shopStickerSlots,3,int,商店嵌片槽位数
 shopModSlots,1,int,商店Mod槽位数

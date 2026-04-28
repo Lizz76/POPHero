@@ -331,10 +331,10 @@ namespace POPHero
     [Serializable]
     public class ShopSettings
     {
-        public int stickerSkipMoney = 6;
-        public int stickerRerollMoney = 4;
-        public int shopRerollMoney = 3;
-        public int blockRemovalCost = 18;
+        public int stickerSkipMoney = 10;
+        public int stickerRerollMoney = 12;
+        public int shopRerollMoney = 12;
+        public int blockRemovalCost = 45;
         public string blockOperationProfileId = "shop_default";
     }
 
@@ -404,18 +404,18 @@ namespace POPHero
     {
         public List<EnemyTemplate> templates = new()
         {
-            new EnemyTemplate { displayName = "Briar Idol", maxHp = 40, rewardGold = 20, rewardHeal = 8, attackDamage = 8, behaviorType = EnemyBehaviorType.MeleeAdvance, color = new Color(0.95f, 0.38f, 0.38f, 1f) },
-            new EnemyTemplate { displayName = "Iron Courier", maxHp = 70, rewardGold = 30, rewardHeal = 10, attackDamage = 12, behaviorType = EnemyBehaviorType.MeleeAdvance, color = new Color(0.99f, 0.52f, 0.25f, 1f) },
-            new EnemyTemplate { displayName = "Spike Totem", maxHp = 110, rewardGold = 45, rewardHeal = 12, attackDamage = 18, behaviorType = EnemyBehaviorType.MeleeAdvance, color = new Color(0.95f, 0.74f, 0.24f, 1f) },
-            new EnemyTemplate { displayName = "War Priest", maxHp = 160, rewardGold = 60, rewardHeal = 15, attackDamage = 25, behaviorType = EnemyBehaviorType.MeleeAdvance, color = new Color(0.9f, 0.37f, 0.79f, 1f) },
-            new EnemyTemplate { displayName = "Abyss Lord", maxHp = 225, rewardGold = 80, rewardHeal = 18, attackDamage = 35, behaviorType = EnemyBehaviorType.MeleeAdvance, color = new Color(0.52f, 0.48f, 1f, 1f) }
+            new EnemyTemplate { displayName = "Briar Idol", maxHp = 40, rewardGold = 8, rewardHeal = 8, attackDamage = 8, behaviorType = EnemyBehaviorType.MeleeAdvance, color = new Color(0.95f, 0.38f, 0.38f, 1f) },
+            new EnemyTemplate { displayName = "Iron Courier", maxHp = 70, rewardGold = 12, rewardHeal = 10, attackDamage = 12, behaviorType = EnemyBehaviorType.MeleeAdvance, color = new Color(0.99f, 0.52f, 0.25f, 1f) },
+            new EnemyTemplate { displayName = "Spike Totem", maxHp = 110, rewardGold = 18, rewardHeal = 12, attackDamage = 18, behaviorType = EnemyBehaviorType.MeleeAdvance, color = new Color(0.95f, 0.74f, 0.24f, 1f) },
+            new EnemyTemplate { displayName = "War Priest", maxHp = 160, rewardGold = 24, rewardHeal = 15, attackDamage = 25, behaviorType = EnemyBehaviorType.MeleeAdvance, color = new Color(0.9f, 0.37f, 0.79f, 1f) },
+            new EnemyTemplate { displayName = "Abyss Lord", maxHp = 225, rewardGold = 65, rewardHeal = 18, attackDamage = 35, behaviorType = EnemyBehaviorType.MeleeAdvance, color = new Color(0.52f, 0.48f, 1f, 1f) }
         };
 
         public EnemyTemplate flyingSupportTemplate = new()
         {
             displayName = "Sky Wisp",
             maxHp = 48,
-            rewardGold = 18,
+            rewardGold = 7,
             rewardHeal = 5,
             attackDamage = 6,
             initialDistanceStepsOverride = 0,

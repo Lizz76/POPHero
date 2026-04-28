@@ -76,6 +76,75 @@ namespace POPHero.Tests
         }
 
         [Test]
+        public void RuntimeCsvLoader_ReadsEconomyScaleV1()
+        {
+            Assert.IsTrue(ConfigTableCsvRuntimeLoader.TryLoadFromProjectCsv(out var tables, out _, out var error), error);
+            try
+            {
+                AssertEnemyGold(tables, 3001, 8);
+                AssertEnemyGold(tables, 3901, 7);
+                AssertEnemyGold(tables, 3002, 12);
+                AssertEnemyGold(tables, 3003, 18);
+                AssertEnemyGold(tables, 3004, 24);
+                AssertEnemyGold(tables, 3005, 65);
+                Assert.IsTrue(tables.enemies.Where(enemy => enemy.id != 3005).All(enemy => enemy.rewardGold <= 24));
+
+                AssertEncounterGold(tables, "act1_early_01", 8);
+                AssertEncounterGold(tables, "act1_early_02", 16);
+                AssertEncounterGold(tables, "act1_early_03", 15);
+                AssertEncounterGold(tables, "act1_mid_01", 20);
+                AssertEncounterGold(tables, "act1_mid_02", 19);
+                AssertEncounterGold(tables, "act1_mid_03", 18);
+                AssertEncounterGold(tables, "act1_late_01", 25);
+                AssertEncounterGold(tables, "act1_late_02", 27);
+                AssertEncounterGold(tables, "act1_boss_default", 65);
+
+                var normalMax = tables.encounters
+                    .Where(encounter => encounter.act == 1 && encounter.nodeType == EncounterNodeType.Normal)
+                    .Max(encounter => EncounterGold(tables, encounter));
+                Assert.LessOrEqual(normalMax, 27);
+
+                var stickerSlot = AssertShopSlot(tables, "shop_sticker", ShopSlotKind.Sticker, 32);
+                var modSlot = AssertShopSlot(tables, "shop_mod", ShopSlotKind.Mod, 100);
+                var growthSlot = AssertShopSlot(tables, "shop_growth", ShopSlotKind.Growth, 0);
+                var blockSlot = AssertShopSlot(tables, "shop_block", ShopSlotKind.Block, 42);
+                AssertShopSlot(tables, "shop_remove", ShopSlotKind.RemoveBlock, 45);
+                AssertShopSlot(tables, "shop_reroll", ShopSlotKind.Reroll, 12);
+
+                AssertGrowthPrice(tables, "growth_inventory", 45);
+                AssertGrowthPrice(tables, "growth_socket", 60);
+                AssertGrowthPrice(tables, "growth_launch", 70);
+                Assert.AreEqual(12, GlobalInt(tables, "stickerRerollMoney"));
+                Assert.AreEqual(12, GlobalInt(tables, "shopRerollMoney"));
+                Assert.AreEqual(10, GlobalInt(tables, "stickerSkipMoney"));
+                Assert.AreEqual(45, GlobalInt(tables, "blockRemovalCost"));
+
+                Assert.LessOrEqual(stickerSlot.price * 3, 100);
+                Assert.Greater(stickerSlot.price * 4, 100);
+                Assert.AreEqual(100, modSlot.price);
+                Assert.Greater(modSlot.price + stickerSlot.price, 100);
+
+                var shopDefault = tables.blockOperationProfiles.Find(profile => profile.id == "shop_default");
+                Assert.IsNotNull(shopDefault);
+                Assert.AreEqual(45, shopDefault.deleteCostGold);
+
+                var cheapestGrowth = tables.growthRewards.Min(growth => growth.shopPrice);
+                var visibleShopCost = stickerSlot.count * stickerSlot.price + modSlot.price + blockSlot.price + cheapestGrowth;
+                var firstTwoMaxGold = GlobalInt(tables, "playerStartGold")
+                    + MaxNormalEncounterGoldOnFloor(tables, 1)
+                    + MaxNormalEncounterGoldOnFloor(tables, 2);
+                Assert.Less(firstTwoMaxGold, modSlot.price);
+                Assert.Less(firstTwoMaxGold, visibleShopCost);
+                Assert.AreEqual(0, growthSlot.price);
+            }
+            finally
+            {
+                if (tables != null)
+                    Object.DestroyImmediate(tables);
+            }
+        }
+
+        [Test]
         public void SharedCsvParsers_ParseRarityWeightsAndBoolConsistently()
         {
             var weights = ConfigTableCsvParsers.ParseRarityWeights("50|25|15|10");
@@ -122,7 +191,7 @@ namespace POPHero.Tests
                 Assert.IsNotNull(blockSlot);
                 Assert.AreEqual(ShopSlotKind.Block, blockSlot.slotKind);
                 Assert.AreEqual(1, blockSlot.count);
-                Assert.AreEqual(12, blockSlot.price);
+                Assert.AreEqual(42, blockSlot.price);
                 Assert.IsTrue(blockSlot.rarityWeights.HasAnyWeight);
 
                 var workbench = tables.blockOperationProfiles.Find(profile => profile.id == "map_workbench");
@@ -223,6 +292,63 @@ namespace POPHero.Tests
                 Assert.AreEqual(int.Parse(expected[0]), encounter.enemies[index].enemyId, id);
                 Assert.AreEqual(expected[1], encounter.enemies[index].slot.ToString(), id);
             }
+        }
+
+        static void AssertEnemyGold(PopHeroTableConfig tables, int enemyId, int expectedGold)
+        {
+            Assert.AreEqual(expectedGold, EnemyGold(tables, enemyId), enemyId.ToString());
+        }
+
+        static int EnemyGold(PopHeroTableConfig tables, int enemyId)
+        {
+            var enemy = tables.enemies.Find(row => row.id == enemyId);
+            Assert.IsNotNull(enemy, enemyId.ToString());
+            return enemy.rewardGold;
+        }
+
+        static void AssertEncounterGold(PopHeroTableConfig tables, string encounterId, int expectedGold)
+        {
+            var encounter = tables.encounters.Find(row => row.encounterId == encounterId);
+            Assert.IsNotNull(encounter, encounterId);
+            Assert.AreEqual(expectedGold, EncounterGold(tables, encounter), encounterId);
+        }
+
+        static int EncounterGold(PopHeroTableConfig tables, EncounterDef encounter)
+        {
+            return encounter.enemies.Sum(enemy => EnemyGold(tables, enemy.enemyId));
+        }
+
+        static int MaxNormalEncounterGoldOnFloor(PopHeroTableConfig tables, int floor)
+        {
+            return tables.encounters
+                .Where(encounter => encounter.act == 1
+                    && encounter.nodeType == EncounterNodeType.Normal
+                    && encounter.minFloor <= floor
+                    && encounter.maxFloor >= floor)
+                .Max(encounter => EncounterGold(tables, encounter));
+        }
+
+        static ShopSlotDef AssertShopSlot(PopHeroTableConfig tables, string slotId, ShopSlotKind expectedKind, int expectedPrice)
+        {
+            var slot = tables.shopSlots.Find(row => row.slotId == slotId);
+            Assert.IsNotNull(slot, slotId);
+            Assert.AreEqual(expectedKind, slot.slotKind, slotId);
+            Assert.AreEqual(expectedPrice, slot.price, slotId);
+            return slot;
+        }
+
+        static void AssertGrowthPrice(PopHeroTableConfig tables, string growthId, int expectedPrice)
+        {
+            var growth = tables.growthRewards.Find(row => row.id == growthId);
+            Assert.IsNotNull(growth, growthId);
+            Assert.AreEqual(expectedPrice, growth.shopPrice, growthId);
+        }
+
+        static int GlobalInt(PopHeroTableConfig tables, string key)
+        {
+            var entry = tables.globalConfig.Find(row => row.key == key);
+            Assert.IsNotNull(entry, key);
+            return ConfigTableCsvParsers.ParseInt(entry.value);
         }
     }
 }

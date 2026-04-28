@@ -3,5 +3,5 @@ string,string,string,string,string,string,string,string,bool,int,int,bool,int,in
 both,both,both,both,both,both,both,both,both,both,both,both,both,both,both,both,both
 配置ID,面板标题,副标题,提示文案,上阵列标题,背包列标题,打开按钮文案,关闭按钮文案,是否允许删除,单次删除金币,每次进入最大删除次数(-1无限),是否允许替换,单次替换金币,每次进入最大替换次数(-1无限),是否允许升级,单次升级金币,每次进入最大升级次数(-1无限)
 ,,,,,,,,,,,,,,,,
-shop_default,方块操作,删除方块或调整上阵配置。,"先选一张上阵方块，再选一张背包方块即可替换。删除与替换都会按当前规则消耗次数。",上阵方块,背包方块,方块操作,返回商店,true,18,1,true,0,-1,false,0,-1
+shop_default,方块操作,删除方块或调整上阵配置。,"先选一张上阵方块，再选一张背包方块即可替换。删除与替换都会按当前规则消耗次数。",上阵方块,背包方块,方块操作,返回商店,true,45,1,true,0,-1,false,0,-1
 map_workbench,路线工坊,在地图节点中整理方块。,"本节点可免费调整上阵与仓库，并可置换升级 1 张方块。关闭后返回地图。",上阵方块,背包方块,进入工坊,返回地图,false,0,0,true,0,-1,true,0,1

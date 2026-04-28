@@ -258,7 +258,8 @@ namespace POPHero
                 name = "额外槽位",
                 description = "随机解锁一张载体方块的 1 个槽位。",
                 rewardType = GrowthRewardType.UnlockSocket,
-                value = 1
+                value = 1,
+                shopPrice = 60
             });
             growthPool.Add(new GrowthRewardData
             {
@@ -266,7 +267,8 @@ namespace POPHero
                 name = "库存扩容",
                 description = "嵌片背包容量 +1。",
                 rewardType = GrowthRewardType.IncreaseInventoryCapacity,
-                value = 1
+                value = 1,
+                shopPrice = 45
             });
             growthPool.Add(new GrowthRewardData
             {
@@ -274,7 +276,8 @@ namespace POPHero
                 name = "额外发射",
                 description = "每个敌人的可发射次数 +1。",
                 rewardType = GrowthRewardType.IncreaseLaunchCapacity,
-                value = 1
+                value = 1,
+                shopPrice = 70
             });
         }
 
@@ -331,7 +334,7 @@ namespace POPHero
                     title = mod.name,
                     description = mod.description,
                     modData = mod,
-                    price = 14
+                    price = 100
                 });
             }
 
@@ -343,7 +346,7 @@ namespace POPHero
                 title = growth.name,
                 description = growth.description,
                 growthData = growth,
-                price = 11
+                price = Mathf.Max(0, growth.shopPrice)
             });
 
             var blockOption = game.BoardManager.CreateRewardOption(game.Player.TotalKills, items.Count);
@@ -587,11 +590,11 @@ namespace POPHero
         {
             return data.rarity switch
             {
-                StickerRarity.Common => 6,
-                StickerRarity.Uncommon => 9,
-                StickerRarity.Rare => 12,
-                StickerRarity.Epic => 16,
-                _ => 8
+                StickerRarity.Common => 32,
+                StickerRarity.Uncommon => 32,
+                StickerRarity.Rare => 32,
+                StickerRarity.Epic => 32,
+                _ => 32
             };
         }
 
@@ -599,11 +602,11 @@ namespace POPHero
         {
             return rarity switch
             {
-                BlockRarity.White => 8,
-                BlockRarity.Blue => 12,
-                BlockRarity.Purple => 18,
-                BlockRarity.Gold => 26,
-                _ => 12
+                BlockRarity.White => 42,
+                BlockRarity.Blue => 42,
+                BlockRarity.Purple => 42,
+                BlockRarity.Gold => 42,
+                _ => 42
             };
         }
     }
