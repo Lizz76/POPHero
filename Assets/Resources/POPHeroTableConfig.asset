@@ -90,19 +90,19 @@ MonoBehaviour:
     type: int
     description: "Mod\u6700\u5927\u542F\u7528\u6570\u91CF"
   - key: stickerSkipMoney
-    value: 6
+    value: 10
     type: int
     description: "\u8DF3\u8FC7\u5D4C\u7247\u9009\u62E9\u83B7\u5F97\u91D1\u5E01"
   - key: stickerRerollMoney
-    value: 4
+    value: 12
     type: int
     description: "\u91CD\u65B0\u968F\u673A\u5956\u52B1\u6D88\u8017\u91D1\u5E01"
   - key: shopRerollMoney
-    value: 3
+    value: 12
     type: int
     description: "\u5237\u65B0\u5546\u5E97\u6D88\u8017\u91D1\u5E01"
   - key: blockRemovalCost
-    value: 18
+    value: 45
     type: int
     description: "\u79FB\u9664\u65B9\u5757\u6D88\u8017\u91D1\u5E01(\u517C\u5BB9\u65E7\u903B\u8F91)"
   - key: shopBlockOperationProfileId
@@ -289,7 +289,7 @@ MonoBehaviour:
     displayName: "\u8346\u68D8\u795E\u50CF"
     maxHp: 40
     attackDamage: 8
-    rewardGold: 20
+    rewardGold: 8
     rewardHeal: 8
     behaviorType: 0
     initialDistanceSteps: -1
@@ -302,7 +302,7 @@ MonoBehaviour:
     displayName: "\u94C1\u4FE1\u4F7F"
     maxHp: 70
     attackDamage: 12
-    rewardGold: 30
+    rewardGold: 12
     rewardHeal: 10
     behaviorType: 0
     initialDistanceSteps: -1
@@ -315,7 +315,7 @@ MonoBehaviour:
     displayName: "\u5C16\u523A\u56FE\u817E"
     maxHp: 110
     attackDamage: 18
-    rewardGold: 45
+    rewardGold: 18
     rewardHeal: 12
     behaviorType: 0
     initialDistanceSteps: -1
@@ -328,7 +328,7 @@ MonoBehaviour:
     displayName: "\u6218\u796D\u53F8"
     maxHp: 160
     attackDamage: 25
-    rewardGold: 60
+    rewardGold: 24
     rewardHeal: 15
     behaviorType: 0
     initialDistanceSteps: -1
@@ -341,7 +341,7 @@ MonoBehaviour:
     displayName: "\u6DF1\u6E0A\u9886\u4E3B"
     maxHp: 225
     attackDamage: 35
-    rewardGold: 80
+    rewardGold: 65
     rewardHeal: 18
     behaviorType: 0
     initialDistanceSteps: -1
@@ -354,7 +354,7 @@ MonoBehaviour:
     displayName: "\u5929\u7A7A\u5996\u7075"
     maxHp: 48
     attackDamage: 6
-    rewardGold: 18
+    rewardGold: 7
     rewardHeal: 5
     behaviorType: 1
     initialDistanceSteps: 0
@@ -364,21 +364,21 @@ MonoBehaviour:
     abilityIds:
     - none
   encounters:
-  - encounterId: act1_early_single_ground
+  - encounterId: act1_early_01
     act: 1
     nodeType: 0
     minFloor: 1
-    maxFloor: 3
+    maxFloor: 2
     weight: 100
     allowRepeat: 0
     enemies:
     - enemyId: 3001
       slot: 0
-  - encounterId: act1_early_double_ground
+  - encounterId: act1_early_02
     act: 1
     nodeType: 0
     minFloor: 1
-    maxFloor: 4
+    maxFloor: 3
     weight: 80
     allowRepeat: 0
     enemies:
@@ -386,43 +386,65 @@ MonoBehaviour:
       slot: 0
     - enemyId: 3001
       slot: 1
-  - encounterId: act1_mid_ground_bird
+  - encounterId: act1_early_03
     act: 1
     nodeType: 0
-    minFloor: 3
-    maxFloor: 7
-    weight: 100
+    minFloor: 2
+    maxFloor: 3
+    weight: 70
     allowRepeat: 0
     enemies:
     - enemyId: 3001
       slot: 0
     - enemyId: 3901
       slot: 2
-  - encounterId: act1_mid_double_ground
+  - encounterId: act1_mid_01
     act: 1
     nodeType: 0
-    minFloor: 4
-    maxFloor: 7
-    weight: 80
+    minFloor: 3
+    maxFloor: 5
+    weight: 90
     allowRepeat: 0
     enemies:
     - enemyId: 3001
       slot: 0
     - enemyId: 3002
       slot: 1
-  - encounterId: act1_late_ground_bird_pressure
+  - encounterId: act1_mid_02
     act: 1
     nodeType: 0
-    minFloor: 6
+    minFloor: 3
+    maxFloor: 6
+    weight: 90
+    allowRepeat: 0
+    enemies:
+    - enemyId: 3002
+      slot: 0
+    - enemyId: 3901
+      slot: 2
+  - encounterId: act1_mid_03
+    act: 1
+    nodeType: 0
+    minFloor: 4
+    maxFloor: 6
+    weight: 70
+    allowRepeat: 0
+    enemies:
+    - enemyId: 3003
+      slot: 0
+  - encounterId: act1_late_01
+    act: 1
+    nodeType: 0
+    minFloor: 5
     maxFloor: 7
-    weight: 100
+    weight: 90
     allowRepeat: 0
     enemies:
     - enemyId: 3003
       slot: 0
     - enemyId: 3901
       slot: 2
-  - encounterId: act1_late_double_ground_bird
+  - encounterId: act1_late_02
     act: 1
     nodeType: 0
     minFloor: 6
@@ -915,28 +937,28 @@ MonoBehaviour:
     description: "\u968F\u673A\u89E3\u9501\u4E00\u5F20\u8F7D\u4F53\u65B9\u5757\u76841\u4E2A\u69FD\u4F4D"
     rewardType: 0
     value: 1
-    shopPrice: 11
+    shopPrice: 60
     weight: 100
   - id: growth_inventory
     name: "\u5E93\u5B58\u6269\u5BB9"
     description: "\u5D4C\u7247\u5E93\u5B58\u5BB9\u91CF+1"
     rewardType: 1
     value: 1
-    shopPrice: 11
+    shopPrice: 45
     weight: 100
   - id: growth_launch
     name: "\u989D\u5916\u5F39\u73E0"
     description: "\u6BCF\u4E2A\u654C\u4EBA\u7684\u53EF\u53D1\u5C04\u6B21\u6570+1"
     rewardType: 2
     value: 1
-    shopPrice: 11
+    shopPrice: 70
     weight: 100
   shopSlots:
   - slotId: shop_sticker
     slotKind: 0
     itemPool: All
     count: 3
-    price: 8
+    price: 32
     rarityWeights:
       white: 55
       blue: 30
@@ -947,7 +969,7 @@ MonoBehaviour:
     slotKind: 1
     itemPool: All
     count: 1
-    price: 14
+    price: 100
     rarityWeights:
       white: 0
       blue: 0
@@ -958,18 +980,29 @@ MonoBehaviour:
     slotKind: 2
     itemPool: All
     count: 1
-    price: 11
+    price: 0
     rarityWeights:
       white: 0
       blue: 0
       purple: 0
       gold: 0
     weight: 100
+  - slotId: shop_block
+    slotKind: 5
+    itemPool: All
+    count: 1
+    price: 42
+    rarityWeights:
+      white: 60
+      blue: 30
+      purple: 9
+      gold: 1
+    weight: 100
   - slotId: shop_remove
     slotKind: 3
     itemPool: All
     count: 1
-    price: 18
+    price: 45
     rarityWeights:
       white: 0
       blue: 0
@@ -980,7 +1013,7 @@ MonoBehaviour:
     slotKind: 4
     itemPool: All
     count: 1
-    price: 3
+    price: 12
     rarityWeights:
       white: 0
       blue: 0
@@ -997,26 +1030,32 @@ MonoBehaviour:
     openButtonText: "\u65B9\u5757\u64CD\u4F5C"
     closeButtonText: "\u8FD4\u56DE\u5546\u5E97"
     allowDelete: 1
-    deleteCostGold: 18
+    deleteCostGold: 45
     maxDeleteCount: 1
     allowSwap: 1
     swapCostGold: 0
     maxSwapCount: -1
+    allowUpgrade: 0
+    upgradeCostGold: 0
+    maxUpgradeCount: -1
   - id: map_workbench
     title: "\u8DEF\u7EBF\u5DE5\u574A"
     subtitle: "\u5728\u5730\u56FE\u8282\u70B9\u4E2D\u6574\u7406\u65B9\u5757\u3002"
-    hintText: "\u672C\u8282\u70B9\u53EF\u514D\u8D39\u8C03\u6574\u4E0A\u9635\u4E0E\u4ED3\u5E93\uFF0C\u4E5F\u53EF\u5220\u9664
+    hintText: "\u672C\u8282\u70B9\u53EF\u514D\u8D39\u8C03\u6574\u4E0A\u9635\u4E0E\u4ED3\u5E93\uFF0C\u5E76\u53EF\u7F6E\u6362\u5347\u7EA7
       1 \u5F20\u65B9\u5757\u3002\u5173\u95ED\u540E\u8FD4\u56DE\u5730\u56FE\u3002"
     activeColumnTitle: "\u4E0A\u9635\u65B9\u5757"
     reserveColumnTitle: "\u80CC\u5305\u65B9\u5757"
     openButtonText: "\u8FDB\u5165\u5DE5\u574A"
     closeButtonText: "\u8FD4\u56DE\u5730\u56FE"
-    allowDelete: 1
+    allowDelete: 0
     deleteCostGold: 0
-    maxDeleteCount: 1
+    maxDeleteCount: 0
     allowSwap: 1
     swapCostGold: 0
     maxSwapCount: -1
+    allowUpgrade: 1
+    upgradeCostGold: 0
+    maxUpgradeCount: 1
   mapConfigs:
   - id: default
     floorCount: 7

@@ -59,7 +59,7 @@ namespace POPHero
             trailBoostTimer = 0f;
             lastMoveDirection = Vector2.up;
             flightState = null;
-            body.velocity = Vector2.zero;
+            body.linearVelocity = Vector2.zero;
             body.angularVelocity = 0f;
             body.isKinematic = true;
             body.position = worldPosition;
@@ -76,7 +76,7 @@ namespace POPHero
             flightTimer = 0f;
             lastMoveDirection = direction.sqrMagnitude <= 0.001f ? Vector2.up : direction.normalized;
             flightState = BallFlightState.Create(Position, lastMoveDirection, currentSpeed);
-            body.velocity = Vector2.zero;
+            body.linearVelocity = Vector2.zero;
             body.angularVelocity = 0f;
             body.isKinematic = true;
             ConfigureTrail(game.config.ball.baseTrailTime, game.config.ball.baseTrailWidth, true);
@@ -95,7 +95,7 @@ namespace POPHero
             if (body == null)
                 return;
 
-            body.velocity = Vector2.zero;
+            body.linearVelocity = Vector2.zero;
             body.angularVelocity = 0f;
             body.isKinematic = true;
             ConfigureTrail(0f, 0f, false);
@@ -165,7 +165,7 @@ namespace POPHero
 
             var baseDirection = lastMoveDirection.sqrMagnitude > 0.001f
                 ? lastMoveDirection
-                : (body.velocity.sqrMagnitude > 0.001f ? body.velocity.normalized : Vector2.up);
+                : (body.linearVelocity.sqrMagnitude > 0.001f ? body.linearVelocity.normalized : Vector2.up);
             var contactNormal = collision.contactCount > 0 ? collision.GetContact(0).normal : -baseDirection;
             var impactCenter = body.position;
             if (marker != null && marker.surfaceType != ArenaSurfaceType.Bottom)
@@ -185,7 +185,7 @@ namespace POPHero
 
             currentSpeed = Mathf.Min(game.config.ball.maxSpeed, currentSpeed + game.config.ball.accelerationPerBounce);
             lastMoveDirection = reflectDirection;
-            body.velocity = reflectDirection * currentSpeed;
+            body.linearVelocity = reflectDirection * currentSpeed;
             BoostTrail();
         }
 

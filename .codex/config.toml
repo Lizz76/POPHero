@@ -1,5 +1,14 @@
+[features]
+rmcp_client = true
+
 [mcp_servers.ai-game-developer]
-enabled = true
+enabled = false
 url = "http://localhost:27412"
 tool_timeout_sec = 300
 startup_timeout_sec = 30
+
+[mcp_servers.unityMCP]
+enabled = true
+url = "http://127.0.0.1:8080/mcp"
+tool_timeout_sec = 300
+startup_timeout_sec = 60
